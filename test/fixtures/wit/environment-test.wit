@@ -1,0 +1,15 @@
+package test:environment-test@0.1.0;
+
+world environment-test {
+  // Import CLI environment interface from WASI
+  import wasi:cli/environment@0.2.0;
+
+  // Export test functions
+  export test-get-environment: func() -> list<tuple<string, string>>;
+  export test-get-arguments: func() -> list<string>;
+  export test-has-env-var: func(name: string) -> bool;
+  export test-get-env-var: func(name: string) -> option<string>;
+  export test-env-count: func() -> u32;
+  export test-args-count: func() -> u32;
+  export test-get-program-name: func() -> option<string>;
+}

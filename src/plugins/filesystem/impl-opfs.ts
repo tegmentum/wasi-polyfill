@@ -1,0 +1,1205 @@
+/**
+ * Origin Private File System (OPFS) implementation for wasi:filesystem/types
+ *
+ * Provides persistent filesystem storage in browsers using the OPFS API.
+ * OPFS is a sandboxed, origin-specific filesystem that persists across sessions.
+ *
+ * Note: OPFS is only available in secure contexts (HTTPS) and modern browsers.
+ * The synchronous access handle API is only available in Web Workers.
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system
+ */
+
+import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { PollableRegistry, createReadyPollable, globalPollableRegistry } from '../io/pollable.js'
+import {
+  DescriptorType,
+  DescriptorFlags,
+  OpenFlags,
+  PathFlags,
+  DescriptorStat,
+  DirectoryEntry,
+  FilesystemErrorCode,
+  FilesystemResult,
+  ok,
+  err,
+  NewTimestamp,
+  Advice,
+  MetadataHashValue,
+  Datetime,
+  now,
+} from './types.js'
+
+/**
+ * OPFS configuration
+ */
+export interface OpfsConfig {
+  /**
+   * Root directory name within OPFS (default: 'wasi-root')
+   */
+  rootDirName?: string
+
+  /**
+   * Whether to use synchronous access handles when available (Web Worker only)
+   * Default: false (always use async API for broader compatibility)
+   */
+  useSyncAccessHandle?: boolean
+}
+
+/**
+ * Check if OPFS is available in the current environment
+ */
+export function isOpfsAvailable(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.storage !== 'undefined' &&
+    typeof navigator.storage.getDirectory === 'function'
+  )
+}
+
+/**
+ * OPFS descriptor handle manager
+ */
+class OpfsDescriptorRegistry {
+  private nextHandle = 3 // Start at 3 (0, 1, 2 reserved for stdio)
+  private readonly descriptors: Map<number, OpfsDescriptor> = new Map()
+
+  register(descriptor: OpfsDescriptor): number {
+    const handle = this.nextHandle++
+    descriptor.handle = handle
+    this.descriptors.set(handle, descriptor)
+    return handle
+  }
+
+  get(handle: number): OpfsDescriptor | undefined {
+    return this.descriptors.get(handle)
+  }
+
+  async drop(handle: number): Promise<void> {
+    const descriptor = this.descriptors.get(handle)
+    if (descriptor) {
+      await descriptor.close()
+      this.descriptors.delete(handle)
+    }
+  }
+
+  async clear(): Promise<void> {
+    for (const descriptor of this.descriptors.values()) {
+      await descriptor.close()
+    }
+    this.descriptors.clear()
+  }
+}
+
+/**
+ * Convert FileSystem timestamps to WASI datetime
+ */
+function fileTimeToDatetime(time: number): Datetime {
+  const ms = time
+  const seconds = BigInt(Math.floor(ms / 1000))
+  const nanoseconds = (ms % 1000) * 1_000_000
+  return { seconds, nanoseconds }
+}
+
+/**
+ * OPFS-backed descriptor
+ */
+export class OpfsDescriptor {
+  handle = 0
+  private closed = false
+  private fileHandle: FileSystemFileHandle | null = null
+  private dirHandle: FileSystemDirectoryHandle | null = null
+
+  constructor(
+    private readonly rootHandle: FileSystemDirectoryHandle,
+    nodeHandle: FileSystemFileHandle | FileSystemDirectoryHandle,
+    readonly descriptorPath: string,
+    private readonly flags: DescriptorFlags,
+    private readonly pollableRegistry: PollableRegistry,
+    private readonly isDirectory: boolean
+  ) {
+    if (isDirectory) {
+      this.dirHandle = nodeHandle as FileSystemDirectoryHandle
+    } else {
+      this.fileHandle = nodeHandle as FileSystemFileHandle
+    }
+  }
+
+  isClosed(): boolean {
+    return this.closed
+  }
+
+  async close(): Promise<void> {
+    this.closed = true
+  }
+
+  private checkClosed(): FilesystemResult<void> {
+    if (this.closed) {
+      return err(FilesystemErrorCode.BadDescriptor)
+    }
+    return ok(undefined)
+  }
+
+  /**
+   * Get file type
+   */
+  getType(): FilesystemResult<DescriptorType> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+    return ok(this.isDirectory ? 'directory' : 'regular-file')
+  }
+
+  /**
+   * Get file stats
+   */
+  async stat(): Promise<FilesystemResult<DescriptorStat>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    try {
+      if (this.isDirectory) {
+        const timestamp = now()
+        return ok({
+          type: 'directory',
+          linkCount: 1n,
+          size: 0n,
+          dataAccessTimestamp: timestamp,
+          dataModificationTimestamp: timestamp,
+          statusChangeTimestamp: timestamp,
+        })
+      }
+
+      const file = await this.fileHandle!.getFile()
+      const timestamp = fileTimeToDatetime(file.lastModified)
+
+      return ok({
+        type: 'regular-file',
+        linkCount: 1n,
+        size: BigInt(file.size),
+        dataAccessTimestamp: timestamp,
+        dataModificationTimestamp: timestamp,
+        statusChangeTimestamp: timestamp,
+      })
+    } catch {
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Set file times (limited support in OPFS)
+   */
+  setTimes(
+    _dataAccessTimestamp: NewTimestamp,
+    _dataModificationTimestamp: NewTimestamp
+  ): FilesystemResult<void> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    // OPFS doesn't support setting times directly
+    // This is a no-op but returns success
+    return ok(undefined)
+  }
+
+  /**
+   * Read bytes from file
+   */
+  async read(length: bigint, offset: bigint): Promise<FilesystemResult<[Uint8Array, boolean]>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (this.isDirectory) {
+      return err(FilesystemErrorCode.IsDirectory)
+    }
+
+    if (!this.flags.read) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    try {
+      const file = await this.fileHandle!.getFile()
+      const start = Number(offset)
+      const end = Math.min(start + Number(length), file.size)
+      const slice = file.slice(start, end)
+      const buffer = await slice.arrayBuffer()
+      const data = new Uint8Array(buffer)
+      const eof = end >= file.size
+
+      return ok([data, eof])
+    } catch {
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Write bytes to file
+   */
+  async write(buffer: Uint8Array, offset: bigint): Promise<FilesystemResult<bigint>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (this.isDirectory) {
+      return err(FilesystemErrorCode.IsDirectory)
+    }
+
+    if (!this.flags.write) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    try {
+      const writable = await this.fileHandle!.createWritable({ keepExistingData: true })
+      await writable.seek(Number(offset))
+      // Convert to ArrayBuffer to satisfy FileSystemWriteChunkType
+      const arrayBuffer = buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength
+      ) as ArrayBuffer
+      await writable.write(arrayBuffer)
+      await writable.close()
+
+      return ok(BigInt(buffer.length))
+    } catch {
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Read directory entries
+   */
+  async readDirectory(): Promise<FilesystemResult<DirectoryEntry[]>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    try {
+      const entries: DirectoryEntry[] = []
+
+      for await (const [name, handle] of (this.dirHandle as any).entries()) {
+        entries.push({
+          type: handle.kind === 'file' ? 'regular-file' : 'directory',
+          name,
+        })
+      }
+
+      return ok(entries)
+    } catch {
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Create directory at path relative to this descriptor
+   */
+  async createDirectoryAt(path: string): Promise<FilesystemResult<void>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    if (!this.flags.mutateDirectory) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    try {
+      await this.getOrCreateDir(this.dirHandle!, path, true)
+      return ok(undefined)
+    } catch (e) {
+      if ((e as Error).name === 'NotFoundError') {
+        return err(FilesystemErrorCode.NoEntry)
+      }
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Get stat at path relative to this descriptor
+   */
+  async statAt(_pathFlags: PathFlags, path: string): Promise<FilesystemResult<DescriptorStat>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    try {
+      const handle = await this.resolveHandle(this.dirHandle!, path)
+      const timestamp = now()
+
+      if (handle.kind === 'directory') {
+        return ok({
+          type: 'directory',
+          linkCount: 1n,
+          size: 0n,
+          dataAccessTimestamp: timestamp,
+          dataModificationTimestamp: timestamp,
+          statusChangeTimestamp: timestamp,
+        })
+      }
+
+      const file = await (handle as FileSystemFileHandle).getFile()
+      const fileTime = fileTimeToDatetime(file.lastModified)
+
+      return ok({
+        type: 'regular-file',
+        linkCount: 1n,
+        size: BigInt(file.size),
+        dataAccessTimestamp: fileTime,
+        dataModificationTimestamp: fileTime,
+        statusChangeTimestamp: fileTime,
+      })
+    } catch (e) {
+      if ((e as Error).name === 'NotFoundError') {
+        return err(FilesystemErrorCode.NoEntry)
+      }
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Open file at path relative to this descriptor
+   */
+  async openAt(
+    _pathFlags: PathFlags,
+    path: string,
+    openFlags: OpenFlags,
+    descriptorFlags: DescriptorFlags
+  ): Promise<FilesystemResult<OpfsDescriptor>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    try {
+      if (openFlags.directory) {
+        const dirHandle = await this.getOrCreateDir(this.dirHandle!, path, !!openFlags.create)
+        return ok(
+          new OpfsDescriptor(
+            this.rootHandle,
+            dirHandle,
+            path,
+            descriptorFlags,
+            this.pollableRegistry,
+            true
+          )
+        )
+      }
+
+      // Opening as file
+      const { dir, name } = this.parsePath(path)
+      const parentDir = dir ? await this.getOrCreateDir(this.dirHandle!, dir, false) : this.dirHandle!
+
+      let fileHandle: FileSystemFileHandle
+      try {
+        fileHandle = await parentDir.getFileHandle(name, { create: !!openFlags.create })
+      } catch (e) {
+        if ((e as Error).name === 'NotFoundError') {
+          return err(FilesystemErrorCode.NoEntry)
+        }
+        if ((e as Error).name === 'TypeMismatchError') {
+          return err(FilesystemErrorCode.IsDirectory)
+        }
+        throw e
+      }
+
+      if (openFlags.exclusive) {
+        // Check if file already existed (exclusive should fail)
+        // Unfortunately OPFS doesn't distinguish, so we check size as proxy
+        const file = await fileHandle.getFile()
+        if (file.size > 0) {
+          return err(FilesystemErrorCode.Exist)
+        }
+      }
+
+      if (openFlags.truncate) {
+        const writable = await fileHandle.createWritable()
+        await writable.truncate(0)
+        await writable.close()
+      }
+
+      return ok(
+        new OpfsDescriptor(
+          this.rootHandle,
+          fileHandle,
+          path,
+          descriptorFlags,
+          this.pollableRegistry,
+          false
+        )
+      )
+    } catch (e) {
+      if ((e as Error).name === 'NotFoundError') {
+        return err(FilesystemErrorCode.NoEntry)
+      }
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Remove directory at path
+   */
+  async removeDirectoryAt(path: string): Promise<FilesystemResult<void>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    if (!this.flags.mutateDirectory) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    try {
+      const { dir, name } = this.parsePath(path)
+      const parentDir = dir ? await this.getOrCreateDir(this.dirHandle!, dir, false) : this.dirHandle!
+
+      // Check if it's actually a directory
+      try {
+        await parentDir.getDirectoryHandle(name)
+      } catch {
+        return err(FilesystemErrorCode.NotDirectory)
+      }
+
+      await parentDir.removeEntry(name)
+      return ok(undefined)
+    } catch (e) {
+      if ((e as Error).name === 'NotFoundError') {
+        return err(FilesystemErrorCode.NoEntry)
+      }
+      if ((e as Error).name === 'InvalidModificationError') {
+        return err(FilesystemErrorCode.NotEmpty)
+      }
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Unlink file at path
+   */
+  async unlinkFileAt(path: string): Promise<FilesystemResult<void>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    if (!this.flags.mutateDirectory) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    try {
+      const { dir, name } = this.parsePath(path)
+      const parentDir = dir ? await this.getOrCreateDir(this.dirHandle!, dir, false) : this.dirHandle!
+
+      // Check if it's actually a file
+      try {
+        await parentDir.getFileHandle(name)
+      } catch {
+        return err(FilesystemErrorCode.IsDirectory)
+      }
+
+      await parentDir.removeEntry(name)
+      return ok(undefined)
+    } catch (e) {
+      if ((e as Error).name === 'NotFoundError') {
+        return err(FilesystemErrorCode.NoEntry)
+      }
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Rename path relative to descriptors
+   */
+  async renameAt(
+    oldPath: string,
+    newDescriptor: OpfsDescriptor,
+    newPath: string
+  ): Promise<FilesystemResult<void>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    if (!this.flags.mutateDirectory) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    // OPFS doesn't have a native rename - we need to copy and delete
+    try {
+      const oldHandle = await this.resolveHandle(this.dirHandle!, oldPath)
+      const { dir: newDir, name: newName } = this.parsePath(newPath)
+      const newParent = newDir
+        ? await this.getOrCreateDir(newDescriptor.dirHandle!, newDir, false)
+        : newDescriptor.dirHandle!
+
+      if (oldHandle.kind === 'file') {
+        // Copy file contents
+        const oldFile = await (oldHandle as FileSystemFileHandle).getFile()
+        const newFileHandle = await newParent.getFileHandle(newName, { create: true })
+        const writable = await newFileHandle.createWritable()
+        await writable.write(await oldFile.arrayBuffer())
+        await writable.close()
+
+        // Delete old file
+        const { dir: oldDir, name: oldName } = this.parsePath(oldPath)
+        const oldParent = oldDir
+          ? await this.getOrCreateDir(this.dirHandle!, oldDir, false)
+          : this.dirHandle!
+        await oldParent.removeEntry(oldName)
+      } else {
+        // For directories, we'd need to recursively copy - not fully implemented
+        return err(FilesystemErrorCode.Unsupported)
+      }
+
+      return ok(undefined)
+    } catch (e) {
+      if ((e as Error).name === 'NotFoundError') {
+        return err(FilesystemErrorCode.NoEntry)
+      }
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Sync file data to storage
+   */
+  async sync(): Promise<FilesystemResult<void>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+    // OPFS operations are already persisted when writables are closed
+    return ok(undefined)
+  }
+
+  /**
+   * Sync file data to storage
+   */
+  async syncData(): Promise<FilesystemResult<void>> {
+    return this.sync()
+  }
+
+  /**
+   * Get metadata hash
+   */
+  async metadataHash(): Promise<FilesystemResult<MetadataHashValue>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    try {
+      if (this.isDirectory) {
+        const timestamp = now()
+        return ok({
+          lower: timestamp.seconds,
+          upper: 0n,
+        })
+      }
+
+      const file = await this.fileHandle!.getFile()
+      const modified = BigInt(file.lastModified)
+      const size = BigInt(file.size)
+
+      return ok({
+        lower: modified ^ size,
+        upper: modified,
+      })
+    } catch {
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Get metadata hash at path
+   */
+  async metadataHashAt(_pathFlags: PathFlags, path: string): Promise<FilesystemResult<MetadataHashValue>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (!this.isDirectory) {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+
+    try {
+      const handle = await this.resolveHandle(this.dirHandle!, path)
+
+      if (handle.kind === 'directory') {
+        const timestamp = now()
+        return ok({
+          lower: timestamp.seconds,
+          upper: 0n,
+        })
+      }
+
+      const file = await (handle as FileSystemFileHandle).getFile()
+      const modified = BigInt(file.lastModified)
+      const size = BigInt(file.size)
+
+      return ok({
+        lower: modified ^ size,
+        upper: modified,
+      })
+    } catch (e) {
+      if ((e as Error).name === 'NotFoundError') {
+        return err(FilesystemErrorCode.NoEntry)
+      }
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Subscribe for readiness
+   */
+  subscribe(): number {
+    return createReadyPollable(this.pollableRegistry)
+  }
+
+  /**
+   * Get flags
+   */
+  getFlags(): FilesystemResult<DescriptorFlags> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+    return ok({ ...this.flags })
+  }
+
+  /**
+   * Check if readable
+   */
+  isReadable(): boolean {
+    return !this.closed && !!this.flags.read
+  }
+
+  /**
+   * Check if writable
+   */
+  isWritable(): boolean {
+    return !this.closed && !!this.flags.write
+  }
+
+  /**
+   * Get underlying handle kind
+   */
+  getIsDirectory(): boolean {
+    return this.isDirectory
+  }
+
+  /**
+   * Get directory handle (for internal use)
+   */
+  getDirectoryHandle(): FileSystemDirectoryHandle | null {
+    return this.dirHandle
+  }
+
+  // Helper methods
+
+  private parsePath(path: string): { dir: string; name: string } {
+    const normalized = path.replace(/^\/+|\/+$/g, '')
+    const lastSlash = normalized.lastIndexOf('/')
+    if (lastSlash === -1) {
+      return { dir: '', name: normalized }
+    }
+    return {
+      dir: normalized.substring(0, lastSlash),
+      name: normalized.substring(lastSlash + 1),
+    }
+  }
+
+  private async getOrCreateDir(
+    base: FileSystemDirectoryHandle,
+    path: string,
+    create: boolean
+  ): Promise<FileSystemDirectoryHandle> {
+    const parts = path.split('/').filter(Boolean)
+    let current = base
+
+    for (const part of parts) {
+      current = await current.getDirectoryHandle(part, { create })
+    }
+
+    return current
+  }
+
+  private async resolveHandle(
+    base: FileSystemDirectoryHandle,
+    path: string
+  ): Promise<FileSystemFileHandle | FileSystemDirectoryHandle> {
+    const { dir, name } = this.parsePath(path)
+    const parent = dir ? await this.getOrCreateDir(base, dir, false) : base
+
+    // Try file first, then directory
+    try {
+      return await parent.getFileHandle(name)
+    } catch {
+      return await parent.getDirectoryHandle(name)
+    }
+  }
+}
+
+/**
+ * Directory entry stream for OPFS iteration
+ */
+class OpfsDirectoryEntryStream {
+  handle = 0
+  private position = 0
+
+  constructor(private readonly entries: DirectoryEntry[]) {}
+
+  readEntry(): FilesystemResult<DirectoryEntry | undefined> {
+    if (this.position >= this.entries.length) {
+      return ok(undefined)
+    }
+    const entry = this.entries[this.position++]
+    return ok(entry)
+  }
+}
+
+/**
+ * OPFS directory entry stream registry
+ */
+class OpfsDirectoryEntryStreamRegistry {
+  private nextHandle = 1
+  private readonly streams: Map<number, OpfsDirectoryEntryStream> = new Map()
+
+  register(stream: OpfsDirectoryEntryStream): number {
+    const handle = this.nextHandle++
+    stream.handle = handle
+    this.streams.set(handle, stream)
+    return handle
+  }
+
+  get(handle: number): OpfsDirectoryEntryStream | undefined {
+    return this.streams.get(handle)
+  }
+
+  drop(handle: number): void {
+    this.streams.delete(handle)
+  }
+}
+
+// Global registries for OPFS
+const globalOpfsDescriptorRegistry = new OpfsDescriptorRegistry()
+const globalOpfsDirectoryStreamRegistry = new OpfsDirectoryEntryStreamRegistry()
+
+/**
+ * OPFS Filesystem plugin instance
+ */
+class OpfsFilesystemInstance implements PluginInstance {
+  private rootHandle: FileSystemDirectoryHandle | null = null
+  private readonly descriptorRegistry: OpfsDescriptorRegistry
+  private readonly directoryStreamRegistry: OpfsDirectoryEntryStreamRegistry
+  private readonly pollableRegistry: PollableRegistry
+  private readonly rootDirName: string
+  private initPromise: Promise<void> | null = null
+
+  constructor(config: OpfsConfig = {}) {
+    this.descriptorRegistry = globalOpfsDescriptorRegistry
+    this.directoryStreamRegistry = globalOpfsDirectoryStreamRegistry
+    this.pollableRegistry = globalPollableRegistry
+    this.rootDirName = config.rootDirName ?? 'wasi-root'
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.rootHandle) return
+
+    if (!this.initPromise) {
+      this.initPromise = this.initialize()
+    }
+    await this.initPromise
+  }
+
+  private async initialize(): Promise<void> {
+    if (!isOpfsAvailable()) {
+      throw new Error('OPFS is not available in this environment')
+    }
+
+    const opfsRoot = await navigator.storage.getDirectory()
+    this.rootHandle = await opfsRoot.getDirectoryHandle(this.rootDirName, { create: true })
+  }
+
+  getImports(): Record<string, unknown> {
+    return {
+      // Descriptor resource methods
+      '[resource-drop]descriptor': this.dropDescriptor.bind(this),
+      '[method]descriptor.read-via-stream': this.readViaStream.bind(this),
+      '[method]descriptor.write-via-stream': this.writeViaStream.bind(this),
+      '[method]descriptor.append-via-stream': this.appendViaStream.bind(this),
+      '[method]descriptor.advise': this.advise.bind(this),
+      '[method]descriptor.sync-data': this.syncData.bind(this),
+      '[method]descriptor.get-flags': this.getFlags.bind(this),
+      '[method]descriptor.get-type': this.getType.bind(this),
+      '[method]descriptor.set-size': this.setSize.bind(this),
+      '[method]descriptor.set-times': this.setTimes.bind(this),
+      '[method]descriptor.read': this.read.bind(this),
+      '[method]descriptor.write': this.write.bind(this),
+      '[method]descriptor.read-directory': this.readDirectory.bind(this),
+      '[method]descriptor.sync': this.sync.bind(this),
+      '[method]descriptor.create-directory-at': this.createDirectoryAt.bind(this),
+      '[method]descriptor.stat': this.stat.bind(this),
+      '[method]descriptor.stat-at': this.statAt.bind(this),
+      '[method]descriptor.set-times-at': this.setTimesAt.bind(this),
+      '[method]descriptor.link-at': this.linkAt.bind(this),
+      '[method]descriptor.open-at': this.openAt.bind(this),
+      '[method]descriptor.readlink-at': this.readlinkAt.bind(this),
+      '[method]descriptor.remove-directory-at': this.removeDirectoryAt.bind(this),
+      '[method]descriptor.rename-at': this.renameAt.bind(this),
+      '[method]descriptor.symlink-at': this.symlinkAt.bind(this),
+      '[method]descriptor.unlink-file-at': this.unlinkFileAt.bind(this),
+      '[method]descriptor.is-same-object': this.isSameObject.bind(this),
+      '[method]descriptor.metadata-hash': this.metadataHash.bind(this),
+      '[method]descriptor.metadata-hash-at': this.metadataHashAt.bind(this),
+
+      // Directory entry stream methods
+      '[resource-drop]directory-entry-stream': this.dropDirectoryStream.bind(this),
+      '[method]directory-entry-stream.read-directory-entry':
+        this.readDirectoryEntry.bind(this),
+
+      // Static functions
+      'filesystem-error-code': this.filesystemErrorCode.bind(this),
+    }
+  }
+
+  async destroy(): Promise<void> {
+    await this.descriptorRegistry.clear()
+  }
+
+  /**
+   * Create a descriptor for preopens
+   */
+  async createDescriptor(path: string, flags: DescriptorFlags): Promise<OpfsDescriptor> {
+    await this.ensureInitialized()
+
+    let handle: FileSystemDirectoryHandle
+    if (path === '/' || path === '') {
+      handle = this.rootHandle!
+    } else {
+      const parts = path.split('/').filter(Boolean)
+      handle = this.rootHandle!
+      for (const part of parts) {
+        handle = await handle.getDirectoryHandle(part, { create: true })
+      }
+    }
+
+    const descriptor = new OpfsDescriptor(
+      this.rootHandle!,
+      handle,
+      path,
+      flags,
+      this.pollableRegistry,
+      true
+    )
+    this.descriptorRegistry.register(descriptor)
+    return descriptor
+  }
+
+  /**
+   * Get root handle (for preopens)
+   */
+  async getRootHandle(): Promise<FileSystemDirectoryHandle> {
+    await this.ensureInitialized()
+    return this.rootHandle!
+  }
+
+  // Implementation methods
+
+  private dropDescriptor(handle: number): void {
+    // Async drop - fire and forget
+    this.descriptorRegistry.drop(handle).catch(() => {})
+  }
+
+  private readViaStream(_handle: number, _offset: bigint): FilesystemResult<number> {
+    return err(FilesystemErrorCode.Unsupported)
+  }
+
+  private writeViaStream(_handle: number, _offset: bigint): FilesystemResult<number> {
+    return err(FilesystemErrorCode.Unsupported)
+  }
+
+  private appendViaStream(_handle: number): FilesystemResult<number> {
+    return err(FilesystemErrorCode.Unsupported)
+  }
+
+  private advise(
+    handle: number,
+    _offset: bigint,
+    _length: bigint,
+    _advice: Advice
+  ): FilesystemResult<void> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return ok(undefined)
+  }
+
+  private async syncData(handle: number): Promise<FilesystemResult<void>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.syncData()
+  }
+
+  private getFlags(handle: number): FilesystemResult<DescriptorFlags> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.getFlags()
+  }
+
+  private getType(handle: number): FilesystemResult<DescriptorType> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.getType()
+  }
+
+  private async setSize(handle: number, size: bigint): Promise<FilesystemResult<void>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+
+    if (descriptor.getIsDirectory()) return err(FilesystemErrorCode.IsDirectory)
+    if (!descriptor.isWritable()) return err(FilesystemErrorCode.NotPermitted)
+
+    // Read current content, truncate/expand, write back
+    const readResult = await descriptor.read(BigInt(Number.MAX_SAFE_INTEGER), 0n)
+    if (readResult.tag === 'err') return readResult
+
+    const currentData = readResult.val[0]
+    const newSize = Number(size)
+    const newData = new Uint8Array(newSize)
+    newData.set(currentData.slice(0, Math.min(currentData.length, newSize)))
+
+    // Create new writable and write
+    return descriptor.write(newData, 0n).then((r) => (r.tag === 'err' ? r : ok(undefined)))
+  }
+
+  private setTimes(
+    handle: number,
+    dataAccessTimestamp: NewTimestamp,
+    dataModificationTimestamp: NewTimestamp
+  ): FilesystemResult<void> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.setTimes(dataAccessTimestamp, dataModificationTimestamp)
+  }
+
+  private async read(
+    handle: number,
+    length: bigint,
+    offset: bigint
+  ): Promise<FilesystemResult<[Uint8Array, boolean]>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.read(length, offset)
+  }
+
+  private async write(
+    handle: number,
+    buffer: Uint8Array,
+    offset: bigint
+  ): Promise<FilesystemResult<bigint>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.write(buffer, offset)
+  }
+
+  private async readDirectory(handle: number): Promise<FilesystemResult<number>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+
+    const entriesResult = await descriptor.readDirectory()
+    if (entriesResult.tag === 'err') return entriesResult
+
+    const stream = new OpfsDirectoryEntryStream(entriesResult.val)
+    const streamHandle = this.directoryStreamRegistry.register(stream)
+
+    return ok(streamHandle)
+  }
+
+  private async sync(handle: number): Promise<FilesystemResult<void>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.sync()
+  }
+
+  private async createDirectoryAt(handle: number, path: string): Promise<FilesystemResult<void>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.createDirectoryAt(path)
+  }
+
+  private async stat(handle: number): Promise<FilesystemResult<DescriptorStat>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.stat()
+  }
+
+  private async statAt(
+    handle: number,
+    pathFlags: PathFlags,
+    path: string
+  ): Promise<FilesystemResult<DescriptorStat>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.statAt(pathFlags, path)
+  }
+
+  private setTimesAt(
+    _handle: number,
+    _pathFlags: PathFlags,
+    _path: string,
+    _dataAccessTimestamp: NewTimestamp,
+    _dataModificationTimestamp: NewTimestamp
+  ): FilesystemResult<void> {
+    // OPFS doesn't support setting times
+    return ok(undefined)
+  }
+
+  private linkAt(
+    _handle: number,
+    _oldPathFlags: PathFlags,
+    _oldPath: string,
+    _newDescriptor: number,
+    _newPath: string
+  ): FilesystemResult<void> {
+    return err(FilesystemErrorCode.Unsupported)
+  }
+
+  private async openAt(
+    handle: number,
+    pathFlags: PathFlags,
+    path: string,
+    openFlags: OpenFlags,
+    descriptorFlags: DescriptorFlags
+  ): Promise<FilesystemResult<number>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+
+    const result = await descriptor.openAt(pathFlags, path, openFlags, descriptorFlags)
+    if (result.tag === 'err') return result
+
+    const newHandle = this.descriptorRegistry.register(result.val)
+    return ok(newHandle)
+  }
+
+  private readlinkAt(_handle: number, _path: string): FilesystemResult<string> {
+    return err(FilesystemErrorCode.Unsupported)
+  }
+
+  private async removeDirectoryAt(handle: number, path: string): Promise<FilesystemResult<void>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.removeDirectoryAt(path)
+  }
+
+  private async renameAt(
+    handle: number,
+    oldPath: string,
+    newHandle: number,
+    newPath: string
+  ): Promise<FilesystemResult<void>> {
+    const oldDescriptor = this.descriptorRegistry.get(handle)
+    if (!oldDescriptor) return err(FilesystemErrorCode.BadDescriptor)
+
+    const newDescriptor = this.descriptorRegistry.get(newHandle)
+    if (!newDescriptor) return err(FilesystemErrorCode.BadDescriptor)
+
+    return oldDescriptor.renameAt(oldPath, newDescriptor, newPath)
+  }
+
+  private symlinkAt(
+    _handle: number,
+    _oldPath: string,
+    _newPath: string
+  ): FilesystemResult<void> {
+    return err(FilesystemErrorCode.Unsupported)
+  }
+
+  private async unlinkFileAt(handle: number, path: string): Promise<FilesystemResult<void>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.unlinkFileAt(path)
+  }
+
+  private isSameObject(handle: number, otherHandle: number): boolean {
+    const descriptor = this.descriptorRegistry.get(handle)
+    const other = this.descriptorRegistry.get(otherHandle)
+    if (!descriptor || !other) return false
+    // For OPFS, we compare by path (simplified comparison)
+    return descriptor === other
+  }
+
+  private async metadataHash(handle: number): Promise<FilesystemResult<MetadataHashValue>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.metadataHash()
+  }
+
+  private async metadataHashAt(
+    handle: number,
+    pathFlags: PathFlags,
+    path: string
+  ): Promise<FilesystemResult<MetadataHashValue>> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.metadataHashAt(pathFlags, path)
+  }
+
+  private dropDirectoryStream(handle: number): void {
+    this.directoryStreamRegistry.drop(handle)
+  }
+
+  private readDirectoryEntry(handle: number): FilesystemResult<DirectoryEntry | undefined> {
+    const stream = this.directoryStreamRegistry.get(handle)
+    if (!stream) return err(FilesystemErrorCode.BadDescriptor)
+    return stream.readEntry()
+  }
+
+  private filesystemErrorCode(error: Error): FilesystemErrorCode | undefined {
+    if (error instanceof Error && 'code' in error) {
+      return (error as { code: FilesystemErrorCode }).code
+    }
+    return undefined
+  }
+}
+
+// Global instance for singleton access
+let globalOpfsFilesystemInstance: OpfsFilesystemInstance | null = null
+
+/**
+ * OPFS filesystem implementation
+ *
+ * Provides persistent storage using the Origin Private File System API.
+ * Data persists across browser sessions within the same origin.
+ *
+ * Configuration options:
+ * - rootDirName: Root directory name within OPFS (default: 'wasi-root')
+ */
+export const opfsFilesystemImplementation: Implementation = {
+  name: 'opfs',
+  description: 'Origin Private File System (persistent browser storage)',
+  create(config: PluginConfig): PluginInstance {
+    const opfsConfig: OpfsConfig = {}
+
+    const rootDirName = config.options?.['rootDirName'] as string | undefined
+    if (rootDirName !== undefined) {
+      opfsConfig.rootDirName = rootDirName
+    }
+
+    // Use singleton pattern so preopens can access the same filesystem
+    if (!globalOpfsFilesystemInstance) {
+      globalOpfsFilesystemInstance = new OpfsFilesystemInstance(opfsConfig)
+    }
+    return globalOpfsFilesystemInstance
+  },
+}
+
+/**
+ * Get the global OPFS filesystem instance (for preopens)
+ */
+export function getGlobalOpfsFilesystemInstance(): OpfsFilesystemInstance | null {
+  return globalOpfsFilesystemInstance
+}

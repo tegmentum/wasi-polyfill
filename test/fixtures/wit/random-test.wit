@@ -1,0 +1,12 @@
+package test:random-test@0.1.0;
+
+world random-test {
+  // Import the random interface from WASI
+  import wasi:random/random@0.2.0;
+
+  // Export test functions
+  export test-get-random-bytes: func(len: u32) -> list<u8>;
+  export test-get-random-u64: func() -> u64;
+  export test-random-entropy: func() -> bool;
+  export test-random-different: func() -> bool;
+}

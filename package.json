@@ -1,0 +1,103 @@
+{
+  "name": "@tegmentum/wasip2-polyfill",
+  "version": "0.1.0",
+  "description": "WASI Preview 2 polyfill for browser and JavaScript environments",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./plugins/random": {
+      "types": "./dist/plugins/random/index.d.ts",
+      "import": "./dist/plugins/random/index.js"
+    },
+    "./plugins/clocks": {
+      "types": "./dist/plugins/clocks/index.d.ts",
+      "import": "./dist/plugins/clocks/index.js"
+    },
+    "./plugins/io": {
+      "types": "./dist/plugins/io/index.d.ts",
+      "import": "./dist/plugins/io/index.js"
+    },
+    "./plugins/cli": {
+      "types": "./dist/plugins/cli/index.d.ts",
+      "import": "./dist/plugins/cli/index.js"
+    },
+    "./plugins/filesystem": {
+      "types": "./dist/plugins/filesystem/index.d.ts",
+      "import": "./dist/plugins/filesystem/index.js"
+    },
+    "./plugins/sockets": {
+      "types": "./dist/plugins/sockets/index.d.ts",
+      "import": "./dist/plugins/sockets/index.js"
+    },
+    "./plugins/http": {
+      "types": "./dist/plugins/http/index.d.ts",
+      "import": "./dist/plugins/http/index.js"
+    },
+    "./plugins/threads": {
+      "types": "./dist/plugins/threads/index.d.ts",
+      "import": "./dist/plugins/threads/index.js"
+    },
+    "./plugins/ws-gateway": {
+      "types": "./dist/plugins/ws-gateway/index.d.ts",
+      "import": "./dist/plugins/ws-gateway/index.js"
+    },
+    "./build": {
+      "types": "./dist/build/index.d.ts",
+      "import": "./dist/build/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "preview:test": "vite preview --config test/e2e/vite.config.ts",
+    "dev:test": "vite --config test/e2e/vite.config.ts",
+    "build:test": "vite build --config test/e2e/vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "format": "prettier --write .",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "wasi",
+    "wasm",
+    "webassembly",
+    "component-model",
+    "polyfill",
+    "browser"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@bytecodealliance/jco": "^1.8.0",
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^22.10.2",
+    "esbuild": "^0.27.1",
+    "eslint": "^9.16.0",
+    "prettier": "^3.4.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

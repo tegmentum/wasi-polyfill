@@ -1,0 +1,21 @@
+package test:clocks-test@0.1.0;
+
+world clocks-test {
+  // Import clock interfaces from WASI
+  import wasi:clocks/monotonic-clock@0.2.0;
+  import wasi:clocks/wall-clock@0.2.0;
+
+  // Export test functions
+  export test-monotonic-now: func() -> u64;
+  export test-monotonic-resolution: func() -> u64;
+  export test-monotonic-increasing: func() -> bool;
+
+  // Wall clock returns a record type
+  record datetime {
+    seconds: u64,
+    nanoseconds: u32,
+  }
+  export test-wall-now: func() -> datetime;
+  export test-wall-resolution: func() -> datetime;
+  export test-wall-reasonable: func() -> bool;
+}
