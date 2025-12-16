@@ -92,6 +92,23 @@ const instance = await WebAssembly.instantiate(wasmBytes, imports)
 | `wasi:http/outgoing-handler` | `outgoingHandlerPlugin` | HTTP client (fetch) |
 | `wasi:http/incoming-handler` | `incomingHandlerPlugin` | HTTP server (Service Worker) |
 
+### Storage Interfaces
+
+| Interface | Plugin | Description |
+|-----------|--------|-------------|
+| `wasi:keyvalue/store` | `keyvalueStorePlugin` | Key-value storage |
+| `wasi:keyvalue/atomics` | `keyvalueAtomicsPlugin` | Atomic key-value operations |
+| `wasi:keyvalue/batch` | `keyvalueBatchPlugin` | Batch key-value operations |
+| `wasi:blobstore/blobstore` | `blobstorePlugin` | Object/blob storage |
+| `wasi:blobstore/container` | `containerPlugin` | Blob container management |
+
+### Configuration & Logging
+
+| Interface | Plugin | Description |
+|-----------|--------|-------------|
+| `wasi:config/store` | `configStorePlugin` | Configuration values |
+| `wasi:logging/logging` | `loggingPlugin` | Structured logging |
+
 ### Advanced Interfaces
 
 | Interface | Plugin | Description |
@@ -203,6 +220,57 @@ polyfill.registerPlugin(wsGateway)
 ```
 
 This tunnels socket operations through a WebSocket proxy server, enabling real TCP/UDP networking from browsers.
+
+## Deterministic Testing
+
+For reproducible tests, use the deterministic test harness:
+
+```typescript
+import { createTestHarness, withTestHarness } from '@tegmentum/wasip2-polyfill/testing'
+
+// Create a harness with a fixed seed and time
+const harness = createTestHarness({
+  seed: 42n,
+  initialTime: new Date('2024-01-01T00:00:00Z'),
+})
+
+// Get imports with deterministic random and virtual clocks
+const { imports } = await harness.getImports([
+  { package: 'wasi:random', name: 'random', version: '0.2.0' },
+  { package: 'wasi:clocks', name: 'monotonic-clock', version: '0.2.0' },
+])
+
+// Control time
+harness.advanceTimeSeconds(60)  // Advance 60 seconds
+harness.setWallTime(new Date('2024-06-15T12:00:00Z'))
+
+// Get snapshot for assertions
+const snapshot = harness.getSnapshot()
+console.log(snapshot.monotonicTime)  // 60_000_000_000n (60 seconds in nanoseconds)
+console.log(snapshot.logs)  // Captured log entries
+
+// Clean up
+harness.destroy()
+
+// Or use the auto-cleanup helper
+const result = await withTestHarness({ seed: 123n }, async (h) => {
+  const { imports } = await h.getImports([...])
+  // ... run your test
+  return h.getSnapshot()
+})
+```
+
+### Bundle Presets
+
+```typescript
+import { deterministicBundle, browserTestBundle, minimalBundle } from '@tegmentum/wasip2-polyfill/testing'
+
+// deterministicBundle: Seeded random, virtual clocks, buffer logging
+// browserTestBundle: Real crypto, real clocks, buffer logging
+// minimalBundle: Just random and clocks with defaults
+
+const harness = createTestHarness({ bundle: 'deterministic' })
+```
 
 ## API Reference
 
