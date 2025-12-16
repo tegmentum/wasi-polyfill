@@ -84,3 +84,34 @@ export {
   keyvalueBatchPlugin,
   keyvaluePlugins,
 } from './keyvalue/index.js'
+
+// wasi:blobstore
+export {
+  // Types
+  type ContainerName,
+  type ObjectName,
+  type Timestamp,
+  type ObjectSize,
+  type BlobstoreError,
+  type BlobstoreResult,
+  type ContainerMetadata,
+  type ObjectMetadata,
+  type ObjectId,
+  type Container,
+  type BlobstoreConfig,
+  type MemoryBlobstoreConfig,
+  // Utilities
+  DEFAULT_BLOBSTORE_CONFIG,
+  blobOk,
+  blobErr,
+  // Implementations
+  memoryBlobstoreImplementation,
+  createMemoryBlobstore,
+  // Plugins
+  BLOBSTORE_INTERFACE,
+  BLOBSTORE_CONTAINER_INTERFACE,
+  BLOBSTORE_TYPES_INTERFACE,
+  blobstorePlugin,
+  blobstoreContainerPlugin,
+  blobstorePlugins,
+} from './blobstore/index.js'
