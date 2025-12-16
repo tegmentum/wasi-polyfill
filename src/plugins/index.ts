@@ -28,3 +28,27 @@ export {
   configRuntimePlugin,
   configPlugins,
 } from './config/index.js'
+
+// wasi:logging
+export {
+  // Types
+  type LogLevel,
+  type LogEntry,
+  type LogSink,
+  type LogFilterConfig,
+  type ConsoleLogConfig,
+  type BufferLogConfig,
+  // Utilities
+  LOG_LEVEL_VALUES,
+  levelFromNumber,
+  shouldLog,
+  shouldLogContext,
+  // Implementations
+  consoleLogImplementation,
+  bufferLogImplementation,
+  createBufferLogger,
+  // Plugins
+  LOGGING_INTERFACE,
+  loggingPlugin,
+  loggingPlugins,
+} from './logging/index.js'
