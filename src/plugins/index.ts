@@ -52,3 +52,35 @@ export {
   loggingPlugin,
   loggingPlugins,
 } from './logging/index.js'
+
+// wasi:keyvalue
+export {
+  // Types
+  type KeyValueError,
+  type KeyValueResult,
+  type KeyResponse,
+  type Bucket,
+  type AtomicBucket,
+  type BatchBucket,
+  type CasHandle,
+  type StoreConfig,
+  type MemoryStoreConfig,
+  // Utilities
+  DEFAULT_STORE_CONFIG,
+  noSuchStore,
+  accessDenied,
+  otherError,
+  kvOk,
+  kvErr,
+  // Implementations
+  memoryStoreImplementation,
+  createMemoryStore,
+  // Plugins
+  KEYVALUE_STORE_INTERFACE,
+  KEYVALUE_ATOMICS_INTERFACE,
+  KEYVALUE_BATCH_INTERFACE,
+  keyvalueStorePlugin,
+  keyvalueAtomicsPlugin,
+  keyvalueBatchPlugin,
+  keyvaluePlugins,
+} from './keyvalue/index.js'
