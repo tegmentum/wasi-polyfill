@@ -4,6 +4,18 @@
  *
  * Uses jco componentize to compile JavaScript test modules
  * into WASM components.
+ *
+ * NOTE: This requires proper WASI WIT dependencies to be available.
+ * The WIT files in wit/deps must include the full WASI interface
+ * definitions. These can be fetched using wkg (wasm package get)
+ * or manually from the WebAssembly WASI repositories:
+ * - https://github.com/WebAssembly/wasi-random
+ * - https://github.com/WebAssembly/wasi-clocks
+ * - https://github.com/WebAssembly/wasi-cli
+ * - https://github.com/WebAssembly/wasi-io
+ *
+ * Example using wkg:
+ *   wkg wit fetch wasi:random@0.2.0 -o test/fixtures/wit/deps/
  */
 
 import { execSync } from 'child_process';
