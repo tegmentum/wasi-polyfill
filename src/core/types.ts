@@ -16,12 +16,16 @@ export interface WasiInterface {
 
 /**
  * Configuration for a specific plugin instance
+ *
+ * Plugins may define additional configuration properties beyond the base ones.
  */
 export interface PluginConfig {
   /** Which implementation to use (e.g., "crypto", "memory", "opfs") */
   implementation?: string
   /** Implementation-specific configuration */
   options?: Record<string, unknown>
+  /** Allow additional implementation-specific properties */
+  [key: string]: unknown
 }
 
 /**

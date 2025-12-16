@@ -44,20 +44,12 @@ class BufferLogInstance implements PluginInstance {
   private readonly maxEntries: number
   private readonly useWallTime: boolean
   private readonly entries: LogEntry[] = []
-  private startTime: bigint
 
   constructor(config: BufferLogConfig) {
     this.minLevel = config.minLevel ?? 'trace'
     this.filterConfig = config
     this.maxEntries = config.maxEntries ?? 1000
     this.useWallTime = config.useWallTime ?? false
-
-    // Record start time for monotonic timestamps
-    if (typeof performance !== 'undefined') {
-      this.startTime = BigInt(Math.floor(performance.now() * 1_000_000))
-    } else {
-      this.startTime = BigInt(Date.now()) * 1_000_000n
-    }
   }
 
   getImports(): Record<string, unknown> {

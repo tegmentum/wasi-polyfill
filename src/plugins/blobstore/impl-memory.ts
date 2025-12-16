@@ -10,7 +10,6 @@ import {
   type ContainerName,
   type ObjectName,
   type Timestamp,
-  type ObjectSize,
   type BlobstoreResult,
   type ContainerMetadata,
   type ObjectMetadata,

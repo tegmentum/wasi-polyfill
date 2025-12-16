@@ -7,7 +7,6 @@
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
 import {
-  type KeyValueError,
   type KeyValueResult,
   type KeyResponse,
   type StoreConfig,
@@ -223,8 +222,12 @@ class MemoryStoreInstance implements PluginInstance {
       maxValueSize: config.maxValueSize ?? DEFAULT_STORE_CONFIG.maxValueSize,
       pageSize: config.pageSize ?? DEFAULT_STORE_CONFIG.pageSize,
     }
-    this.allowedBuckets = config.allowedBuckets ? new Set(config.allowedBuckets) : undefined
-    this.initialData = config.initialData
+    if (config.allowedBuckets) {
+      this.allowedBuckets = new Set(config.allowedBuckets)
+    }
+    if (config.initialData) {
+      this.initialData = config.initialData
+    }
   }
 
   getImports(): Record<string, unknown> {

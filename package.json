@@ -47,6 +47,26 @@
       "types": "./dist/plugins/ws-gateway/index.d.ts",
       "import": "./dist/plugins/ws-gateway/index.js"
     },
+    "./plugins/logging": {
+      "types": "./dist/plugins/logging/index.d.ts",
+      "import": "./dist/plugins/logging/index.js"
+    },
+    "./plugins/keyvalue": {
+      "types": "./dist/plugins/keyvalue/index.d.ts",
+      "import": "./dist/plugins/keyvalue/index.js"
+    },
+    "./plugins/blobstore": {
+      "types": "./dist/plugins/blobstore/index.d.ts",
+      "import": "./dist/plugins/blobstore/index.js"
+    },
+    "./plugins/config": {
+      "types": "./dist/plugins/config/index.d.ts",
+      "import": "./dist/plugins/config/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
     "./build": {
       "types": "./dist/build/index.d.ts",
       "import": "./dist/build/index.js"

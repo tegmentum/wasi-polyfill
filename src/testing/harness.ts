@@ -11,9 +11,9 @@ import { PluginRegistry } from '../core/plugin-registry.js'
 import type { PluginConfig, WasiInterface, PluginInstance, WasiPlugin } from '../core/types.js'
 import { VirtualClock, SeededRandom } from '../runtime/provider.js'
 import { type BundlePreset, deterministicBundle, getBundlePreset } from './bundles.js'
-import { type LogEntry, createBufferLogger, loggingPlugin } from '../plugins/logging/index.js'
-import { createMemoryStore, keyvalueStorePlugin } from '../plugins/keyvalue/index.js'
-import { createMemoryBlobstore, blobstorePlugin } from '../plugins/blobstore/index.js'
+import { type LogEntry, loggingPlugin, createBufferLogger } from '../plugins/logging/index.js'
+import { keyvalueStorePlugin } from '../plugins/keyvalue/index.js'
+import { blobstorePlugin } from '../plugins/blobstore/index.js'
 import { randomPlugin, insecureRandomPlugin, insecureSeedPlugin } from '../plugins/random/index.js'
 import { monotonicClockPlugin, wallClockPlugin } from '../plugins/clocks/index.js'
 import { configStorePlugin } from '../plugins/config/index.js'
@@ -166,8 +166,6 @@ export class TestHarness {
 
   // Direct access to stores for assertions
   private logBuffer?: ReturnType<typeof createBufferLogger>['buffer']
-  private kvStore?: ReturnType<typeof createMemoryStore>['store']
-  private blobStore?: ReturnType<typeof createMemoryBlobstore>['store']
 
   constructor(config: TestHarnessConfig = {}) {
     // Resolve bundle
@@ -298,12 +296,15 @@ export class TestHarness {
    * Get current snapshot
    */
   getSnapshot(): TestSnapshot {
-    return {
+    const snapshot: TestSnapshot = {
       logs: this.logBuffer?.getEntries() ? [...this.logBuffer.getEntries()] : [],
       monotonicTime: this.clock.monotonicNow(),
       wallTime: this.clock.wallNow(),
-      exitCode: this.exitCode,
     }
+    if (this.exitCode !== undefined) {
+      snapshot.exitCode = this.exitCode
+    }
+    return snapshot
   }
 
   /**
