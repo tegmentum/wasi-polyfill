@@ -5,6 +5,10 @@
  * - wasi:random/random - Cryptographic random
  * - wasi:random/insecure - Non-cryptographic random (Math.random)
  * - wasi:random/insecure-seed - Seed for non-cryptographic RNG
+ *
+ * Each interface supports multiple implementations:
+ * - crypto/math/default: Standard implementations
+ * - seeded: Deterministic implementations for testing
  */
 
 import type { WasiPlugin, WasiInterface } from '../../core/types.js'
@@ -14,6 +18,11 @@ import {
   insecureRandomImplementation,
   insecureSeedImplementation,
 } from './impl-insecure.js'
+import {
+  seededRandomImplementation,
+  seededInsecureRandomImplementation,
+  seededInsecureSeedImplementation,
+} from './impl-seeded.js'
 
 /**
  * WASI random interface definition
@@ -45,12 +54,17 @@ export const INSECURE_SEED_INTERFACE: WasiInterface = {
 /**
  * wasi:random/random plugin
  *
- * Provides cryptographic random number generation using the Web Crypto API.
+ * Provides cryptographic random number generation.
+ *
+ * Implementations:
+ * - crypto: Web Crypto API (default, secure)
+ * - seeded: Deterministic xorshift128+ (for testing)
  */
 export const randomPlugin: WasiPlugin = createPlugin(
   RANDOM_INTERFACE,
   {
     crypto: cryptoRandomImplementation,
+    seeded: seededRandomImplementation,
   },
   'crypto'
 )
@@ -58,13 +72,18 @@ export const randomPlugin: WasiPlugin = createPlugin(
 /**
  * wasi:random/insecure plugin
  *
- * Provides non-cryptographic random using Math.random().
+ * Provides non-cryptographic random number generation.
  * WARNING: Not suitable for security-sensitive operations.
+ *
+ * Implementations:
+ * - math: Math.random() (default)
+ * - seeded: Deterministic xorshift128+ (for testing)
  */
 export const insecureRandomPlugin: WasiPlugin = createPlugin(
   INSECURE_INTERFACE,
   {
     math: insecureRandomImplementation,
+    seeded: seededInsecureRandomImplementation,
   },
   'math'
 )
@@ -73,11 +92,16 @@ export const insecureRandomPlugin: WasiPlugin = createPlugin(
  * wasi:random/insecure-seed plugin
  *
  * Provides a seed for non-cryptographic random number generators.
+ *
+ * Implementations:
+ * - default: Random seed from Math.random()
+ * - seeded: Deterministic seed from initial seed (for testing)
  */
 export const insecureSeedPlugin: WasiPlugin = createPlugin(
   INSECURE_SEED_INTERFACE,
   {
     default: insecureSeedImplementation,
+    seeded: seededInsecureSeedImplementation,
   },
   'default'
 )
