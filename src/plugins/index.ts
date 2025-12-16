@@ -5,7 +5,26 @@
  * imported independently for tree-shaking.
  */
 
-// Plugins will be exported here as they are implemented
-// Example:
-// export { randomPlugin } from './random/index.js'
-// export { clocksPlugin } from './clocks/index.js'
+// wasi:config
+export {
+  // Types
+  type ConfigError,
+  type ConfigResult,
+  type ConfigStore,
+  type ConfigSource,
+  type ConfigPluginConfig,
+  // Helpers
+  configErrorUpstream,
+  configErrorIo,
+  configOk,
+  configErr,
+  // Implementations
+  runtimeConfigImplementation,
+  MutableConfigStore,
+  // Plugins
+  CONFIG_STORE_INTERFACE,
+  CONFIG_RUNTIME_INTERFACE,
+  configStorePlugin,
+  configRuntimePlugin,
+  configPlugins,
+} from './config/index.js'
