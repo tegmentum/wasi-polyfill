@@ -1,0 +1,13 @@
+package test:keyvalue-test@0.1.0;
+
+world keyvalue-test {
+  // Import keyvalue interface from WASI
+  import wasi:keyvalue/store@0.2.0;
+
+  // Export test functions
+  export test-basic-operations: func() -> bool;
+  export test-exists: func(key: string) -> bool;
+  export test-delete: func(key: string) -> bool;
+  export test-list-keys: func() -> bool;
+  export test-get-missing: func(key: string) -> bool;
+}

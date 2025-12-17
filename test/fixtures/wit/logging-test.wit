@@ -1,0 +1,15 @@
+package test:logging-test@0.1.0;
+
+world logging-test {
+  // Import logging interface from WASI
+  import wasi:logging/logging@0.1.0;
+
+  // Export test functions
+  export test-log-trace: func(message: string) -> bool;
+  export test-log-debug: func(message: string) -> bool;
+  export test-log-info: func(message: string) -> bool;
+  export test-log-warn: func(message: string) -> bool;
+  export test-log-error: func(message: string) -> bool;
+  export test-log-with-context: func(level: u32, context: string, message: string) -> bool;
+  export test-log-multiple: func() -> bool;
+}

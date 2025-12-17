@@ -1,0 +1,13 @@
+package test:config-test@0.1.0;
+
+world config-test {
+  // Import config interface from WASI
+  import wasi:config/runtime@0.2.0;
+
+  // Export test functions
+  export test-get: func(key: string) -> option<string>;
+  export test-get-all: func() -> list<tuple<string, string>>;
+  export test-has-key: func(key: string) -> bool;
+  export test-count: func() -> u32;
+  export test-get-with-fallback: func(key: string, fallback: string) -> string;
+}
