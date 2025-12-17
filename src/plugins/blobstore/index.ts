@@ -46,3 +46,28 @@ export {
   createMemoryBlobstore,
   type MemoryBlobstoreConfig,
 } from './impl-memory.js'
+
+// OPFS implementation
+export {
+  opfsBlobstoreImplementation,
+  createOpfsBlobstore,
+  isOpfsBlobstoreAvailable,
+  type OpfsBlobstoreConfig,
+} from './impl-opfs.js'
+
+// Replay implementation
+export {
+  replayBlobstoreImplementation,
+  createRecordingBlobstore,
+  createReplayBlobstore,
+  type ReplayBlobstoreConfig,
+  type FallbackBlobstore,
+  type BlobCassetteRequest,
+  type BlobCassetteResponse,
+  type BlobCassetteGetData,
+  type BlobCassettePutData,
+  type BlobCassetteDelete,
+  type BlobCassetteExists,
+  type BlobCassetteListObjects,
+  type BlobCassetteObjectInfo,
+} from './impl-replay.js'

@@ -19,6 +19,7 @@ export default defineConfig({
     'build/index': 'src/build/index.ts',
     'runtime/index': 'src/runtime/index.ts',
     'testing/index': 'src/testing/index.ts',
+    'proxy/index': 'src/proxy/index.ts',
   },
   format: ['esm'],
   dts: true,

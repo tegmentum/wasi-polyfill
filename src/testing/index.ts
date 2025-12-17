@@ -28,3 +28,26 @@ export {
   mergeBundleConfig,
   type BundlePreset,
 } from './bundles.js'
+
+export {
+  CASSETTE_FORMAT_VERSION,
+  type OperationType,
+  type CassetteInteraction,
+  type HttpCassetteRequest,
+  type HttpCassetteResponse,
+  type DnsCassetteRequest,
+  type DnsCassetteResponse,
+  type RandomCassetteRequest,
+  type RandomCassetteResponse,
+  type Cassette,
+  type MatchStrategy,
+  type MatchConfig,
+  type ReplayOptions,
+  type RecordOptions,
+  CassetteRecorder,
+  CassettePlayer,
+  loadCassette,
+  createCassette,
+  mergeCassettes,
+  validateCassette,
+} from './replay.js'

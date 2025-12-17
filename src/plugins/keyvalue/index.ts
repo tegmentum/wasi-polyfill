@@ -47,3 +47,26 @@ export {
   createMemoryStore,
   type MemoryStoreConfig,
 } from './impl-memory.js'
+
+// IndexedDB implementation
+export {
+  idbStoreImplementation,
+  createIdbStore,
+  isIdbStoreAvailable,
+  type IdbStoreConfig,
+} from './impl-idb.js'
+
+// Replay implementation
+export {
+  replayStoreImplementation,
+  createRecordingStore,
+  createReplayStore,
+  type ReplayStoreConfig,
+  type KvCassetteRequest,
+  type KvCassetteResponse,
+  type KvCassetteGet,
+  type KvCassetteSet,
+  type KvCassetteDelete,
+  type KvCassetteExists,
+  type KvCassetteListKeys,
+} from './impl-replay.js'

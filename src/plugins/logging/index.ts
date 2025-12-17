@@ -38,3 +38,23 @@ export {
   createBufferLogger,
   type BufferLogConfig,
 } from './impl-buffer.js'
+
+// NDJSON implementation
+export {
+  ndjsonLogImplementation,
+  createNdjsonCollector,
+  createNdjsonFileWriter,
+  type NdjsonLogConfig,
+  type NdjsonFieldMapping,
+  type NdjsonTimestampFormat,
+  type NdjsonLogEntry,
+} from './impl-ndjson.js'
+
+// OTLP implementation
+export {
+  otlpLogImplementation,
+  createOtlpTestLogger,
+  type OtlpLogConfig,
+  type OtlpResource,
+  type OtlpScope,
+} from './impl-otlp.js'

@@ -74,6 +74,10 @@
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
       "import": "./dist/runtime/index.js"
+    },
+    "./proxy": {
+      "types": "./dist/proxy/index.d.ts",
+      "import": "./dist/proxy/index.js"
     }
   },
   "files": [
@@ -109,13 +113,23 @@
     "@bytecodealliance/jco": "^1.8.0",
     "@playwright/test": "^1.57.0",
     "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
     "esbuild": "^0.27.1",
     "eslint": "^9.16.0",
     "prettier": "^3.4.2",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vite": "^5.4.21",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "ws": "^8.18.0"
+  },
+  "peerDependencies": {
+    "ws": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ws": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=18.0.0"

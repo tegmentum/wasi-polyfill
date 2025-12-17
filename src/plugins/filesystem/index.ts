@@ -72,3 +72,19 @@ export {
   memoryPreopensImplementation,
   emptyPreopensImplementation,
 } from './preopens.js'
+
+// IDB Implementation
+export type { IdbConfig } from './impl-idb.js'
+export {
+  idbFilesystemImplementation,
+  IdbDescriptor,
+  isIdbAvailable,
+  createIdbFilesystem,
+} from './impl-idb.js'
+
+// Overlay Implementation
+export type { OverlayConfig } from './impl-overlay.js'
+export {
+  overlayFilesystemImplementation,
+  createOverlayFilesystem,
+} from './impl-overlay.js'

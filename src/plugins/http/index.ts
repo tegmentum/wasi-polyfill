@@ -91,3 +91,13 @@ export {
   isServiceWorkerContext,
   serviceWorkerIncomingHandlerImplementation,
 } from './service-worker.js'
+
+// Test handler for in-process testing
+export {
+  type TestRequest,
+  type TestResponse,
+  type TestHttpHandlerConfig,
+  TestHttpHandler,
+  createTestHttpHandler,
+  testIncomingHandlerImplementation,
+} from './test-handler.js'
