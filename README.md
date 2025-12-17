@@ -321,9 +321,23 @@ interface ImportResult {
 
 ## Examples
 
-See the [examples/browser](./examples/browser) directory for complete examples:
+### Plugin Usage Examples
 
-- **basic-usage.ts** - Simple polyfill setup
+See the [examples](./examples) directory for comprehensive plugin usage guides:
+
+- **basic-usage.ts** - Dev/safe polyfills, string specs, WASM integration
+- **filesystem-usage.ts** - Memory, OPFS, IndexedDB, overlay filesystems
+- **http-usage.ts** - HTTP client, server, testing, service workers
+- **storage-usage.ts** - KeyValue and blobstore with multiple backends
+- **logging-usage.ts** - Console, buffer, NDJSON, OTLP logging backends
+- **config-usage.ts** - Static, remote, layered, manifest configurations
+- **advanced-usage.ts** - Multi-plugin setup, security policies, lifecycle management
+
+### Browser-Specific Examples
+
+See [examples/browser](./examples/browser) for browser-focused examples:
+
+- **basic-usage.ts** - Simple browser polyfill setup
 - **opfs-filesystem.ts** - Persistent filesystem with OPFS
 - **dns-over-https.ts** - DNS resolution via DoH
 - **service-worker-http.ts** - HTTP server with Service Worker
