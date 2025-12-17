@@ -30,6 +30,9 @@ import {
   virtualTerminalStdinImplementation,
   virtualTerminalStdoutImplementation,
   virtualTerminalStderrImplementation,
+  autoTerminalStdinImplementation,
+  autoTerminalStdoutImplementation,
+  autoTerminalStderrImplementation,
   globalTerminalRegistry,
   ComponentExitError,
   ENVIRONMENT_INTERFACE,
@@ -42,6 +45,19 @@ import {
   TERMINAL_STDIN_INTERFACE,
   TERMINAL_STDOUT_INTERFACE,
   TERMINAL_STDERR_INTERFACE,
+  // Stdio Provider exports
+  createConsoleStdio,
+  createXtermStdio,
+  createCustomStdio,
+  createStdioProvider,
+  QueueInputStream,
+  ConsoleOutputStream,
+  EmptyInputStream,
+  setGlobalStdioProvider,
+  resetGlobalStdioState,
+  isStdinTTY,
+  isStdoutTTY,
+  isStderrTTY,
 } from '../../src/plugins/cli/index.js'
 import { globalStreamRegistry } from '../../src/plugins/io/streams.js'
 
@@ -699,6 +715,318 @@ describe('CLI Plugins', () => {
           // Handle should be unregistered
           expect(globalTerminalRegistry.getOutput(handle)).toBeUndefined()
         })
+      })
+    })
+  })
+
+  describe('Stdio Provider Architecture', () => {
+    beforeEach(() => {
+      resetGlobalStdioState()
+    })
+
+    describe('ConsoleOutputStream', () => {
+      it('should have isTTY as false', () => {
+        const stream = new ConsoleOutputStream('stdout')
+        expect(stream.isTTY).toBe(false)
+      })
+
+      it('should buffer and flush on newline', async () => {
+        const logs: string[] = []
+        const originalLog = console.log
+        console.log = (...args) => logs.push(args.join(' '))
+        try {
+          const stream = new ConsoleOutputStream('stdout')
+          await stream.write(new TextEncoder().encode('Hello\nWorld\n'))
+          expect(logs).toEqual(['Hello', 'World'])
+        } finally {
+          console.log = originalLog
+        }
+      })
+
+      it('should flush remaining buffer on close', async () => {
+        const logs: string[] = []
+        const originalLog = console.log
+        console.log = (...args) => logs.push(args.join(' '))
+        try {
+          const stream = new ConsoleOutputStream('stdout')
+          await stream.write(new TextEncoder().encode('No newline'))
+          expect(logs).toEqual([])
+          await stream.close()
+          expect(logs).toEqual(['No newline'])
+        } finally {
+          console.log = originalLog
+        }
+      })
+    })
+
+    describe('EmptyInputStream', () => {
+      it('should have isTTY as false', () => {
+        const stream = new EmptyInputStream()
+        expect(stream.isTTY).toBe(false)
+      })
+
+      it('should return empty array (EOF) immediately', async () => {
+        const stream = new EmptyInputStream()
+        const data = await stream.read(1024)
+        expect(data).toBeInstanceOf(Uint8Array)
+        expect(data.length).toBe(0)
+      })
+    })
+
+    describe('QueueInputStream', () => {
+      it('should have configurable isTTY', () => {
+        const ttyStream = new QueueInputStream(true)
+        expect(ttyStream.isTTY).toBe(true)
+
+        const nonTtyStream = new QueueInputStream(false)
+        expect(nonTtyStream.isTTY).toBe(false)
+      })
+
+      it('should accept string and Uint8Array data', () => {
+        const stream = new QueueInputStream()
+        stream.push('Hello')
+        stream.push(new Uint8Array([32, 87, 111, 114, 108, 100]))
+        expect(stream.hasData()).toBe(true)
+      })
+
+      it('should return data synchronously via tryRead when available', () => {
+        const stream = new QueueInputStream()
+        stream.push('Hello')
+        const data = stream.tryRead(100)
+        expect(data).not.toBeNull()
+        expect(new TextDecoder().decode(data!)).toBe('Hello')
+      })
+
+      it('should return null from tryRead when no data available', () => {
+        const stream = new QueueInputStream()
+        const data = stream.tryRead(100)
+        expect(data).toBeNull()
+      })
+
+      it('should return EOF from tryRead when closed and empty', () => {
+        const stream = new QueueInputStream()
+        stream.close()
+        const data = stream.tryRead(100)
+        expect(data).not.toBeNull()
+        expect(data!.length).toBe(0)
+      })
+
+      it('should return buffered data before EOF when closed', () => {
+        const stream = new QueueInputStream()
+        stream.push('Data')
+        stream.close()
+
+        const data = stream.tryRead(100)
+        expect(new TextDecoder().decode(data!)).toBe('Data')
+
+        const eof = stream.tryRead(100)
+        expect(eof!.length).toBe(0)
+      })
+
+      it('should wait for data in async read', async () => {
+        const stream = new QueueInputStream()
+
+        const readPromise = stream.read(100)
+
+        // Push data after starting the read
+        setTimeout(() => stream.push('Async data'), 10)
+
+        const data = await readPromise
+        expect(new TextDecoder().decode(data)).toBe('Async data')
+      })
+
+      it('should split chunks when requesting less than available', () => {
+        const stream = new QueueInputStream()
+        stream.push('Hello World')
+
+        const chunk1 = stream.tryRead(5)
+        expect(new TextDecoder().decode(chunk1!)).toBe('Hello')
+
+        const chunk2 = stream.tryRead(100)
+        expect(new TextDecoder().decode(chunk2!)).toBe(' World')
+      })
+    })
+
+    describe('createConsoleStdio', () => {
+      it('should create a stdio provider', () => {
+        const provider = createConsoleStdio()
+        expect(typeof provider).toBe('function')
+
+        const streams = provider()
+        expect(streams.stdin).toBeDefined()
+        expect(streams.stdout).toBeDefined()
+        expect(streams.stderr).toBeDefined()
+        expect(streams.terminal).toBeUndefined()
+      })
+
+      it('should have non-TTY streams', () => {
+        const streams = createConsoleStdio()()
+        expect(streams.stdin.isTTY).toBe(false)
+        expect(streams.stdout.isTTY).toBe(false)
+        expect(streams.stderr.isTTY).toBe(false)
+      })
+    })
+
+    describe('createCustomStdio', () => {
+      it('should use provided streams', () => {
+        const stdin = new QueueInputStream(false)
+        const stdout = new ConsoleOutputStream('stdout')
+        const stderr = new ConsoleOutputStream('stderr')
+
+        const provider = createCustomStdio(stdin, stdout, stderr)
+        const streams = provider()
+
+        expect(streams.stdin).toBe(stdin)
+        expect(streams.stdout).toBe(stdout)
+        expect(streams.stderr).toBe(stderr)
+      })
+
+      it('should allow configuring TTY mode', () => {
+        const stdin = new QueueInputStream()
+        const stdout = new ConsoleOutputStream('stdout')
+        const stderr = new ConsoleOutputStream('stderr')
+
+        const provider = createCustomStdio(stdin, stdout, stderr, { isTTY: true })
+        const streams = provider()
+
+        expect(streams.terminal).toBeDefined()
+        expect(streams.terminal!.isTTY).toBe(true)
+      })
+    })
+
+    describe('createXtermStdio', () => {
+      it('should create streams from xterm-like terminal', () => {
+        const dataCallbacks: ((data: string) => void)[] = []
+        const mockTerm = {
+          write: vi.fn(),
+          onData: vi.fn((callback: (data: string) => void) => {
+            dataCallbacks.push(callback)
+            return { dispose: vi.fn() }
+          }),
+        }
+
+        const provider = createXtermStdio(mockTerm)
+        const streams = provider()
+
+        expect(streams.stdin.isTTY).toBe(true)
+        expect(streams.stdout.isTTY).toBe(true)
+        expect(streams.stderr.isTTY).toBe(true)
+        expect(streams.terminal).toBeDefined()
+        expect(streams.terminal!.isTTY).toBe(true)
+      })
+
+      it('should forward input from terminal', async () => {
+        const dataCallbacks: ((data: string) => void)[] = []
+        const mockTerm = {
+          write: vi.fn(),
+          onData: vi.fn((callback: (data: string) => void) => {
+            dataCallbacks.push(callback)
+            return { dispose: vi.fn() }
+          }),
+        }
+
+        const provider = createXtermStdio(mockTerm)
+        const streams = provider()
+
+        // Simulate terminal input
+        const readPromise = streams.stdin.read(100)
+        dataCallbacks[0]!('typed input')
+
+        const data = await readPromise
+        expect(new TextDecoder().decode(data)).toBe('typed input')
+      })
+    })
+
+    describe('createStdioProvider', () => {
+      it('should default to console provider', () => {
+        const provider = createStdioProvider()
+        const streams = provider()
+        expect(streams.stdin.isTTY).toBe(false)
+        expect(streams.terminal).toBeUndefined()
+      })
+
+      it('should create console provider for console kind', () => {
+        const provider = createStdioProvider({ kind: 'console' })
+        const streams = provider()
+        expect(streams.stdin.isTTY).toBe(false)
+      })
+
+      it('should create terminal provider for terminal kind', () => {
+        const mockTerm = {
+          write: vi.fn(),
+          onData: vi.fn(() => ({ dispose: vi.fn() })),
+        }
+        const provider = createStdioProvider({ kind: 'terminal', term: mockTerm })
+        const streams = provider()
+        expect(streams.stdin.isTTY).toBe(true)
+      })
+
+      it('should create custom provider for custom kind', () => {
+        const stdin = new QueueInputStream()
+        const stdout = new ConsoleOutputStream('stdout')
+        const stderr = new ConsoleOutputStream('stderr')
+
+        const provider = createStdioProvider({
+          kind: 'custom',
+          stdin,
+          stdout,
+          stderr,
+          isTTY: true,
+        })
+        const streams = provider()
+        expect(streams.stdin).toBe(stdin)
+        expect(streams.terminal!.isTTY).toBe(true)
+      })
+    })
+
+    describe('Global Provider Integration', () => {
+      it('should detect TTY from global provider', () => {
+        // Default: console (not TTY)
+        expect(isStdinTTY()).toBe(false)
+        expect(isStdoutTTY()).toBe(false)
+        expect(isStderrTTY()).toBe(false)
+      })
+
+      it('should update TTY detection when provider changes', () => {
+        const mockTerm = {
+          write: vi.fn(),
+          onData: vi.fn(() => ({ dispose: vi.fn() })),
+        }
+
+        setGlobalStdioProvider(createXtermStdio(mockTerm))
+
+        expect(isStdinTTY()).toBe(true)
+        expect(isStdoutTTY()).toBe(true)
+        expect(isStderrTTY()).toBe(true)
+      })
+
+      it('auto terminal implementations should use global TTY state', () => {
+        // Default: console (not TTY)
+        const noTtyInstance = autoTerminalStdinImplementation.create({
+          interface: TERMINAL_STDIN_INTERFACE,
+        })
+        const noTtyImports = noTtyInstance.getImports() as {
+          'get-terminal-stdin': () => number | undefined
+        }
+        expect(noTtyImports['get-terminal-stdin']()).toBeUndefined()
+        noTtyInstance.destroy()
+
+        // Reset and configure with TTY provider
+        resetGlobalStdioState()
+        const mockTerm = {
+          write: vi.fn(),
+          onData: vi.fn(() => ({ dispose: vi.fn() })),
+        }
+        setGlobalStdioProvider(createXtermStdio(mockTerm))
+
+        const ttyInstance = autoTerminalStdinImplementation.create({
+          interface: TERMINAL_STDIN_INTERFACE,
+        })
+        const ttyImports = ttyInstance.getImports() as {
+          'get-terminal-stdin': () => number | undefined
+        }
+        expect(ttyImports['get-terminal-stdin']()).toBeDefined()
+        ttyInstance.destroy()
       })
     })
   })

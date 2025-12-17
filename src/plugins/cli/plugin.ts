@@ -38,6 +38,9 @@ import {
   virtualTerminalStdinImplementation,
   virtualTerminalStdoutImplementation,
   virtualTerminalStderrImplementation,
+  autoTerminalStdinImplementation,
+  autoTerminalStdoutImplementation,
+  autoTerminalStderrImplementation,
 } from './terminal.js'
 
 /**
@@ -227,12 +230,14 @@ export const terminalOutputPlugin: WasiPlugin = createPlugin(
  * wasi:cli/terminal-stdin plugin
  *
  * Provides access to terminal input for stdin.
+ * Use 'auto' implementation to detect TTY from stdio provider.
  */
 export const terminalStdinPlugin: WasiPlugin = createPlugin(
   TERMINAL_STDIN_INTERFACE,
   {
     none: noTerminalStdinImplementation,
     virtual: virtualTerminalStdinImplementation,
+    auto: autoTerminalStdinImplementation,
   },
   'none'
 )
@@ -241,12 +246,14 @@ export const terminalStdinPlugin: WasiPlugin = createPlugin(
  * wasi:cli/terminal-stdout plugin
  *
  * Provides access to terminal output for stdout.
+ * Use 'auto' implementation to detect TTY from stdio provider.
  */
 export const terminalStdoutPlugin: WasiPlugin = createPlugin(
   TERMINAL_STDOUT_INTERFACE,
   {
     none: noTerminalStdoutImplementation,
     virtual: virtualTerminalStdoutImplementation,
+    auto: autoTerminalStdoutImplementation,
   },
   'none'
 )
@@ -255,12 +262,14 @@ export const terminalStdoutPlugin: WasiPlugin = createPlugin(
  * wasi:cli/terminal-stderr plugin
  *
  * Provides access to terminal output for stderr.
+ * Use 'auto' implementation to detect TTY from stdio provider.
  */
 export const terminalStderrPlugin: WasiPlugin = createPlugin(
   TERMINAL_STDERR_INTERFACE,
   {
     none: noTerminalStderrImplementation,
     virtual: virtualTerminalStderrImplementation,
+    auto: autoTerminalStderrImplementation,
   },
   'none'
 )

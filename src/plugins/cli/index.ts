@@ -53,12 +53,41 @@ export {
 } from './environment.js'
 
 // Stdio
-export type { StdioConfig } from './stdio.js'
+export type { StdioConfig, StdioProviderConfig } from './stdio.js'
 export {
   virtualStdinImplementation,
   virtualStdoutImplementation,
   virtualStderrImplementation,
+  setGlobalStdioProvider,
+  resetGlobalStdioState,
+  isStdinTTY,
+  isStdoutTTY,
+  isStderrTTY,
+  WasiInputStreamWrapper,
+  WasiOutputStreamWrapper,
 } from './stdio.js'
+
+// Stdio Provider (pluggable streams)
+export type {
+  InputStreamLike,
+  OutputStreamLike,
+  StdioProvider,
+  StdioStreams,
+  TerminalCapability,
+  XTermLike,
+  XTermInputLike,
+  XTermOutputLike,
+} from './stdio-provider.js'
+export {
+  createConsoleStdio,
+  createXtermStdio,
+  createCustomStdio,
+  createStdioProvider,
+  ConsoleOutputStream,
+  EmptyInputStream,
+  QueueInputStream,
+  XtermOutputStream,
+} from './stdio-provider.js'
 
 // Exit
 export type { ExitStatus, ExitConfig } from './exit.js'
@@ -81,4 +110,7 @@ export {
   virtualTerminalStdinImplementation,
   virtualTerminalStdoutImplementation,
   virtualTerminalStderrImplementation,
+  autoTerminalStdinImplementation,
+  autoTerminalStdoutImplementation,
+  autoTerminalStderrImplementation,
 } from './terminal.js'

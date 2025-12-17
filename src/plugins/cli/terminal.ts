@@ -8,11 +8,18 @@
  * - wasi:cli/terminal-stdout - Get terminal for stdout
  * - wasi:cli/terminal-stderr - Get terminal for stderr
  *
- * In browser contexts, terminals are typically not available unless
- * using xterm.js or a similar terminal emulator.
+ * Terminal features are layered on top of stdio streams.
+ * If no terminal is present:
+ * - terminal-stdin/stdout/stderr return undefined (not a tty)
+ * - Stdio streams still work as normal byte streams
+ *
+ * When a terminal is present (e.g., xterm.js):
+ * - terminal-* interfaces return valid handles
+ * - isTTY is true on the stdio streams
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { isStdinTTY, isStdoutTTY, isStderrTTY } from './stdio.js'
 
 /**
  * Terminal input resource
@@ -412,5 +419,50 @@ export const virtualTerminalStderrImplementation: Implementation = {
   create(config: PluginConfig): PluginInstance {
     const terminalOutput = config.options?.['terminalOutput'] as TerminalOutput | undefined
     return new TerminalStderrInstance(globalTerminalRegistry, true, terminalOutput)
+  },
+}
+
+/**
+ * Auto-detect terminal-stdin implementation
+ *
+ * Automatically detects if stdin is a TTY based on the stdio provider.
+ */
+export const autoTerminalStdinImplementation: Implementation = {
+  name: 'auto',
+  description: 'Auto-detect terminal for stdin from stdio provider',
+  create(config: PluginConfig): PluginInstance {
+    const isTTY = isStdinTTY()
+    const terminalInput = config.options?.['terminalInput'] as TerminalInput | undefined
+    return new TerminalStdinInstance(globalTerminalRegistry, isTTY, terminalInput)
+  },
+}
+
+/**
+ * Auto-detect terminal-stdout implementation
+ *
+ * Automatically detects if stdout is a TTY based on the stdio provider.
+ */
+export const autoTerminalStdoutImplementation: Implementation = {
+  name: 'auto',
+  description: 'Auto-detect terminal for stdout from stdio provider',
+  create(config: PluginConfig): PluginInstance {
+    const isTTY = isStdoutTTY()
+    const terminalOutput = config.options?.['terminalOutput'] as TerminalOutput | undefined
+    return new TerminalStdoutInstance(globalTerminalRegistry, isTTY, terminalOutput)
+  },
+}
+
+/**
+ * Auto-detect terminal-stderr implementation
+ *
+ * Automatically detects if stderr is a TTY based on the stdio provider.
+ */
+export const autoTerminalStderrImplementation: Implementation = {
+  name: 'auto',
+  description: 'Auto-detect terminal for stderr from stdio provider',
+  create(config: PluginConfig): PluginInstance {
+    const isTTY = isStderrTTY()
+    const terminalOutput = config.options?.['terminalOutput'] as TerminalOutput | undefined
+    return new TerminalStderrInstance(globalTerminalRegistry, isTTY, terminalOutput)
   },
 }

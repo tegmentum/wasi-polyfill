@@ -1,24 +1,40 @@
 /**
  * Standard I/O implementations for wasi:cli/stdin, stdout, stderr
  *
- * Provides input/output streams for standard I/O.
- * In a browser context, these are backed by memory streams or console.
+ * Provides input/output streams for standard I/O using a pluggable provider model.
+ *
+ * Key design:
+ * - Streams are byte-oriented (adapters decode for display)
+ * - Terminal features are optional (isTTY flag)
+ * - Default: console adapter (zero config)
+ * - Supports xterm.js and custom stream providers
  */
 
-import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import type { InputStream, OutputStream } from '../io/streams.js'
+import type {
+  Implementation,
+  PluginConfig,
+  PluginInstance,
+} from '../../core/types.js'
+import type { InputStream, OutputStream, StreamError } from '../io/streams.js'
+import { StreamRegistry, globalStreamRegistry } from '../io/streams.js'
+import { PollableRegistry, createReadyPollable } from '../io/pollable.js'
 import {
-  MemoryInputStream,
-  StreamRegistry,
-  globalStreamRegistry,
-} from '../io/streams.js'
-import {
-  PollableRegistry,
-  createReadyPollable,
-} from '../io/pollable.js'
+  type InputStreamLike,
+  type OutputStreamLike,
+  type StdioProvider,
+  type StdioStreams,
+  type StdioConfig as ProviderStdioConfig,
+  createStdioProvider,
+  createConsoleStdio,
+  QueueInputStream as QueueInputStreamClass,
+} from './stdio-provider.js'
+
+// ============================================================================
+// Configuration Types
+// ============================================================================
 
 /**
- * Configuration for stdio plugins
+ * Legacy configuration for stdio plugins (backward compatible)
  */
 export interface StdioConfig {
   /** Initial stdin content (for testing/scripted input) */
@@ -29,23 +45,56 @@ export interface StdioConfig {
   onStderr?: (data: Uint8Array) => void
   /** Whether to log stdout to console */
   logToConsole?: boolean
+  /** New: Use stdio provider for pluggable streams */
+  stdioProvider?: StdioProvider
+  /** New: Provider configuration shorthand */
+  stdio?: ProviderStdioConfig
 }
 
-/**
- * Console-backed output stream that logs to console
- */
-class ConsoleOutputStream implements OutputStream {
-  handle = 0
-  private closed = false
-  private buffer: Uint8Array[] = []
-  private readonly target: 'log' | 'error'
-  private readonly callback?: (data: Uint8Array) => void
+// Re-export provider types for convenience
+export type { ProviderStdioConfig as StdioProviderConfig }
+export {
+  type InputStreamLike,
+  type OutputStreamLike,
+  type StdioProvider,
+  type StdioStreams,
+  type XTermLike,
+  type XTermInputLike,
+  type XTermOutputLike,
+  createConsoleStdio,
+  createXtermStdio,
+  createCustomStdio,
+  createStdioProvider,
+  ConsoleOutputStream as ConsoleOutputStreamLike,
+  EmptyInputStream as EmptyInputStreamLike,
+  QueueInputStream,
+  XtermOutputStream as XtermOutputStreamLike,
+} from './stdio-provider.js'
 
-  constructor(target: 'log' | 'error', callback?: (data: Uint8Array) => void) {
-    this.target = target
-    if (callback !== undefined) {
-      this.callback = callback
-    }
+// Also export QueueInputStream with an alias for internal use
+export { QueueInputStreamClass }
+
+// ============================================================================
+// WASI Stream Wrappers
+// ============================================================================
+
+/**
+ * Wraps an InputStreamLike as a WASI InputStream resource.
+ * Bridges the simple async interface to WASI stream semantics.
+ */
+export class WasiInputStreamWrapper implements InputStream {
+  handle = 0
+
+  private closed = false
+  private readonly impl: InputStreamLike
+
+  constructor(impl: InputStreamLike) {
+    this.impl = impl
+  }
+
+  /** Whether this stream is connected to a TTY */
+  get isTTY(): boolean {
+    return this.impl.isTTY
   }
 
   isClosed(): boolean {
@@ -53,65 +102,200 @@ class ConsoleOutputStream implements OutputStream {
   }
 
   close(): void {
-    this.flush()
     this.closed = true
+    this.impl.close?.()
   }
 
-  checkWrite(): bigint | { tag: 'closed' } | { tag: 'last-operation-failed'; val: Error } {
+  read(len: bigint): Uint8Array | StreamError {
     if (this.closed) {
       return { tag: 'closed' }
     }
+
+    // Try synchronous non-blocking read if available
+    if (this.impl.tryRead) {
+      const data = this.impl.tryRead(Number(len))
+      if (data !== null) {
+        if (data.length === 0) {
+          // EOF
+          return { tag: 'closed' }
+        }
+        return data
+      }
+    }
+
+    // No data available - return empty to indicate "would block"
+    // The caller should use blockingRead for actual data
+    return new Uint8Array(0)
+  }
+
+  async blockingRead(len: bigint): Promise<Uint8Array | StreamError> {
+    if (this.closed) {
+      return { tag: 'closed' }
+    }
+
+    try {
+      const data = await this.impl.read(Number(len))
+      if (data.length === 0) {
+        // EOF
+        return { tag: 'closed' }
+      }
+      return data
+    } catch (error) {
+      return {
+        tag: 'last-operation-failed',
+        val: error instanceof Error ? error : new Error(String(error)),
+      }
+    }
+  }
+
+  skip(_len: bigint): bigint | StreamError {
+    if (this.closed) {
+      return { tag: 'closed' }
+    }
+    // Can't really skip without reading
+    return 0n
+  }
+
+  subscribe(registry: PollableRegistry): number {
+    // For streams with hasData, create a pollable that checks data availability
+    if (this.impl.hasData !== undefined) {
+      // Create a promise that resolves when data is available
+      const checkData = (): Promise<void> => {
+        return new Promise((resolve) => {
+          const check = () => {
+            if (this.impl.hasData?.() || this.closed) {
+              resolve()
+            } else {
+              // Check again in a microtask
+              queueMicrotask(check)
+            }
+          }
+          check()
+        })
+      }
+      return registry.create(checkData())
+    }
+    // Default: always ready (for EOF streams)
+    return createReadyPollable(registry)
+  }
+}
+
+/**
+ * Wraps an OutputStreamLike as a WASI OutputStream resource.
+ * Bridges the simple async interface to WASI stream semantics.
+ */
+export class WasiOutputStreamWrapper implements OutputStream {
+  handle = 0
+
+  private closed = false
+  private readonly impl: OutputStreamLike
+  private readonly callback: ((data: Uint8Array) => void) | undefined
+
+  constructor(impl: OutputStreamLike, callback?: (data: Uint8Array) => void) {
+    this.impl = impl
+    this.callback = callback ?? undefined
+  }
+
+  /** Whether this stream is connected to a TTY */
+  get isTTY(): boolean {
+    return this.impl.isTTY
+  }
+
+  isClosed(): boolean {
+    return this.closed
+  }
+
+  close(): void {
+    this.impl.flush().then(() => {
+      this.closed = true
+      this.impl.close?.()
+    })
+  }
+
+  checkWrite(): bigint | StreamError {
+    if (this.closed) {
+      return { tag: 'closed' }
+    }
+    // Allow up to 64KB at a time
     return 65536n
   }
 
-  write(contents: Uint8Array): { tag: 'closed' } | { tag: 'last-operation-failed'; val: Error } | undefined {
+  write(contents: Uint8Array): StreamError | undefined {
     if (this.closed) {
       return { tag: 'closed' }
     }
 
-    this.buffer.push(contents.slice())
+    // Fire and forget - queue the write
+    // Note: This is sync for WASI but we're async internally
+    this.impl.write(contents).catch(() => {
+      // Ignore errors in fire-and-forget mode
+    })
 
-    // Call callback if provided
+    // Call callback if provided (for capturing output)
     if (this.callback) {
       this.callback(contents)
     }
 
-    // Flush on newlines
-    const text = new TextDecoder().decode(contents)
-    if (text.includes('\n')) {
-      this.flushBuffer()
-    }
-
     return undefined
   }
 
-  async blockingWriteAndFlush(contents: Uint8Array): Promise<{ tag: 'closed' } | { tag: 'last-operation-failed'; val: Error } | undefined> {
-    const error = this.write(contents)
-    if (error) return error
-    return this.flush()
-  }
-
-  flush(): { tag: 'closed' } | { tag: 'last-operation-failed'; val: Error } | undefined {
+  async blockingWriteAndFlush(contents: Uint8Array): Promise<StreamError | undefined> {
     if (this.closed) {
       return { tag: 'closed' }
     }
-    this.flushBuffer()
+
+    try {
+      await this.impl.write(contents)
+      await this.impl.flush()
+
+      if (this.callback) {
+        this.callback(contents)
+      }
+
+      return undefined
+    } catch (error) {
+      return {
+        tag: 'last-operation-failed',
+        val: error instanceof Error ? error : new Error(String(error)),
+      }
+    }
+  }
+
+  flush(): StreamError | undefined {
+    if (this.closed) {
+      return { tag: 'closed' }
+    }
+    // Fire and forget
+    this.impl.flush().catch(() => {})
     return undefined
   }
 
-  async blockingFlush(): Promise<{ tag: 'closed' } | { tag: 'last-operation-failed'; val: Error } | undefined> {
-    return this.flush()
+  async blockingFlush(): Promise<StreamError | undefined> {
+    if (this.closed) {
+      return { tag: 'closed' }
+    }
+
+    try {
+      await this.impl.flush()
+      return undefined
+    } catch (error) {
+      return {
+        tag: 'last-operation-failed',
+        val: error instanceof Error ? error : new Error(String(error)),
+      }
+    }
   }
 
   subscribe(registry: PollableRegistry): number {
+    // Output streams are always ready for writing
     return createReadyPollable(registry)
   }
 
-  writeZeroes(len: bigint): { tag: 'closed' } | { tag: 'last-operation-failed'; val: Error } | undefined {
+  writeZeroes(len: bigint): StreamError | undefined {
     return this.write(new Uint8Array(Number(len)))
   }
 
-  splice(src: InputStream, len: bigint): bigint | { tag: 'closed' } | { tag: 'last-operation-failed'; val: Error } {
+  splice(src: InputStream, len: bigint): bigint | StreamError {
     const data = src.read(len)
     if (!(data instanceof Uint8Array)) {
       return data
@@ -120,49 +304,111 @@ class ConsoleOutputStream implements OutputStream {
     if (error) return error
     return BigInt(data.length)
   }
+}
 
-  getBuffer(): Uint8Array {
-    const totalLength = this.buffer.reduce((sum, chunk) => sum + chunk.length, 0)
-    const result = new Uint8Array(totalLength)
-    let offset = 0
-    for (const chunk of this.buffer) {
-      result.set(chunk, offset)
-      offset += chunk.length
+// ============================================================================
+// Plugin Instances
+// ============================================================================
+
+/**
+ * Shared stdio state managed by a provider
+ */
+class SharedStdioState {
+  private static instance: SharedStdioState | null = null
+  private readonly streams: StdioStreams
+  private refCount = 0
+
+  private constructor(provider: StdioProvider) {
+    this.streams = provider()
+  }
+
+  static get(provider: StdioProvider): SharedStdioState {
+    if (!SharedStdioState.instance) {
+      SharedStdioState.instance = new SharedStdioState(provider)
     }
-    return result
+    SharedStdioState.instance.refCount++
+    return SharedStdioState.instance
   }
 
-  getString(): string {
-    return new TextDecoder().decode(this.getBuffer())
-  }
-
-  clear(): void {
-    this.buffer = []
-  }
-
-  private flushBuffer(): void {
-    if (this.buffer.length === 0) return
-
-    const text = this.getString()
-    this.buffer = []
-
-    // Log to console
-    if (typeof console !== 'undefined') {
-      // Split by lines and log each (to handle partial lines correctly)
-      const lines = text.split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]!
-        // Skip empty last line (from trailing newline)
-        if (i === lines.length - 1 && line === '') continue
-
-        if (this.target === 'error') {
-          console.error(line)
-        } else {
-          console.log(line)
-        }
-      }
+  release(): void {
+    this.refCount--
+    if (this.refCount <= 0) {
+      this.streams.destroy?.()
+      SharedStdioState.instance = null
     }
   }
+
+  get stdin(): InputStreamLike {
+    return this.streams.stdin
+  }
+
+  get stdout(): OutputStreamLike {
+    return this.streams.stdout
+  }
+
+  get stderr(): OutputStreamLike {
+    return this.streams.stderr
+  }
+
+  get isTTY(): boolean {
+    return this.streams.terminal?.isTTY ?? false
+  }
+}
+
+// Global provider state (can be configured before plugins are created)
+let globalStdioProvider: StdioProvider = createConsoleStdio()
+let globalStdioState: SharedStdioState | null = null
+
+/**
+ * Set the global stdio provider (call before creating plugins)
+ */
+export function setGlobalStdioProvider(provider: StdioProvider): void {
+  if (globalStdioState) {
+    throw new Error('Cannot change stdio provider after plugins are created')
+  }
+  globalStdioProvider = provider
+}
+
+/**
+ * Get the global shared stdio state
+ */
+function getGlobalStdioState(): SharedStdioState {
+  if (!globalStdioState) {
+    globalStdioState = SharedStdioState.get(globalStdioProvider)
+  }
+  return globalStdioState
+}
+
+/**
+ * Reset global stdio state (for testing)
+ */
+export function resetGlobalStdioState(): void {
+  if (globalStdioState) {
+    globalStdioState.release()
+    globalStdioState = null
+  }
+  globalStdioProvider = createConsoleStdio()
+}
+
+/**
+ * Check if stdin is a TTY
+ */
+export function isStdinTTY(): boolean {
+  return getGlobalStdioState().isTTY
+}
+
+/**
+ * Check if stdout is a TTY
+ */
+export function isStdoutTTY(): boolean {
+  return getGlobalStdioState().isTTY
+}
+
+/**
+ * Check if stderr is a TTY
+ */
+export function isStderrTTY(): boolean {
+  return getGlobalStdioState().isTTY
 }
 
 /**
@@ -171,25 +417,11 @@ class ConsoleOutputStream implements OutputStream {
 class StdinInstance implements PluginInstance {
   private readonly streamRegistry: StreamRegistry
   private streamHandle: number | null = null
-  private readonly inputStream: MemoryInputStream
+  private readonly inputStream: WasiInputStreamWrapper
 
-  constructor(
-    streamRegistry: StreamRegistry,
-    content?: string | Uint8Array
-  ) {
+  constructor(streamRegistry: StreamRegistry, stdinImpl: InputStreamLike) {
     this.streamRegistry = streamRegistry
-
-    // Create input stream with provided content or empty
-    let data: Uint8Array
-    if (typeof content === 'string') {
-      data = new TextEncoder().encode(content)
-    } else if (content) {
-      data = content
-    } else {
-      data = new Uint8Array(0)
-    }
-
-    this.inputStream = new MemoryInputStream(data)
+    this.inputStream = new WasiInputStreamWrapper(stdinImpl)
     this.streamHandle = streamRegistry.register(this.inputStream)
   }
 
@@ -211,6 +443,11 @@ class StdinInstance implements PluginInstance {
     }
     return this.streamHandle
   }
+
+  /** Get the underlying input stream for testing/inspection */
+  getInputStream(): WasiInputStreamWrapper {
+    return this.inputStream
+  }
 }
 
 /**
@@ -219,14 +456,15 @@ class StdinInstance implements PluginInstance {
 class StdoutInstance implements PluginInstance {
   private readonly streamRegistry: StreamRegistry
   private streamHandle: number | null = null
-  private readonly outputStream: ConsoleOutputStream
+  private readonly outputStream: WasiOutputStreamWrapper
 
   constructor(
     streamRegistry: StreamRegistry,
+    stdoutImpl: OutputStreamLike,
     callback?: (data: Uint8Array) => void
   ) {
     this.streamRegistry = streamRegistry
-    this.outputStream = new ConsoleOutputStream('log', callback)
+    this.outputStream = new WasiOutputStreamWrapper(stdoutImpl, callback)
     this.streamHandle = streamRegistry.register(this.outputStream)
   }
 
@@ -249,10 +487,8 @@ class StdoutInstance implements PluginInstance {
     return this.streamHandle
   }
 
-  /**
-   * Get the output stream for testing
-   */
-  getOutputStream(): ConsoleOutputStream {
+  /** Get the underlying output stream for testing/inspection */
+  getOutputStream(): WasiOutputStreamWrapper {
     return this.outputStream
   }
 }
@@ -263,14 +499,15 @@ class StdoutInstance implements PluginInstance {
 class StderrInstance implements PluginInstance {
   private readonly streamRegistry: StreamRegistry
   private streamHandle: number | null = null
-  private readonly outputStream: ConsoleOutputStream
+  private readonly outputStream: WasiOutputStreamWrapper
 
   constructor(
     streamRegistry: StreamRegistry,
+    stderrImpl: OutputStreamLike,
     callback?: (data: Uint8Array) => void
   ) {
     this.streamRegistry = streamRegistry
-    this.outputStream = new ConsoleOutputStream('error', callback)
+    this.outputStream = new WasiOutputStreamWrapper(stderrImpl, callback)
     this.streamHandle = streamRegistry.register(this.outputStream)
   }
 
@@ -293,46 +530,85 @@ class StderrInstance implements PluginInstance {
     return this.streamHandle
   }
 
-  /**
-   * Get the output stream for testing
-   */
-  getOutputStream(): ConsoleOutputStream {
+  /** Get the underlying output stream for testing/inspection */
+  getOutputStream(): WasiOutputStreamWrapper {
     return this.outputStream
   }
 }
 
+// ============================================================================
+// Implementation Factories
+// ============================================================================
+
 /**
- * Virtual stdin implementation
+ * Virtual stdin implementation - uses the global stdio provider
  */
 export const virtualStdinImplementation: Implementation = {
   name: 'virtual',
-  description: 'Virtual stdin with configurable content',
+  description: 'Virtual stdin using pluggable provider (default: console EOF)',
   create(config: PluginConfig): PluginInstance {
-    const content = config.options?.['stdinContent'] as string | Uint8Array | undefined
-    return new StdinInstance(globalStreamRegistry, content)
+    // Check for provider configuration
+    if (config.options?.['stdioProvider']) {
+      const provider = config.options['stdioProvider'] as StdioProvider
+      setGlobalStdioProvider(provider)
+    } else if (config.options?.['stdio']) {
+      const stdioConfig = config.options['stdio'] as ProviderStdioConfig
+      setGlobalStdioProvider(createStdioProvider(stdioConfig))
+    }
+
+    // Legacy: stdinContent creates a memory stream
+    const content = config.options?.['stdinContent'] as
+      | string
+      | Uint8Array
+      | undefined
+    if (content !== undefined) {
+      const data =
+        typeof content === 'string'
+          ? new TextEncoder().encode(content)
+          : content
+      // Create a queue input stream and push the content
+      const queue = new QueueInputStreamClass(false)
+      queue.push(data)
+      queue.close() // EOF after content
+      return new StdinInstance(globalStreamRegistry, queue)
+    }
+
+    // Use global provider
+    const state = getGlobalStdioState()
+    return new StdinInstance(globalStreamRegistry, state.stdin)
   },
 }
 
 /**
- * Virtual stdout implementation (logs to console)
+ * Virtual stdout implementation - uses the global stdio provider
  */
 export const virtualStdoutImplementation: Implementation = {
   name: 'virtual',
-  description: 'Virtual stdout that logs to console',
+  description: 'Virtual stdout using pluggable provider (default: console)',
   create(config: PluginConfig): PluginInstance {
-    const callback = config.options?.['onStdout'] as ((data: Uint8Array) => void) | undefined
-    return new StdoutInstance(globalStreamRegistry, callback)
+    const callback = config.options?.['onStdout'] as
+      | ((data: Uint8Array) => void)
+      | undefined
+
+    // Use global provider
+    const state = getGlobalStdioState()
+    return new StdoutInstance(globalStreamRegistry, state.stdout, callback)
   },
 }
 
 /**
- * Virtual stderr implementation (logs to console.error)
+ * Virtual stderr implementation - uses the global stdio provider
  */
 export const virtualStderrImplementation: Implementation = {
   name: 'virtual',
-  description: 'Virtual stderr that logs to console.error',
+  description: 'Virtual stderr using pluggable provider (default: console)',
   create(config: PluginConfig): PluginInstance {
-    const callback = config.options?.['onStderr'] as ((data: Uint8Array) => void) | undefined
-    return new StderrInstance(globalStreamRegistry, callback)
+    const callback = config.options?.['onStderr'] as
+      | ((data: Uint8Array) => void)
+      | undefined
+
+    // Use global provider
+    const state = getGlobalStdioState()
+    return new StderrInstance(globalStreamRegistry, state.stderr, callback)
   },
 }
