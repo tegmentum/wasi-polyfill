@@ -3,7 +3,7 @@ import {
   parseInterfaceString,
   formatInterfaceString,
   interfaceMatches,
-} from '../../src/core/types.js'
+} from '../../src/wasip2/core/types.js'
 
 describe('parseInterfaceString', () => {
   it('parses full interface string with subinterface', () => {

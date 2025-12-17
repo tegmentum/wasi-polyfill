@@ -7,7 +7,7 @@ import {
   minimalBundle,
   getBundlePreset,
   mergeBundleConfig,
-} from '../../src/testing/index.js'
+} from '../../src/wasip2/testing/index.js'
 
 describe('Bundle presets', () => {
   describe('deterministicBundle', () => {

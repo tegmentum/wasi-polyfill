@@ -11,7 +11,7 @@ import {
   type ContainerMetadata,
   type ObjectMetadata,
   type ObjectId,
-} from '../../src/plugins/blobstore/index.js'
+} from '../../src/wasip2/plugins/blobstore/index.js'
 
 describe('wasi:blobstore/blobstore', () => {
   describe('plugin', () => {

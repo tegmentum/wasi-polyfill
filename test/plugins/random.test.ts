@@ -9,7 +9,7 @@ import {
   seededRandomImplementation,
   seededInsecureRandomImplementation,
   seededInsecureSeedImplementation,
-} from '../../src/plugins/random/index.js'
+} from '../../src/wasip2/plugins/random/index.js'
 
 describe('wasi:random/random', () => {
   describe('plugin', () => {

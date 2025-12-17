@@ -40,7 +40,7 @@ import {
   encodeError,
   decodeError,
   ProtocolError,
-} from '../../src/proxy/protocol.js'
+} from '../../src/wasip2/proxy/protocol.js'
 
 // =============================================================================
 // Constants Tests

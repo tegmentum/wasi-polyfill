@@ -37,32 +37,32 @@ import {
   type DnsQueryPayload,
   type DnsResultPayload,
   type DnsErrPayload,
-} from '../../src/plugins/ws-gateway/protocol.js'
-import { ByteQueue, AsyncByteQueue } from '../../src/plugins/ws-gateway/byte-queue.js'
+} from '../../src/wasip2/plugins/ws-gateway/protocol.js'
+import { ByteQueue, AsyncByteQueue } from '../../src/wasip2/plugins/ws-gateway/byte-queue.js'
 import {
   TunneledTcpSocketRegistry,
   TcpSocketState,
   tunneledTcpImplementation,
   tunneledTcpCreateSocketImplementation,
   type TunneledTcpSocket,
-} from '../../src/plugins/ws-gateway/tcp-adapter.js'
+} from '../../src/wasip2/plugins/ws-gateway/tcp-adapter.js'
 import {
   TunneledUdpSocketRegistry,
   TunneledDatagramStreamRegistry,
   tunneledUdpImplementation,
   tunneledUdpCreateSocketImplementation,
   type TunneledUdpSocket,
-} from '../../src/plugins/ws-gateway/udp-adapter.js'
+} from '../../src/wasip2/plugins/ws-gateway/udp-adapter.js'
 import {
   TunneledResolveAddressStreamRegistry,
   tunneledDnsLookupImplementation,
-} from '../../src/plugins/ws-gateway/dns-adapter.js'
-import { UdpState } from '../../src/plugins/sockets/types.js'
+} from '../../src/wasip2/plugins/ws-gateway/dns-adapter.js'
+import { UdpState } from '../../src/wasip2/plugins/sockets/types.js'
 import {
   TunnelRegistry,
   TunnelState,
   StreamState,
-} from '../../src/plugins/ws-gateway/tunnel-manager.js'
+} from '../../src/wasip2/plugins/ws-gateway/tunnel-manager.js'
 import {
   wsGatewayTcpPlugin,
   wsGatewayTcpCreateSocketPlugin,
@@ -70,7 +70,7 @@ import {
   wsGatewayUdpCreateSocketPlugin,
   wsGatewayDnsPlugin,
   wsGatewayPlugins,
-} from '../../src/plugins/ws-gateway/plugin.js'
+} from '../../src/wasip2/plugins/ws-gateway/plugin.js'
 
 describe('ws-gateway protocol', () => {
   describe('constants', () => {

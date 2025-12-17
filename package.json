@@ -1,7 +1,7 @@
 {
   "name": "@tegmentum/wasip2-polyfill",
   "version": "0.1.0",
-  "description": "WASI Preview 2 polyfill for browser and JavaScript environments",
+  "description": "Multi-version WASI polyfill for browser and JavaScript environments",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -11,73 +11,149 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./wasip1": {
+      "types": "./dist/wasip1/index.d.ts",
+      "import": "./dist/wasip1/index.js"
+    },
+    "./wasip2": {
+      "types": "./dist/wasip2/index.d.ts",
+      "import": "./dist/wasip2/index.js"
+    },
+    "./wasip2/plugins/random": {
+      "types": "./dist/wasip2/plugins/random/index.d.ts",
+      "import": "./dist/wasip2/plugins/random/index.js"
+    },
+    "./wasip2/plugins/clocks": {
+      "types": "./dist/wasip2/plugins/clocks/index.d.ts",
+      "import": "./dist/wasip2/plugins/clocks/index.js"
+    },
+    "./wasip2/plugins/io": {
+      "types": "./dist/wasip2/plugins/io/index.d.ts",
+      "import": "./dist/wasip2/plugins/io/index.js"
+    },
+    "./wasip2/plugins/cli": {
+      "types": "./dist/wasip2/plugins/cli/index.d.ts",
+      "import": "./dist/wasip2/plugins/cli/index.js"
+    },
+    "./wasip2/plugins/filesystem": {
+      "types": "./dist/wasip2/plugins/filesystem/index.d.ts",
+      "import": "./dist/wasip2/plugins/filesystem/index.js"
+    },
+    "./wasip2/plugins/sockets": {
+      "types": "./dist/wasip2/plugins/sockets/index.d.ts",
+      "import": "./dist/wasip2/plugins/sockets/index.js"
+    },
+    "./wasip2/plugins/http": {
+      "types": "./dist/wasip2/plugins/http/index.d.ts",
+      "import": "./dist/wasip2/plugins/http/index.js"
+    },
+    "./wasip2/plugins/threads": {
+      "types": "./dist/wasip2/plugins/threads/index.d.ts",
+      "import": "./dist/wasip2/plugins/threads/index.js"
+    },
+    "./wasip2/plugins/ws-gateway": {
+      "types": "./dist/wasip2/plugins/ws-gateway/index.d.ts",
+      "import": "./dist/wasip2/plugins/ws-gateway/index.js"
+    },
+    "./wasip2/plugins/logging": {
+      "types": "./dist/wasip2/plugins/logging/index.d.ts",
+      "import": "./dist/wasip2/plugins/logging/index.js"
+    },
+    "./wasip2/plugins/keyvalue": {
+      "types": "./dist/wasip2/plugins/keyvalue/index.d.ts",
+      "import": "./dist/wasip2/plugins/keyvalue/index.js"
+    },
+    "./wasip2/plugins/blobstore": {
+      "types": "./dist/wasip2/plugins/blobstore/index.d.ts",
+      "import": "./dist/wasip2/plugins/blobstore/index.js"
+    },
+    "./wasip2/plugins/config": {
+      "types": "./dist/wasip2/plugins/config/index.d.ts",
+      "import": "./dist/wasip2/plugins/config/index.js"
+    },
+    "./wasip2/testing": {
+      "types": "./dist/wasip2/testing/index.d.ts",
+      "import": "./dist/wasip2/testing/index.js"
+    },
+    "./wasip2/build": {
+      "types": "./dist/wasip2/build/index.d.ts",
+      "import": "./dist/wasip2/build/index.js"
+    },
+    "./wasip2/runtime": {
+      "types": "./dist/wasip2/runtime/index.d.ts",
+      "import": "./dist/wasip2/runtime/index.js"
+    },
+    "./wasip2/proxy": {
+      "types": "./dist/wasip2/proxy/index.d.ts",
+      "import": "./dist/wasip2/proxy/index.js"
+    },
     "./plugins/random": {
-      "types": "./dist/plugins/random/index.d.ts",
-      "import": "./dist/plugins/random/index.js"
+      "types": "./dist/wasip2/plugins/random/index.d.ts",
+      "import": "./dist/wasip2/plugins/random/index.js"
     },
     "./plugins/clocks": {
-      "types": "./dist/plugins/clocks/index.d.ts",
-      "import": "./dist/plugins/clocks/index.js"
+      "types": "./dist/wasip2/plugins/clocks/index.d.ts",
+      "import": "./dist/wasip2/plugins/clocks/index.js"
     },
     "./plugins/io": {
-      "types": "./dist/plugins/io/index.d.ts",
-      "import": "./dist/plugins/io/index.js"
+      "types": "./dist/wasip2/plugins/io/index.d.ts",
+      "import": "./dist/wasip2/plugins/io/index.js"
     },
     "./plugins/cli": {
-      "types": "./dist/plugins/cli/index.d.ts",
-      "import": "./dist/plugins/cli/index.js"
+      "types": "./dist/wasip2/plugins/cli/index.d.ts",
+      "import": "./dist/wasip2/plugins/cli/index.js"
     },
     "./plugins/filesystem": {
-      "types": "./dist/plugins/filesystem/index.d.ts",
-      "import": "./dist/plugins/filesystem/index.js"
+      "types": "./dist/wasip2/plugins/filesystem/index.d.ts",
+      "import": "./dist/wasip2/plugins/filesystem/index.js"
     },
     "./plugins/sockets": {
-      "types": "./dist/plugins/sockets/index.d.ts",
-      "import": "./dist/plugins/sockets/index.js"
+      "types": "./dist/wasip2/plugins/sockets/index.d.ts",
+      "import": "./dist/wasip2/plugins/sockets/index.js"
     },
     "./plugins/http": {
-      "types": "./dist/plugins/http/index.d.ts",
-      "import": "./dist/plugins/http/index.js"
+      "types": "./dist/wasip2/plugins/http/index.d.ts",
+      "import": "./dist/wasip2/plugins/http/index.js"
     },
     "./plugins/threads": {
-      "types": "./dist/plugins/threads/index.d.ts",
-      "import": "./dist/plugins/threads/index.js"
+      "types": "./dist/wasip2/plugins/threads/index.d.ts",
+      "import": "./dist/wasip2/plugins/threads/index.js"
     },
     "./plugins/ws-gateway": {
-      "types": "./dist/plugins/ws-gateway/index.d.ts",
-      "import": "./dist/plugins/ws-gateway/index.js"
+      "types": "./dist/wasip2/plugins/ws-gateway/index.d.ts",
+      "import": "./dist/wasip2/plugins/ws-gateway/index.js"
     },
     "./plugins/logging": {
-      "types": "./dist/plugins/logging/index.d.ts",
-      "import": "./dist/plugins/logging/index.js"
+      "types": "./dist/wasip2/plugins/logging/index.d.ts",
+      "import": "./dist/wasip2/plugins/logging/index.js"
     },
     "./plugins/keyvalue": {
-      "types": "./dist/plugins/keyvalue/index.d.ts",
-      "import": "./dist/plugins/keyvalue/index.js"
+      "types": "./dist/wasip2/plugins/keyvalue/index.d.ts",
+      "import": "./dist/wasip2/plugins/keyvalue/index.js"
     },
     "./plugins/blobstore": {
-      "types": "./dist/plugins/blobstore/index.d.ts",
-      "import": "./dist/plugins/blobstore/index.js"
+      "types": "./dist/wasip2/plugins/blobstore/index.d.ts",
+      "import": "./dist/wasip2/plugins/blobstore/index.js"
     },
     "./plugins/config": {
-      "types": "./dist/plugins/config/index.d.ts",
-      "import": "./dist/plugins/config/index.js"
+      "types": "./dist/wasip2/plugins/config/index.d.ts",
+      "import": "./dist/wasip2/plugins/config/index.js"
     },
     "./testing": {
-      "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.js"
+      "types": "./dist/wasip2/testing/index.d.ts",
+      "import": "./dist/wasip2/testing/index.js"
     },
     "./build": {
-      "types": "./dist/build/index.d.ts",
-      "import": "./dist/build/index.js"
+      "types": "./dist/wasip2/build/index.d.ts",
+      "import": "./dist/wasip2/build/index.js"
     },
     "./runtime": {
-      "types": "./dist/runtime/index.d.ts",
-      "import": "./dist/runtime/index.js"
+      "types": "./dist/wasip2/runtime/index.d.ts",
+      "import": "./dist/wasip2/runtime/index.js"
     },
     "./proxy": {
-      "types": "./dist/proxy/index.d.ts",
-      "import": "./dist/proxy/index.js"
+      "types": "./dist/wasip2/proxy/index.d.ts",
+      "import": "./dist/wasip2/proxy/index.js"
     }
   },
   "files": [
@@ -105,7 +181,9 @@
     "webassembly",
     "component-model",
     "polyfill",
-    "browser"
+    "browser",
+    "wasip1",
+    "wasip2"
   ],
   "author": "",
   "license": "MIT",

@@ -19,7 +19,7 @@ import {
   OpfsDescriptor,
   isOpfsAvailable,
   getGlobalOpfsFilesystemInstance,
-} from '../../src/plugins/filesystem/index.js'
+} from '../../src/wasip2/plugins/filesystem/index.js'
 
 describe('Filesystem Plugins', () => {
   describe('Plugin Definitions', () => {

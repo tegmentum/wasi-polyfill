@@ -13,7 +13,7 @@ import {
   DEFAULT_STORE_CONFIG,
   type KeyValueResult,
   type KeyResponse,
-} from '../../src/plugins/keyvalue/index.js'
+} from '../../src/wasip2/plugins/keyvalue/index.js'
 
 describe('wasi:keyvalue/store', () => {
   describe('plugin', () => {

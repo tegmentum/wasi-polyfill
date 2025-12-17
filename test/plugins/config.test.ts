@@ -21,7 +21,7 @@ import {
   configStorePlugin,
   configRuntimePlugin,
   configPlugins,
-} from '../../src/plugins/config/index.js'
+} from '../../src/wasip2/plugins/config/index.js'
 
 describe('Config Plugin', () => {
   describe('Types and Helpers', () => {

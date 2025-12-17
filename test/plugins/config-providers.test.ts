@@ -41,7 +41,7 @@ import {
   assertConfigsEqual,
   // Types
   type ConfigResult,
-} from '../../src/plugins/config/index.js'
+} from '../../src/wasip2/plugins/config/index.js'
 
 // =============================================================================
 // Layered Config Tests

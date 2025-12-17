@@ -6,11 +6,11 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createDevPolyfill, Polyfill } from '../../src/core/polyfill.js'
-import { randomPlugin } from '../../src/plugins/random/index.js'
-import { monotonicClockPlugin, wallClockPlugin } from '../../src/plugins/clocks/index.js'
-import { environmentPlugin, stdoutPlugin, stderrPlugin } from '../../src/plugins/cli/index.js'
-import { streamsPlugin, pollPlugin } from '../../src/plugins/io/index.js'
+import { createDevPolyfill, Polyfill } from '../../src/wasip2/core/polyfill.js'
+import { randomPlugin } from '../../src/wasip2/plugins/random/index.js'
+import { monotonicClockPlugin, wallClockPlugin } from '../../src/wasip2/plugins/clocks/index.js'
+import { environmentPlugin, stdoutPlugin, stderrPlugin } from '../../src/wasip2/plugins/cli/index.js'
+import { streamsPlugin, pollPlugin } from '../../src/wasip2/plugins/io/index.js'
 
 describe('WASM Instantiation Integration', () => {
   let polyfill: Polyfill

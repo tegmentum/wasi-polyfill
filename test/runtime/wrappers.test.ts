@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Provider, ProviderContext } from '../../src/runtime/provider.js'
+import type { Provider, ProviderContext } from '../../src/wasip2/runtime/provider.js'
 import {
   // Audit
   ConsoleAuditSink,
@@ -28,7 +28,7 @@ import {
   createReplayWrapper,
   withRecording,
   withReplay,
-} from '../../src/runtime/wrappers/index.js'
+} from '../../src/wasip2/runtime/wrappers/index.js'
 
 /**
  * Create a mock provider for testing

@@ -12,7 +12,7 @@ import {
   deterministicTestBundle,
   type BundleConfig,
   type ProviderOverride,
-} from '../../src/runtime/provider-registry.js'
+} from '../../src/wasip2/runtime/provider-registry.js'
 import {
   BaseProvider,
   noopLogger,
@@ -23,9 +23,9 @@ import {
   type ProviderContext,
   type ProviderDefinition,
   type Capabilities,
-} from '../../src/runtime/provider.js'
-import type { WasiInterface, PluginConfig } from '../../src/core/types.js'
-import { AllowAllPolicy } from '../../src/core/policy.js'
+} from '../../src/wasip2/runtime/provider.js'
+import type { WasiInterface, PluginConfig } from '../../src/wasip2/core/types.js'
+import { AllowAllPolicy } from '../../src/wasip2/core/policy.js'
 
 // Create a mock provider context
 function createMockContext(): ProviderContext {

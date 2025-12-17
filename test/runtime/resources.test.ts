@@ -10,8 +10,8 @@ import {
   createPromisePollable,
   type ResourceType,
   type StreamResource,
-} from '../../src/runtime/resources.js'
-import { WasiError, WasiErrorCode } from '../../src/util/errors.js'
+} from '../../src/wasip2/runtime/resources.js'
+import { WasiError, WasiErrorCode } from '../../src/shared/errors.js'
 
 describe('ResourceTable', () => {
   let table: ResourceTable

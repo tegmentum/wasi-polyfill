@@ -47,7 +47,7 @@ import {
   TCP_CREATE_SOCKET_INTERFACE,
   UDP_INTERFACE,
   UDP_CREATE_SOCKET_INTERFACE,
-} from '../../src/plugins/sockets/index.js'
+} from '../../src/wasip2/plugins/sockets/index.js'
 
 describe('Socket Plugins', () => {
   describe('Plugin Definitions', () => {

@@ -6,9 +6,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   RuntimeBindgen,
   createRuntimeBindgen,
-} from '../../src/runtime/bindgen.js'
-import { randomPlugin } from '../../src/plugins/random/index.js'
-import { monotonicClockPlugin } from '../../src/plugins/clocks/index.js'
+} from '../../src/wasip2/runtime/bindgen.js'
+import { randomPlugin } from '../../src/wasip2/plugins/random/index.js'
+import { monotonicClockPlugin } from '../../src/wasip2/plugins/clocks/index.js'
 
 describe('RuntimeBindgen', () => {
   let bindgen: RuntimeBindgen

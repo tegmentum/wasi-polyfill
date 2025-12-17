@@ -6,39 +6,39 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createDevPolyfill, Polyfill } from '../../src/core/polyfill.js'
-import { randomPlugin } from '../../src/plugins/random/index.js'
+import { createDevPolyfill, Polyfill } from '../../src/wasip2/core/polyfill.js'
+import { randomPlugin } from '../../src/wasip2/plugins/random/index.js'
 import {
   monotonicClockPlugin,
   wallClockPlugin,
-} from '../../src/plugins/clocks/index.js'
+} from '../../src/wasip2/plugins/clocks/index.js'
 import {
   environmentPlugin,
   stdoutPlugin,
   stderrPlugin,
   stdinPlugin,
   exitPlugin,
-} from '../../src/plugins/cli/index.js'
-import { streamsPlugin, pollPlugin } from '../../src/plugins/io/index.js'
-import { configRuntimePlugin } from '../../src/plugins/config/index.js'
-import { loggingPlugin, LOG_LEVEL_VALUES } from '../../src/plugins/logging/index.js'
+} from '../../src/wasip2/plugins/cli/index.js'
+import { streamsPlugin, pollPlugin } from '../../src/wasip2/plugins/io/index.js'
+import { configRuntimePlugin } from '../../src/wasip2/plugins/config/index.js'
+import { loggingPlugin, LOG_LEVEL_VALUES } from '../../src/wasip2/plugins/logging/index.js'
 import {
   keyvalueStorePlugin,
   memoryStoreImplementation,
-} from '../../src/plugins/keyvalue/index.js'
+} from '../../src/wasip2/plugins/keyvalue/index.js'
 import {
   blobstorePlugin,
   memoryBlobstoreImplementation,
-} from '../../src/plugins/blobstore/index.js'
+} from '../../src/wasip2/plugins/blobstore/index.js'
 import {
   filesystemTypesPlugin,
   filesystemPreopensPlugin,
   memoryFilesystemImplementation,
-} from '../../src/plugins/filesystem/index.js'
+} from '../../src/wasip2/plugins/filesystem/index.js'
 import {
   httpOutgoingHandlerPlugin,
   httpTypesPlugin,
-} from '../../src/plugins/http/index.js'
+} from '../../src/wasip2/plugins/http/index.js'
 
 describe('All Plugins Integration', () => {
   let polyfill: Polyfill

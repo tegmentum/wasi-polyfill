@@ -12,8 +12,8 @@ import {
   globalThreadRegistry,
   stubThreadSpawnImplementation,
   workerThreadSpawnImplementation,
-} from '../../src/plugins/threads/index.js'
-import type { SpawnResult, ThreadInfo } from '../../src/plugins/threads/index.js'
+} from '../../src/wasip2/plugins/threads/index.js'
+import type { SpawnResult, ThreadInfo } from '../../src/wasip2/plugins/threads/index.js'
 
 describe('wasi:thread-spawn/thread-spawn', () => {
   describe('plugin', () => {

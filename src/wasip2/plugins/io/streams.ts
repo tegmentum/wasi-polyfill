@@ -5,7 +5,7 @@
  * JavaScript readable/writable patterns.
  */
 
-import { WasiError, WasiErrorCode } from '../../util/errors.js'
+import { WasiError, WasiErrorCode } from '../../../shared/errors.js'
 import { PollableRegistry, createReadyPollable } from './pollable.js'
 
 /**

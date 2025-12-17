@@ -4,7 +4,7 @@
 
 import type { WasiInterface, WasiPlugin } from './types.js'
 import { formatInterfaceString, interfaceMatches } from './types.js'
-import { PluginNotFoundError } from '../util/errors.js'
+import { PluginNotFoundError } from '../../shared/errors.js'
 
 /**
  * Registry for WASI plugins

@@ -16,9 +16,9 @@ import {
   type ProviderContext,
   type Capabilities,
   type Provider,
-} from '../../src/runtime/provider.js'
-import type { WasiInterface } from '../../src/core/types.js'
-import { AllowAllPolicy } from '../../src/core/policy.js'
+} from '../../src/wasip2/runtime/provider.js'
+import type { WasiInterface } from '../../src/wasip2/core/types.js'
+import { AllowAllPolicy } from '../../src/wasip2/core/policy.js'
 
 // Create a mock provider context for testing
 function createMockContext(): ProviderContext {

@@ -6,7 +6,7 @@
  * these handles across all providers.
  */
 
-import { WasiError, WasiErrorCode } from '../util/errors.js'
+import { WasiError, WasiErrorCode } from '../../shared/errors.js'
 
 /**
  * Resource types for type-safe handle management

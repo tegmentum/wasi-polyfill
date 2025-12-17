@@ -6,12 +6,12 @@
  */
 
 // Import directly from core modules to avoid Node.js-specific build deps
-import { createDevPolyfill, createPolyfill } from '../../src/core/polyfill.js'
-import { createSafePolicy, AllowAllPolicy } from '../../src/core/policy.js'
-import { randomPlugin } from '../../src/plugins/random/index.js'
-import { monotonicClockPlugin, wallClockPlugin } from '../../src/plugins/clocks/index.js'
-import { environmentPlugin } from '../../src/plugins/cli/index.js'
-import { streamsPlugin, pollPlugin } from '../../src/plugins/io/index.js'
+import { createDevPolyfill, createPolyfill } from '../../src/wasip2/core/polyfill.js'
+import { createSafePolicy, AllowAllPolicy } from '../../src/wasip2/core/policy.js'
+import { randomPlugin } from '../../src/wasip2/plugins/random/index.js'
+import { monotonicClockPlugin, wallClockPlugin } from '../../src/wasip2/plugins/clocks/index.js'
+import { environmentPlugin } from '../../src/wasip2/plugins/cli/index.js'
+import { streamsPlugin, pollPlugin } from '../../src/wasip2/plugins/io/index.js'
 
 interface TestResult {
   name: string

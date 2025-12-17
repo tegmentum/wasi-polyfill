@@ -17,7 +17,7 @@ import { PluginRegistry, globalRegistry } from './plugin-registry.js'
 import { AllowAllPolicy, createSafePolicy } from './policy.js'
 import type { ComponentManifest } from './manifest.js'
 import { loadManifestForComponent } from './manifest.js'
-import { PluginNotFoundError, PolicyDeniedError } from '../util/errors.js'
+import { PluginNotFoundError, PolicyDeniedError } from '../../shared/errors.js'
 
 /**
  * Options for getting imports

@@ -31,7 +31,7 @@ import {
   createServiceWorkerHandler,
   isServiceWorkerContext,
   serviceWorkerIncomingHandlerImplementation,
-} from '../../src/plugins/http/index.js'
+} from '../../src/wasip2/plugins/http/index.js'
 import type {
   Method,
   Scheme,
@@ -39,7 +39,7 @@ import type {
   OutgoingRequest,
   IncomingRequest,
   OutgoingResponse,
-} from '../../src/plugins/http/index.js'
+} from '../../src/wasip2/plugins/http/index.js'
 
 describe('wasi:http/types', () => {
   describe('plugin', () => {

@@ -11,8 +11,8 @@ import {
   createSecurePolicy,
   defaultRedactionPatterns,
   type EnhancedPolicyConfig,
-} from '../../src/runtime/policy.js'
-import type { WasiInterface } from '../../src/core/types.js'
+} from '../../src/wasip2/runtime/policy.js'
+import type { WasiInterface } from '../../src/wasip2/core/types.js'
 
 describe('QuotaTracker', () => {
   describe('Operation Limits', () => {

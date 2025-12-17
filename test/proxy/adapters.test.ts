@@ -22,7 +22,7 @@ import {
   decodeDnsQuery,
   encodeDnsResponse,
   decodeDnsResponse,
-} from '../../src/proxy/protocol.js'
+} from '../../src/wasip2/proxy/protocol.js'
 
 // =============================================================================
 // DNS Adapter Tests

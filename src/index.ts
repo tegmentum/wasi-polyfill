@@ -1,60 +1,30 @@
 /**
  * @tegmentum/wasip2-polyfill
  *
- * WASI Preview 2 polyfill for browser and JavaScript environments.
+ * Multi-version WASI polyfill for browser and JavaScript environments.
  *
- * This is a provider framework + policy engine + loader for WASI 2 components.
- * It provides:
- * - Runtime implementation selection
- * - Capability-based security policy
- * - Zero-config safe defaults
- * - Uniform async model
- * - Plugin architecture for extensibility
+ * Supports:
+ * - WASI Preview 1 (wasip1) - Legacy compatibility
+ * - WASI Preview 2 (wasip2) - Current stable (default)
+ * - WASI Preview 3 (wasip3) - Future (placeholder)
+ *
+ * The default export provides WASI Preview 2 (wasip2) for backwards compatibility.
+ * For explicit version selection, use the version-specific imports:
  *
  * @example
  * ```typescript
- * import { createPolyfill, createCliPolicy } from '@tegmentum/wasip2-polyfill'
+ * // Default (wasip2)
+ * import { Polyfill } from '@tegmentum/wasip2-polyfill'
  *
- * const polyfill = createPolyfill({
- *   policy: createCliPolicy({ env: { FOO: 'bar' } })
- * })
+ * // Explicit wasip2
+ * import { Polyfill } from '@tegmentum/wasip2-polyfill/wasip2'
  *
- * const { imports } = await polyfill.forInterfaces([
- *   'wasi:random/random@0.2.0',
- *   'wasi:clocks/monotonic-clock@0.2.0'
- * ])
- *
- * const instance = await WebAssembly.instantiate(wasmBytes, imports)
+ * // Legacy wasip1
+ * import { Wasip1 } from '@tegmentum/wasip2-polyfill/wasip1'
  * ```
  *
  * @packageDocumentation
  */
 
-// Re-export everything from core
-export * from './core/index.js'
-
-// Re-export errors
-export {
-  WasiErrorCode,
-  WasiError,
-  PluginNotFoundError,
-  PolicyDeniedError,
-  ImplementationNotFoundError,
-  ManifestError,
-} from './util/errors.js'
-
-// Re-export runtime (component loader and bindgen)
-export {
-  ComponentLoader,
-  createComponentLoader,
-  type ComponentLoaderOptions,
-  type LoadedComponent,
-  type ComponentExports,
-  RuntimeBindgen,
-  createRuntimeBindgen,
-  type RuntimeBindgenOptions,
-  type BindgenResult,
-  parseComponentImports,
-  type ParsedImport,
-  type ParsedComponentInfo,
-} from './runtime/index.js'
+// Default export is wasip2 for backwards compatibility
+export * from './wasip2/index.js'

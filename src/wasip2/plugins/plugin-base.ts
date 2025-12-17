@@ -9,7 +9,7 @@ import type {
   PluginInstance,
   Implementation,
 } from '../core/types.js'
-import { ImplementationNotFoundError } from '../util/errors.js'
+import { ImplementationNotFoundError } from '../../shared/errors.js'
 import { formatInterfaceString } from '../core/types.js'
 
 /**

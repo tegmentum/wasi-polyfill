@@ -58,8 +58,8 @@ import {
   isStdinTTY,
   isStdoutTTY,
   isStderrTTY,
-} from '../../src/plugins/cli/index.js'
-import { globalStreamRegistry } from '../../src/plugins/io/streams.js'
+} from '../../src/wasip2/plugins/cli/index.js'
+import { globalStreamRegistry } from '../../src/wasip2/plugins/io/streams.js'
 
 describe('CLI Plugins', () => {
   describe('Plugin Definitions', () => {

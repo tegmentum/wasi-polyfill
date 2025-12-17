@@ -16,7 +16,7 @@ import {
   HEADER_SIZE,
   createFrame,
   encodeHello,
-} from '../../src/proxy/protocol.js'
+} from '../../src/wasip2/proxy/protocol.js'
 
 // =============================================================================
 // Mock ws module

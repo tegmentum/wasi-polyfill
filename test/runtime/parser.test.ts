@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parseComponentImports, isComponent } from '../../src/runtime/parser.js'
+import { parseComponentImports, isComponent } from '../../src/wasip2/runtime/parser.js'
 
 describe('Component Parser', () => {
   describe('isComponent', () => {

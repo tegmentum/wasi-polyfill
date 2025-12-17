@@ -7,9 +7,9 @@ import {
   virtualMonotonicClockImplementation,
   virtualWallClockImplementation,
   ControllableClockStore,
-} from '../../src/plugins/clocks/index.js'
-import { PollableRegistry } from '../../src/plugins/io/index.js'
-import { VirtualClock } from '../../src/runtime/provider.js'
+} from '../../src/wasip2/plugins/clocks/index.js'
+import { PollableRegistry } from '../../src/wasip2/plugins/io/index.js'
+import { VirtualClock } from '../../src/wasip2/runtime/provider.js'
 
 describe('wasi:clocks/monotonic-clock', () => {
   describe('plugin', () => {

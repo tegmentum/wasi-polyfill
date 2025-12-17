@@ -6,9 +6,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   ComponentLoader,
   createComponentLoader,
-} from '../../src/runtime/loader.js'
-import { randomPlugin } from '../../src/plugins/random/index.js'
-import { monotonicClockPlugin } from '../../src/plugins/clocks/index.js'
+} from '../../src/wasip2/runtime/loader.js'
+import { randomPlugin } from '../../src/wasip2/plugins/random/index.js'
+import { monotonicClockPlugin } from '../../src/wasip2/plugins/clocks/index.js'
 
 describe('ComponentLoader', () => {
   let loader: ComponentLoader

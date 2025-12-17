@@ -7,7 +7,7 @@
 
 import type { WasiInterface } from './types.js'
 import { parseInterfaceString } from './types.js'
-import { ManifestError } from '../util/errors.js'
+import { ManifestError } from '../../shared/errors.js'
 
 /**
  * Capability requirements for a component

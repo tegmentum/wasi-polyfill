@@ -12,7 +12,7 @@ import {
   type ProxyClientConfig,
   type StreamConfig,
   type ConnectionEvents,
-} from '../../src/proxy/client.js'
+} from '../../src/wasip2/proxy/client.js'
 import {
   MessageType,
   StreamType,
@@ -23,7 +23,7 @@ import {
   DEFAULT_WINDOW_SIZE,
   createFrame,
   encodeHeader,
-} from '../../src/proxy/protocol.js'
+} from '../../src/wasip2/proxy/protocol.js'
 
 // =============================================================================
 // Mock WebSocket

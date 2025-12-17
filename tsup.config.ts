@@ -2,24 +2,31 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
+    // Root entry (re-exports wasip2)
     index: 'src/index.ts',
-    'plugins/random/index': 'src/plugins/random/index.ts',
-    'plugins/clocks/index': 'src/plugins/clocks/index.ts',
-    'plugins/io/index': 'src/plugins/io/index.ts',
-    'plugins/cli/index': 'src/plugins/cli/index.ts',
-    'plugins/filesystem/index': 'src/plugins/filesystem/index.ts',
-    'plugins/sockets/index': 'src/plugins/sockets/index.ts',
-    'plugins/http/index': 'src/plugins/http/index.ts',
-    'plugins/threads/index': 'src/plugins/threads/index.ts',
-    'plugins/ws-gateway/index': 'src/plugins/ws-gateway/index.ts',
-    'plugins/logging/index': 'src/plugins/logging/index.ts',
-    'plugins/keyvalue/index': 'src/plugins/keyvalue/index.ts',
-    'plugins/blobstore/index': 'src/plugins/blobstore/index.ts',
-    'plugins/config/index': 'src/plugins/config/index.ts',
-    'build/index': 'src/build/index.ts',
-    'runtime/index': 'src/runtime/index.ts',
-    'testing/index': 'src/testing/index.ts',
-    'proxy/index': 'src/proxy/index.ts',
+
+    // WASI Preview 1 (legacy)
+    'wasip1/index': 'src/wasip1/index.ts',
+
+    // WASI Preview 2 (current)
+    'wasip2/index': 'src/wasip2/index.ts',
+    'wasip2/plugins/random/index': 'src/wasip2/plugins/random/index.ts',
+    'wasip2/plugins/clocks/index': 'src/wasip2/plugins/clocks/index.ts',
+    'wasip2/plugins/io/index': 'src/wasip2/plugins/io/index.ts',
+    'wasip2/plugins/cli/index': 'src/wasip2/plugins/cli/index.ts',
+    'wasip2/plugins/filesystem/index': 'src/wasip2/plugins/filesystem/index.ts',
+    'wasip2/plugins/sockets/index': 'src/wasip2/plugins/sockets/index.ts',
+    'wasip2/plugins/http/index': 'src/wasip2/plugins/http/index.ts',
+    'wasip2/plugins/threads/index': 'src/wasip2/plugins/threads/index.ts',
+    'wasip2/plugins/ws-gateway/index': 'src/wasip2/plugins/ws-gateway/index.ts',
+    'wasip2/plugins/logging/index': 'src/wasip2/plugins/logging/index.ts',
+    'wasip2/plugins/keyvalue/index': 'src/wasip2/plugins/keyvalue/index.ts',
+    'wasip2/plugins/blobstore/index': 'src/wasip2/plugins/blobstore/index.ts',
+    'wasip2/plugins/config/index': 'src/wasip2/plugins/config/index.ts',
+    'wasip2/build/index': 'src/wasip2/build/index.ts',
+    'wasip2/runtime/index': 'src/wasip2/runtime/index.ts',
+    'wasip2/testing/index': 'src/wasip2/testing/index.ts',
+    'wasip2/proxy/index': 'src/wasip2/proxy/index.ts',
   },
   format: ['esm'],
   dts: true,

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { PluginRegistry } from '../../src/core/plugin-registry.js'
-import type { WasiPlugin, WasiInterface, PluginInstance, PluginConfig } from '../../src/core/types.js'
+import { PluginRegistry } from '../../src/wasip2/core/plugin-registry.js'
+import type { WasiPlugin, WasiInterface, PluginInstance, PluginConfig } from '../../src/wasip2/core/types.js'
 
 // Mock plugin for testing
 function createMockPlugin(iface: WasiInterface): WasiPlugin {

@@ -9,7 +9,7 @@ import {
   getSubsystem,
   toManifest,
   type IntrospectResult,
-} from '../../src/build/introspect.js'
+} from '../../src/wasip2/build/introspect.js'
 
 describe('Build Introspection', () => {
   describe('parseInterfaceString', () => {

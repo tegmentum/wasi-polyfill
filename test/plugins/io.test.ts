@@ -10,7 +10,7 @@ import {
   pollPlugin,
   streamsPlugin,
   errorPlugin,
-} from '../../src/plugins/io/index.js'
+} from '../../src/wasip2/plugins/io/index.js'
 
 describe('Pollable', () => {
   it('starts not ready', () => {

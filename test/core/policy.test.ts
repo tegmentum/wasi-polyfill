@@ -6,8 +6,8 @@ import {
   createSafePolicy,
   createCliPolicy,
   mergePolicies,
-} from '../../src/core/policy.js'
-import type { WasiInterface } from '../../src/core/types.js'
+} from '../../src/wasip2/core/policy.js'
+import type { WasiInterface } from '../../src/wasip2/core/types.js'
 
 const randomInterface: WasiInterface = {
   package: 'wasi:random',

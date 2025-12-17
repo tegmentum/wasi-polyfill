@@ -9,7 +9,7 @@ import {
   shouldLog,
   shouldLogContext,
   type LogLevel,
-} from '../../src/plugins/logging/index.js'
+} from '../../src/wasip2/plugins/logging/index.js'
 
 describe('wasi:logging/logging', () => {
   describe('plugin', () => {
