@@ -710,14 +710,98 @@ Keep baseline always available.
 
 ---
 
-## 14. Open questions / decisions to make early
+## 14. Design Decisions
 
-1. **Async ABI choice**: native `future/stream` vs explicit pollables.
-2. **Event backpressure policy**: drop-oldest vs drop-newest vs block.
-3. **DOM scope**: do we need style/layout APIs in v0, or keep purely structural?
-4. **Storage backing**: always IndexedDB (async) vs hybrid localStorage/IDB.
-5. **Canvas strategy**: immediate-mode calls vs command buffers for batching.
-6. **wasmGC surface**: single API optimized under the hood vs explicit `browser-gc:*` package.
+The following decisions have been made for the v0 implementation:
+
+### 14.1 Async ABI: Native `future`/`stream`
+
+**Decision**: Use native Component Model async primitives.
+
+- Async functions return `future<T>`
+- Event subscriptions return `stream<Event>`
+- Aligns with WASIP3 async model for consistency
+- More ergonomic than explicit pollables
+- Fallback binding strategy available for languages lacking native `future` support
+
+### 14.2 Event Backpressure: Drop Oldest
+
+**Decision**: When the event stream queue is full, drop the oldest events.
+
+- Prefer fresh events for UI responsiveness (e.g., latest mouse position matters more than old positions)
+- Bounded queue size (configurable, default 1000 events)
+- Emit `dropped-count` metadata on next delivered event when drops occur
+- Components can detect drops and adjust behavior if needed
+
+### 14.3 DOM Scope: Structural Only in v0
+
+**Decision**: Keep v0 purely structural; defer style/layout APIs to v0.2.
+
+v0 includes:
+- Query selectors
+- Create/append/remove elements
+- Get/set attributes
+- Get/set text content
+- Event target wiring
+
+v0.2 will add:
+- `set-style(el, prop, value)`
+- `get-computed-style(el, prop)`
+- Layout queries (bounding rect, scroll position)
+
+Rationale: Smaller attack surface, simpler implementation, style APIs have more security considerations.
+
+### 14.4 Storage Backing: IndexedDB Only
+
+**Decision**: Use IndexedDB exclusively for `browser:storage`.
+
+- Consistent async API across all operations
+- Handles large values well (no 5MB localStorage limit)
+- Works in Web Workers
+- Future-proof for more complex storage patterns
+- Simpler mental model (one backing store)
+
+Trade-off accepted: Slightly higher latency for small reads vs localStorage.
+
+### 14.5 Canvas Strategy: Command Buffers
+
+**Decision**: Use batched command buffers instead of immediate-mode calls.
+
+```
+draw-commands(ctx: context2d, commands: list<draw-command>) -> result<(), error>
+```
+
+- Dramatically reduces cross-boundary call overhead
+- Better for complex scenes and animations
+- Natural fit for wasmGC arrays/structs
+- Immediate-mode convenience wrappers can be built on top in userland
+
+Command types include: `fill-rect`, `stroke-rect`, `fill-text`, `stroke-text`, `draw-image`, `begin-path`, `move-to`, `line-to`, `arc`, `close-path`, `fill`, `stroke`, `save`, `restore`, `translate`, `rotate`, `scale`, `set-fill-style`, `set-stroke-style`, `set-line-width`, `set-font`.
+
+### 14.6 wasmGC Surface: Single API with Optimized Backing
+
+**Decision**: Keep a single `browser:*` API surface; optimize implementation when wasmGC is available.
+
+- Public API remains stable regardless of wasmGC availability
+- When wasmGC is detected, resource handles are backed by `externref` stored in Wasm GC objects
+- Host uses feature detection: `browser:runtime.wasm-gc-enabled()`
+- No separate `browser-gc:*` package needed
+- Transparent optimization without user code changes
+
+Implementation detail: Hot paths (events, DOM nodes, streaming) get `externref` backing; cold paths use traditional handle tables.
+
+---
+
+### Decision Summary
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Async ABI | `future`/`stream` | Aligns with WASIP3, more ergonomic |
+| Backpressure | Drop oldest | UI responsiveness, fresh events preferred |
+| DOM scope | Structural only (v0) | Smaller surface, add style in v0.2 |
+| Storage | IndexedDB only | Consistent async, handles large values |
+| Canvas | Command buffers | Performance, fewer boundary crossings |
+| wasmGC | Single API, optimized backing | Stable surface, transparent optimization |
 
 ---
 

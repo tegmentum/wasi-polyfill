@@ -60,14 +60,18 @@ Capability-scoped browser interfaces for WebAssembly components with wasmGC-awar
 - **Async-native**: Native `future<T>` and `stream<T>` integration
 - **Cross-browser compatibility**: Feature detection with graceful degradation
 
-#### Open Questions
+#### Design Decisions (Resolved)
 
-1. Async ABI choice: native `future/stream` vs explicit pollables
-2. Event backpressure policy: drop-oldest vs drop-newest vs block
-3. DOM scope: style/layout APIs in v0 or keep purely structural
-4. Storage backing: always IndexedDB vs hybrid localStorage/IDB
-5. Canvas strategy: immediate-mode calls vs command buffers
-6. wasmGC surface: single optimized API vs explicit `browser-gc:*` package
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Async ABI | `future`/`stream` | Aligns with WASIP3, more ergonomic |
+| Event backpressure | Drop oldest | UI responsiveness, fresh events preferred |
+| DOM scope (v0) | Structural only | Smaller surface, add style in v0.2 |
+| Storage backing | IndexedDB only | Consistent async, handles large values |
+| Canvas strategy | Command buffers | Performance, fewer boundary crossings |
+| wasmGC surface | Single API, optimized backing | Stable surface, transparent optimization |
+
+See [docs/design/browser-interfaces.md](docs/design/browser-interfaces.md#14-design-decisions) for detailed rationale.
 
 ---
 
