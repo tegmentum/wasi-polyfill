@@ -34,7 +34,7 @@ This document outlines the planned development roadmap for `@tegmentum/wasip2-po
 
 ### Browser Host Interfaces (`browser:*`)
 
-**Status**: Design Complete | **Priority**: High | **Target**: Q2-Q3 2025
+**Status**: ✅ Implementation Complete | **Priority**: High
 
 Capability-scoped browser interfaces for WebAssembly components with wasmGC-aware optimizations.
 
