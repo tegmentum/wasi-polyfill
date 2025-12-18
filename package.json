@@ -19,6 +19,10 @@
       "types": "./dist/wasip2/index.d.ts",
       "import": "./dist/wasip2/index.js"
     },
+    "./wasip3": {
+      "types": "./dist/wasip3/index.d.ts",
+      "import": "./dist/wasip3/index.js"
+    },
     "./wasip2/plugins/random": {
       "types": "./dist/wasip2/plugins/random/index.d.ts",
       "import": "./dist/wasip2/plugins/random/index.js"
@@ -183,7 +187,8 @@
     "polyfill",
     "browser",
     "wasip1",
-    "wasip2"
+    "wasip2",
+    "wasip3"
   ],
   "author": "",
   "license": "MIT",

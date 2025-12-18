@@ -5,12 +5,15 @@ export default defineConfig({
     // Root entry (re-exports wasip2)
     index: 'src/index.ts',
 
-    // WASI Preview 1 (legacy)
+    // WASI Preview 1
     'wasip1/index': 'src/wasip1/index.ts',
 
-    // WASI Preview 2 (current)
+    // WASI Preview 2
     'wasip2/index': 'src/wasip2/index.ts',
     'wasip2/plugins/random/index': 'src/wasip2/plugins/random/index.ts',
+
+    // WASI Preview 3
+    'wasip3/index': 'src/wasip3/index.ts',
     'wasip2/plugins/clocks/index': 'src/wasip2/plugins/clocks/index.ts',
     'wasip2/plugins/io/index': 'src/wasip2/plugins/io/index.ts',
     'wasip2/plugins/cli/index': 'src/wasip2/plugins/cli/index.ts',
