@@ -6,13 +6,13 @@
  *
  * @example
  * ```typescript
- * import { getBrowserImports } from '@tegmentum/wasip2-polyfill/browser'
+ * import { getBrowserImports } from '@tegmentum/wasi-polyfill/browser'
  *
  * // Get all browser imports
  * const imports = getBrowserImports()
  *
  * // Or get specific interface imports
- * import { getBrowserConsoleImports } from '@tegmentum/wasip2-polyfill/browser'
+ * import { getBrowserConsoleImports } from '@tegmentum/wasi-polyfill/browser'
  * const consoleImports = getBrowserConsoleImports()
  * ```
  *

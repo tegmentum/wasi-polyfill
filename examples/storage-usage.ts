@@ -1,11 +1,11 @@
 /**
- * Storage plugin usage examples for @tegmentum/wasip2-polyfill
+ * Storage plugin usage examples for @tegmentum/wasi-polyfill
  *
  * This example demonstrates how to use the key-value and blobstore plugins
  * with different backends: memory, IndexedDB, and OPFS.
  */
 
-import { createDevPolyfill, Polyfill } from '@tegmentum/wasip2-polyfill'
+import { createDevPolyfill, Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   keyvalueStorePlugin,
   keyvalueAtomicsPlugin,
@@ -16,7 +16,7 @@ import {
   isIdbStoreAvailable,
   createRecordingStore,
   createReplayStore,
-} from '@tegmentum/wasip2-polyfill/plugins/keyvalue'
+} from '@tegmentum/wasi-polyfill/plugins/keyvalue'
 import {
   blobstorePlugin,
   blobstoreContainerPlugin,
@@ -26,7 +26,7 @@ import {
   isOpfsBlobstoreAvailable,
   createRecordingBlobstore,
   createReplayBlobstore,
-} from '@tegmentum/wasip2-polyfill/plugins/blobstore'
+} from '@tegmentum/wasi-polyfill/plugins/blobstore'
 
 // ============================================================================
 // Example 1: In-Memory Key-Value Store

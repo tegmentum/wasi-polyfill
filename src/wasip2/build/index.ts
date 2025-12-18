@@ -10,7 +10,7 @@
  * @example
  * ```ts
  * // Generate manifest from a component file
- * import { generateManifestFile } from '@tegmentum/wasip2-polyfill/build'
+ * import { generateManifestFile } from '@tegmentum/wasi-polyfill/build'
  *
  * await generateManifestFile('./my-component.wasm')
  * // Creates: ./my-component.wasm.manifest.json
@@ -19,7 +19,7 @@
  * @example
  * ```ts
  * // Vite plugin usage
- * import { wasipPolyfillPlugin } from '@tegmentum/wasip2-polyfill/build'
+ * import { wasipPolyfillPlugin } from '@tegmentum/wasi-polyfill/build'
  *
  * export default {
  *   plugins: [wasipPolyfillPlugin()]
@@ -29,7 +29,7 @@
  * @example
  * ```ts
  * // esbuild plugin usage
- * import { wasipPolyfillEsbuildPlugin } from '@tegmentum/wasip2-polyfill/build'
+ * import { wasipPolyfillEsbuildPlugin } from '@tegmentum/wasi-polyfill/build'
  *
  * await esbuild.build({
  *   plugins: [wasipPolyfillEsbuildPlugin()]

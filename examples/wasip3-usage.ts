@@ -56,7 +56,7 @@ import {
   type Stream,
   type StreamWriter,
   type Future,
-} from '@tegmentum/wasip2-polyfill/wasip3'
+} from '@tegmentum/wasi-polyfill/wasip3'
 
 // ============================================================================
 // Example 1: Streams - The Core Async Primitive
@@ -523,7 +523,7 @@ import {
   createStdinFromString,
   createCollectingWriter,
   InMemoryFilesystem,
-} from '@tegmentum/wasip2-polyfill/wasip3'
+} from '@tegmentum/wasi-polyfill/wasip3'
 
 async function runP3Component(wasmBytes: ArrayBuffer) {
   // 1. Set up I/O

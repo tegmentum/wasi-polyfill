@@ -13,7 +13,7 @@
  *
  * @example
  * ```typescript
- * import { Wasip3 } from '@tegmentum/wasip2-polyfill/wasip3'
+ * import { Wasip3 } from '@tegmentum/wasi-polyfill/wasip3'
  *
  * const wasi = new Wasip3({
  *   args: ['program', 'arg1'],

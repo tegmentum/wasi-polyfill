@@ -13,7 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@tegmentum/wasip2-polyfill': resolve(__dirname, '../../src/index.ts'),
+      '@tegmentum/wasi-polyfill': resolve(__dirname, '../../src/index.ts'),
     },
   },
   server: {

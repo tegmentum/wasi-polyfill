@@ -523,8 +523,8 @@ const js = await transpile(p3ComponentBytes, {
   // P3 async mode
   asyncMode: 'native', // or 'promise' for JS integration
   map: {
-    'wasi:clocks/*@0.3.0': '@tegmentum/wasip2-polyfill/wasip3/clocks',
-    'wasi:io/*@0.3.0': '@tegmentum/wasip2-polyfill/wasip3/io',
+    'wasi:clocks/*@0.3.0': '@tegmentum/wasi-polyfill/wasip3/clocks',
+    'wasi:io/*@0.3.0': '@tegmentum/wasi-polyfill/wasip3/io',
     // ...
   }
 })
@@ -536,7 +536,7 @@ const js = await transpile(p3ComponentBytes, {
 
 ```typescript
 // Unified entry point detects version
-import { createPolyfill } from '@tegmentum/wasip2-polyfill'
+import { createPolyfill } from '@tegmentum/wasi-polyfill'
 
 const polyfill = createPolyfill({
   // Auto-detect or specify version

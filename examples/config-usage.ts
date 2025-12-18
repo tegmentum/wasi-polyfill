@@ -1,12 +1,12 @@
 /**
- * Config plugin usage examples for @tegmentum/wasip2-polyfill
+ * Config plugin usage examples for @tegmentum/wasi-polyfill
  *
  * This example demonstrates how to use the config plugin with
  * different sources: static values, remote URLs, layered configs,
  * manifests, and environment variable bridging.
  */
 
-import { createDevPolyfill, Polyfill } from '@tegmentum/wasip2-polyfill'
+import { createDevPolyfill, Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   configRuntimePlugin,
   configStorePlugin,
@@ -30,7 +30,7 @@ import {
   createFixedConfig,
   emptyFixedConfig,
   mergeFixedConfigs,
-} from '@tegmentum/wasip2-polyfill/plugins/config'
+} from '@tegmentum/wasi-polyfill/plugins/config'
 
 // ============================================================================
 // Example 1: Static Runtime Config

@@ -1,11 +1,11 @@
 /**
- * Filesystem plugin usage examples for @tegmentum/wasip2-polyfill
+ * Filesystem plugin usage examples for @tegmentum/wasi-polyfill
  *
  * This example demonstrates how to use the filesystem plugin with
  * different backends: memory, OPFS, IndexedDB, and overlay filesystems.
  */
 
-import { createDevPolyfill, Polyfill } from '@tegmentum/wasip2-polyfill'
+import { createDevPolyfill, Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   filesystemTypesPlugin,
   filesystemPreopensPlugin,
@@ -17,7 +17,7 @@ import {
   isOpfsAvailable,
   isIdbAvailable,
   FilesystemErrorCode,
-} from '@tegmentum/wasip2-polyfill/plugins/filesystem'
+} from '@tegmentum/wasi-polyfill/plugins/filesystem'
 
 // ============================================================================
 // Example 1: In-Memory Filesystem (Default)

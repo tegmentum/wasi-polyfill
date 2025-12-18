@@ -44,7 +44,7 @@ const DEFAULT_OPTIONS: Required<Omit<WasipPolyfillEsbuildOptions, 'transformMani
  * @example
  * ```ts
  * // esbuild.config.js
- * import { wasipPolyfillEsbuildPlugin } from '@tegmentum/wasip2-polyfill/build'
+ * import { wasipPolyfillEsbuildPlugin } from '@tegmentum/wasi-polyfill/build'
  *
  * await esbuild.build({
  *   plugins: [
@@ -65,7 +65,7 @@ export function wasipPolyfillEsbuildPlugin(options: WasipPolyfillEsbuildOptions 
   const wasmFiles = new Set<string>()
 
   return {
-    name: 'wasip2-polyfill',
+    name: 'wasi-polyfill',
 
     setup(build) {
       // Namespace for manifest virtual modules
@@ -192,7 +192,7 @@ export function wasipPolyfillEsbuildPlugin(options: WasipPolyfillEsbuildOptions 
 
             await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
           } catch (error) {
-            console.warn(`[wasip2-polyfill] Failed to generate manifest for ${filePath}: ${error}`)
+            console.warn(`[wasi-polyfill] Failed to generate manifest for ${filePath}: ${error}`)
           }
         }
       })

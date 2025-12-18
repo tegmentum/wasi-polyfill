@@ -1,5 +1,5 @@
 /**
- * Service Worker HTTP Handler example for @tegmentum/wasip2-polyfill
+ * Service Worker HTTP Handler example for @tegmentum/wasi-polyfill
  *
  * Shows how to set up a Service Worker to handle HTTP requests
  * using WASI components.
@@ -8,7 +8,7 @@
  * the main page registration code.
  */
 
-import { Polyfill } from '@tegmentum/wasip2-polyfill'
+import { Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   httpPlugins,
   httpIncomingHandlerPlugin,
@@ -19,7 +19,7 @@ import {
   isServiceWorkerContext,
   serviceWorkerIncomingHandlerImplementation,
   HTTP_INCOMING_HANDLER_INTERFACE,
-} from '@tegmentum/wasip2-polyfill/plugins/http'
+} from '@tegmentum/wasi-polyfill/plugins/http'
 
 // =============================================================================
 // SERVICE WORKER CODE (sw.ts)

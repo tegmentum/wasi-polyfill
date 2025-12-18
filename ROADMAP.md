@@ -1,6 +1,6 @@
 # Roadmap
 
-This document outlines the planned development roadmap for `@tegmentum/wasip2-polyfill`.
+This document outlines the planned development roadmap for `@tegmentum/wasi-polyfill`.
 
 ## Current Status
 

@@ -1,13 +1,13 @@
 /**
- * Basic usage example for @tegmentum/wasip2-polyfill
+ * Basic usage example for @tegmentum/wasi-polyfill
  *
  * Shows how to set up the polyfill and run a WASI component
  * in a browser environment.
  */
 
-import { Polyfill } from '@tegmentum/wasip2-polyfill'
-import { randomPlugin, cryptoRandomImplementation } from '@tegmentum/wasip2-polyfill/plugins/random'
-import { clocksPlugins, performanceMonotonicImplementation } from '@tegmentum/wasip2-polyfill/plugins/clocks'
+import { Polyfill } from '@tegmentum/wasi-polyfill'
+import { randomPlugin, cryptoRandomImplementation } from '@tegmentum/wasi-polyfill/plugins/random'
+import { clocksPlugins, performanceMonotonicImplementation } from '@tegmentum/wasi-polyfill/plugins/clocks'
 
 /**
  * Example: Basic polyfill setup
@@ -68,7 +68,7 @@ async function cliEnvironment() {
 
   // Import CLI plugins
   const { cliPlugins, virtualCliImplementation } = await import(
-    '@tegmentum/wasip2-polyfill/plugins/cli'
+    '@tegmentum/wasi-polyfill/plugins/cli'
   )
 
   // Configure CLI environment

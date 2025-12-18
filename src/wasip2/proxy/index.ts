@@ -8,7 +8,7 @@
  *
  * @example Browser client usage
  * ```typescript
- * import { createProxyClient, StreamType } from '@tegmentum/wasip2-polyfill/proxy'
+ * import { createProxyClient, StreamType } from '@tegmentum/wasi-polyfill/proxy'
  *
  * const client = createProxyClient({
  *   url: 'wss://proxy.example.com/proxy'
@@ -27,7 +27,7 @@
  *
  * @example Server usage (Node.js)
  * ```typescript
- * import { createProxyServer, createTcpAdapter, createDnsAdapter } from '@tegmentum/wasip2-polyfill/proxy'
+ * import { createProxyServer, createTcpAdapter, createDnsAdapter } from '@tegmentum/wasi-polyfill/proxy'
  *
  * const server = createProxyServer({
  *   port: 8080,

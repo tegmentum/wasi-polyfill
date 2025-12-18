@@ -11,7 +11,7 @@
  *
  * @example
  * ```typescript
- * import { createPolyfill, createCliPolicy } from '@tegmentum/wasip2-polyfill/wasip2'
+ * import { createPolyfill, createCliPolicy } from '@tegmentum/wasi-polyfill/wasip2'
  *
  * const polyfill = createPolyfill({
  *   policy: createCliPolicy({ env: { FOO: 'bar' } })

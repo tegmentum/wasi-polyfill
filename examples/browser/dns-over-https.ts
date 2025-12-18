@@ -1,11 +1,11 @@
 /**
- * DNS-over-HTTPS (DoH) example for @tegmentum/wasip2-polyfill
+ * DNS-over-HTTPS (DoH) example for @tegmentum/wasi-polyfill
  *
  * Shows how to configure and use the DNS-over-HTTPS resolver
  * for name resolution in browser environments.
  */
 
-import { Polyfill } from '@tegmentum/wasip2-polyfill'
+import { Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   socketPlugins,
   ipNameLookupPlugin,
@@ -14,7 +14,7 @@ import {
   DEFAULT_DOH_RESOLVER,
   DnsRecordType,
   IP_NAME_LOOKUP_INTERFACE,
-} from '@tegmentum/wasip2-polyfill/plugins/sockets'
+} from '@tegmentum/wasi-polyfill/plugins/sockets'
 
 /**
  * Example: Basic DoH setup with Cloudflare

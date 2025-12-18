@@ -1,5 +1,5 @@
 /**
- * Advanced usage examples for @tegmentum/wasip2-polyfill
+ * Advanced usage examples for @tegmentum/wasi-polyfill
  *
  * This example demonstrates advanced patterns including:
  * - Combining multiple plugins
@@ -14,23 +14,23 @@ import {
   createDevPolyfill,
   createSafePolyfill,
   type WasiInterface,
-} from '@tegmentum/wasip2-polyfill'
-import { randomPlugin } from '@tegmentum/wasip2-polyfill/plugins/random'
+} from '@tegmentum/wasi-polyfill'
+import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
 import {
   monotonicClockPlugin,
   wallClockPlugin,
-} from '@tegmentum/wasip2-polyfill/plugins/clocks'
-import { environmentPlugin } from '@tegmentum/wasip2-polyfill/plugins/cli'
+} from '@tegmentum/wasi-polyfill/plugins/clocks'
+import { environmentPlugin } from '@tegmentum/wasi-polyfill/plugins/cli'
 import {
   filesystemTypesPlugin,
   filesystemPreopensPlugin,
-} from '@tegmentum/wasip2-polyfill/plugins/filesystem'
+} from '@tegmentum/wasi-polyfill/plugins/filesystem'
 import {
   httpTypesPlugin,
   httpOutgoingHandlerPlugin,
-} from '@tegmentum/wasip2-polyfill/plugins/http'
-import { loggingPlugin } from '@tegmentum/wasip2-polyfill/plugins/logging'
-import { keyvalueStorePlugin } from '@tegmentum/wasip2-polyfill/plugins/keyvalue'
+} from '@tegmentum/wasi-polyfill/plugins/http'
+import { loggingPlugin } from '@tegmentum/wasi-polyfill/plugins/logging'
+import { keyvalueStorePlugin } from '@tegmentum/wasi-polyfill/plugins/keyvalue'
 
 // ============================================================================
 // Example 1: Full Application Setup with All Common Plugins

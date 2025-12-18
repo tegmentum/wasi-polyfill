@@ -6,7 +6,7 @@
  *
  * Usage in a Service Worker:
  * ```typescript
- * import { createServiceWorkerHandler } from '@tegmentum/wasip2-polyfill/plugins/http'
+ * import { createServiceWorkerHandler } from '@tegmentum/wasi-polyfill/plugins/http'
  *
  * const handler = createServiceWorkerHandler({
  *   wasmInstance: myWasmInstance,

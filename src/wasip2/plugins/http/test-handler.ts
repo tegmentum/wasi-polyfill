@@ -9,7 +9,7 @@
  *
  * Usage:
  * ```typescript
- * import { createTestHttpHandler } from '@tegmentum/wasip2-polyfill/plugins/http'
+ * import { createTestHttpHandler } from '@tegmentum/wasi-polyfill/plugins/http'
  *
  * const handler = createTestHttpHandler({
  *   wasmHandler: myHandlerFunction,

@@ -1,11 +1,11 @@
 /**
- * Origin Private File System (OPFS) example for @tegmentum/wasip2-polyfill
+ * Origin Private File System (OPFS) example for @tegmentum/wasi-polyfill
  *
  * Shows how to configure and use the OPFS filesystem backend
  * for persistent storage in browser environments.
  */
 
-import { Polyfill } from '@tegmentum/wasip2-polyfill'
+import { Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   filesystemPlugins,
   filesystemTypesPlugin,
@@ -16,7 +16,7 @@ import {
   getGlobalOpfsFilesystemInstance,
   FILESYSTEM_TYPES_INTERFACE,
   FILESYSTEM_PREOPENS_INTERFACE,
-} from '@tegmentum/wasip2-polyfill/plugins/filesystem'
+} from '@tegmentum/wasi-polyfill/plugins/filesystem'
 
 /**
  * Example: Check OPFS availability

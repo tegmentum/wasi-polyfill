@@ -1,5 +1,5 @@
 /**
- * @tegmentum/wasip2-polyfill
+ * @tegmentum/wasi-polyfill
  *
  * Multi-version WASI polyfill for browser and JavaScript environments.
  *
@@ -14,13 +14,13 @@
  * @example
  * ```typescript
  * // Default (wasip2)
- * import { Polyfill } from '@tegmentum/wasip2-polyfill'
+ * import { Polyfill } from '@tegmentum/wasi-polyfill'
  *
  * // Explicit wasip2
- * import { Polyfill } from '@tegmentum/wasip2-polyfill/wasip2'
+ * import { Polyfill } from '@tegmentum/wasi-polyfill/wasip2'
  *
  * // Legacy wasip1
- * import { Wasip1 } from '@tegmentum/wasip2-polyfill/wasip1'
+ * import { Wasip1 } from '@tegmentum/wasi-polyfill/wasip1'
  * ```
  *
  * @packageDocumentation

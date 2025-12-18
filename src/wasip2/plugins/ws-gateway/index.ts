@@ -11,8 +11,8 @@
  * ## Usage
  *
  * ```typescript
- * import { Polyfill } from '@tegmentum/wasip2-polyfill'
- * import { wsGatewayTcpPlugin, wsGatewayTcpCreateSocketPlugin } from '@tegmentum/wasip2-polyfill/plugins/ws-gateway'
+ * import { Polyfill } from '@tegmentum/wasi-polyfill'
+ * import { wsGatewayTcpPlugin, wsGatewayTcpCreateSocketPlugin } from '@tegmentum/wasi-polyfill/plugins/ws-gateway'
  *
  * const polyfill = new Polyfill()
  *
@@ -40,7 +40,7 @@
  * For lower-level control, use the WsTunnelManager directly:
  *
  * ```typescript
- * import { WsTunnelManager } from '@tegmentum/wasip2-polyfill/plugins/ws-gateway'
+ * import { WsTunnelManager } from '@tegmentum/wasi-polyfill/plugins/ws-gateway'
  *
  * const tunnel = new WsTunnelManager({
  *   gatewayUrl: 'wss://gateway.example.com/ws',

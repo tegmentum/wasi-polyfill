@@ -1,11 +1,11 @@
 /**
- * HTTP plugin usage examples for @tegmentum/wasip2-polyfill
+ * HTTP plugin usage examples for @tegmentum/wasi-polyfill
  *
  * This example demonstrates how to use the HTTP plugin for both
  * outgoing requests (client) and incoming requests (server).
  */
 
-import { createDevPolyfill, Polyfill } from '@tegmentum/wasip2-polyfill'
+import { createDevPolyfill, Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   httpTypesPlugin,
   httpOutgoingHandlerPlugin,
@@ -17,7 +17,7 @@ import {
   isServiceWorkerContext,
   type TestRequest,
   type TestResponse,
-} from '@tegmentum/wasip2-polyfill/plugins/http'
+} from '@tegmentum/wasi-polyfill/plugins/http'
 
 // ============================================================================
 // Example 1: HTTP Client (Outgoing Requests)

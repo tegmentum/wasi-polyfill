@@ -1,5 +1,5 @@
 {
-  "name": "@tegmentum/wasip2-polyfill",
+  "name": "@tegmentum/wasi-polyfill",
   "version": "0.1.0",
   "description": "Multi-version WASI polyfill for browser and JavaScript environments",
   "type": "module",

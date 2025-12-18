@@ -1,5 +1,5 @@
 /**
- * Basic usage example for @tegmentum/wasip2-polyfill
+ * Basic usage example for @tegmentum/wasi-polyfill
  *
  * This example demonstrates how to use the polyfill to provide WASI
  * implementations for a WebAssembly component.
@@ -9,13 +9,13 @@ import {
   Polyfill,
   createDevPolyfill,
   createSafePolyfill,
-} from '@tegmentum/wasip2-polyfill'
-import { randomPlugin } from '@tegmentum/wasip2-polyfill/plugins/random'
+} from '@tegmentum/wasi-polyfill'
+import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
 import {
   monotonicClockPlugin,
   wallClockPlugin,
-} from '@tegmentum/wasip2-polyfill/plugins/clocks'
-import { environmentPlugin } from '@tegmentum/wasip2-polyfill/plugins/cli'
+} from '@tegmentum/wasi-polyfill/plugins/clocks'
+import { environmentPlugin } from '@tegmentum/wasi-polyfill/plugins/cli'
 
 // ============================================================================
 // Example 1: Development polyfill (allows all interfaces)

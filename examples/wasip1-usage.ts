@@ -15,7 +15,7 @@ import {
   type InputStream,
   type OutputStream,
   type Filesystem,
-} from '@tegmentum/wasip2-polyfill/wasip1'
+} from '@tegmentum/wasi-polyfill/wasip1'
 
 // ============================================================================
 // Example 1: Basic WASIP1 Setup
@@ -346,7 +346,7 @@ async function fullIntegrationPattern() {
   console.log(`
 // This is the typical pattern for running a WASIP1 module:
 
-import { Wasip1, WasiExitError } from '@tegmentum/wasip2-polyfill/wasip1'
+import { Wasip1, WasiExitError } from '@tegmentum/wasi-polyfill/wasip1'
 
 async function runWasiModule(wasmBytes: ArrayBuffer) {
   // 1. Create WASI instance with configuration

@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * import { Wasip1 } from '@tegmentum/wasip2-polyfill/wasip1'
+ * import { Wasip1 } from '@tegmentum/wasi-polyfill/wasip1'
  *
  * const wasi = new Wasip1({
  *   args: ['program', 'arg1'],

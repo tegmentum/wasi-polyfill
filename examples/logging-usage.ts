@@ -1,11 +1,11 @@
 /**
- * Logging plugin usage examples for @tegmentum/wasip2-polyfill
+ * Logging plugin usage examples for @tegmentum/wasi-polyfill
  *
  * This example demonstrates how to use the logging plugin with
  * different backends: console, buffer, NDJSON, and OTLP.
  */
 
-import { createDevPolyfill, Polyfill } from '@tegmentum/wasip2-polyfill'
+import { createDevPolyfill, Polyfill } from '@tegmentum/wasi-polyfill'
 import {
   loggingPlugin,
   consoleLogImplementation,
@@ -21,7 +21,7 @@ import {
   shouldLog,
   type LogEntry,
   type LogLevel,
-} from '@tegmentum/wasip2-polyfill/plugins/logging'
+} from '@tegmentum/wasi-polyfill/plugins/logging'
 
 // ============================================================================
 // Example 1: Console Logging (Default)
@@ -189,7 +189,7 @@ async function otlpLoggingUsage() {
     },
     // Instrumentation scope
     scope: {
-      name: '@tegmentum/wasip2-polyfill',
+      name: '@tegmentum/wasi-polyfill',
       version: '1.0.0',
     },
     // Batching configuration

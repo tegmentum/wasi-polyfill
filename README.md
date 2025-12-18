@@ -1,4 +1,4 @@
-# @tegmentum/wasip2-polyfill
+# @tegmentum/wasi-polyfill
 
 A comprehensive WASI Preview 2 polyfill for browser and JavaScript environments.
 
@@ -17,15 +17,15 @@ This package provides a provider framework, policy engine, and loader for runnin
 ## Installation
 
 ```bash
-npm install @tegmentum/wasip2-polyfill
+npm install @tegmentum/wasi-polyfill
 ```
 
 ## Quick Start
 
 ```typescript
-import { createPolyfill, createCliPolicy } from '@tegmentum/wasip2-polyfill'
-import { randomPlugin } from '@tegmentum/wasip2-polyfill/plugins/random'
-import { monotonicClockPlugin } from '@tegmentum/wasip2-polyfill/plugins/clocks'
+import { createPolyfill, createCliPolicy } from '@tegmentum/wasi-polyfill'
+import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
+import { monotonicClockPlugin } from '@tegmentum/wasi-polyfill/plugins/clocks'
 
 // Create a polyfill with a CLI-friendly policy
 const polyfill = createPolyfill({
@@ -128,13 +128,13 @@ import {
   createCliPolicy,     // Allows CLI interfaces
   AllowAllPolicy,      // Development only - allows everything
   DenyAllPolicy        // Denies all interfaces
-} from '@tegmentum/wasip2-polyfill'
+} from '@tegmentum/wasi-polyfill'
 ```
 
 ### Custom Policy
 
 ```typescript
-import { createPolicy } from '@tegmentum/wasip2-polyfill'
+import { createPolicy } from '@tegmentum/wasi-polyfill'
 
 const policy = createPolicy({
   defaultAllow: false,
@@ -156,8 +156,8 @@ const policy = createPolicy({
 For dynamically loading unknown components at runtime:
 
 ```typescript
-import { createComponentLoader } from '@tegmentum/wasip2-polyfill/runtime'
-import { randomPlugin } from '@tegmentum/wasip2-polyfill/plugins/random'
+import { createComponentLoader } from '@tegmentum/wasi-polyfill/runtime'
+import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
 
 const loader = createComponentLoader({ devMode: true })
 loader.getPolyfill().registerPlugin(randomPlugin)
@@ -178,7 +178,7 @@ component.destroy()
 
 ```typescript
 // vite.config.ts
-import { wasiPolyfillPlugin } from '@tegmentum/wasip2-polyfill/build'
+import { wasiPolyfillPlugin } from '@tegmentum/wasi-polyfill/build'
 
 export default {
   plugins: [
@@ -193,7 +193,7 @@ export default {
 ### Component Introspection
 
 ```typescript
-import { introspect, generateManifest } from '@tegmentum/wasip2-polyfill/build'
+import { introspect, generateManifest } from '@tegmentum/wasi-polyfill/build'
 
 // Get required interfaces from a component
 const result = await introspect(wasmBytes)
@@ -209,7 +209,7 @@ const manifest = await generateManifest(wasmBytes)
 For native TCP/UDP socket access in browsers, use the WebSocket gateway:
 
 ```typescript
-import { createWsGatewayPlugin } from '@tegmentum/wasip2-polyfill/plugins/ws-gateway'
+import { createWsGatewayPlugin } from '@tegmentum/wasi-polyfill/plugins/ws-gateway'
 
 const wsGateway = createWsGatewayPlugin({
   gatewayUrl: 'wss://gateway.example.com/tunnel',
@@ -226,7 +226,7 @@ This tunnels socket operations through a WebSocket proxy server, enabling real T
 For reproducible tests, use the deterministic test harness:
 
 ```typescript
-import { createTestHarness, withTestHarness } from '@tegmentum/wasip2-polyfill/testing'
+import { createTestHarness, withTestHarness } from '@tegmentum/wasi-polyfill/testing'
 
 // Create a harness with a fixed seed and time
 const harness = createTestHarness({
@@ -263,7 +263,7 @@ const result = await withTestHarness({ seed: 123n }, async (h) => {
 ### Bundle Presets
 
 ```typescript
-import { deterministicBundle, browserTestBundle, minimalBundle } from '@tegmentum/wasip2-polyfill/testing'
+import { deterministicBundle, browserTestBundle, minimalBundle } from '@tegmentum/wasi-polyfill/testing'
 
 // deterministicBundle: Seeded random, virtual clocks, buffer logging
 // browserTestBundle: Real crypto, real clocks, buffer logging

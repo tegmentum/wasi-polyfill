@@ -228,7 +228,7 @@ class OtlpLogInstance implements PluginInstance {
       'service.name': 'wasi-component',
     }
     this.scope = config.scope ?? {
-      name: '@tegmentum/wasip2-polyfill',
+      name: '@tegmentum/wasi-polyfill',
       version: '1.0.0',
     }
     this.batchSize = config.batchSize ?? 10

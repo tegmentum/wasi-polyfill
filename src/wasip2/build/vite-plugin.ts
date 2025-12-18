@@ -45,7 +45,7 @@ const DEFAULT_OPTIONS: Required<Omit<WasipPolyfillPluginOptions, 'transformManif
  * @example
  * ```ts
  * // vite.config.ts
- * import { wasipPolyfillPlugin } from '@tegmentum/wasip2-polyfill/build'
+ * import { wasipPolyfillPlugin } from '@tegmentum/wasi-polyfill/build'
  *
  * export default {
  *   plugins: [
@@ -64,7 +64,7 @@ export function wasipPolyfillPlugin(options: WasipPolyfillPluginOptions = {}): P
   const manifestCache = new Map<string, ComponentManifest>()
 
   return {
-    name: 'wasip2-polyfill',
+    name: 'wasi-polyfill',
 
     configResolved(resolvedConfig) {
       config = resolvedConfig
@@ -186,7 +186,7 @@ export function wasipPolyfillPlugin(options: WasipPolyfillPluginOptions = {}): P
 
           // Log in verbose mode
           if (config.logLevel === 'info') {
-            console.log(`[wasip2-polyfill] Generated manifest: ${manifestFileName}`)
+            console.log(`[wasi-polyfill] Generated manifest: ${manifestFileName}`)
           }
         } catch (error) {
           this.warn(`Failed to generate manifest for ${fileName}: ${error}`)
