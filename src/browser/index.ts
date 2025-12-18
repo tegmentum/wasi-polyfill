@@ -290,6 +290,28 @@ export {
 } from './media.js'
 
 // =============================================================================
+// Phase 5: Service Worker (Experimental)
+// =============================================================================
+
+export {
+  // Service Worker
+  type RegistrationHandle,
+  type ServiceWorkerHandle,
+  type ServiceWorkerState,
+  type UpdateViaCache,
+  type RegistrationOptions,
+  type ServiceWorkerInfo,
+  type RegistrationInfo,
+  type RegistrationEvent,
+  type ServiceWorkerOptions,
+  BrowserServiceWorker,
+  getDefaultServiceWorker,
+  register,
+  getRegistrations,
+  getBrowserServiceWorkerImports,
+} from './service-worker.js'
+
+// =============================================================================
 // Combined Imports
 // =============================================================================
 
@@ -307,6 +329,7 @@ import { getBrowserClipboardImports as _getClipboardImports } from './clipboard.
 import { getBrowserGeolocationImports as _getGeolocationImports } from './geolocation.js'
 import { getBrowserNotificationsImports as _getNotificationsImports } from './notifications.js'
 import { getBrowserMediaImports as _getMediaImports } from './media.js'
+import { getBrowserServiceWorkerImports as _getServiceWorkerImports } from './service-worker.js'
 
 /**
  * Configuration for browser imports.
@@ -332,6 +355,8 @@ export interface BrowserImportsConfig {
   notifications?: import('./notifications.js').NotificationsConfig
   /** Media options */
   media?: import('./media.js').MediaOptions
+  /** Service worker options */
+  serviceWorker?: import('./service-worker.js').ServiceWorkerOptions
 }
 
 /**
@@ -360,5 +385,7 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     ..._getGeolocationImports(config.geolocation),
     ..._getNotificationsImports(config.notifications),
     ..._getMediaImports(config.media),
+    // Phase 5
+    ..._getServiceWorkerImports(config.serviceWorker),
   }
 }
