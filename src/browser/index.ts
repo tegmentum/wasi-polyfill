@@ -206,6 +206,27 @@ export {
 } from './events.js'
 
 // =============================================================================
+// Phase 3: Canvas
+// =============================================================================
+
+export {
+  // Canvas
+  type CanvasHandle,
+  type Context2DHandle,
+  type LineCap,
+  type LineJoin,
+  type TextAlign,
+  type TextBaseline,
+  type CompositeOperation,
+  type ImageData,
+  type DrawCommand,
+  type CanvasOptions,
+  BrowserCanvas,
+  getDefaultCanvas,
+  getBrowserCanvasImports,
+} from './canvas.js'
+
+// =============================================================================
 // Combined Imports
 // =============================================================================
 
@@ -218,6 +239,7 @@ import { getBrowserStorageImports as _getStorageImports } from './storage.js'
 import { getBrowserPerformanceImports as _getPerformanceImports } from './performance.js'
 import { getBrowserDomImports as _getDomImports } from './dom.js'
 import { getBrowserEventsImports as _getEventsImports } from './events.js'
+import { getBrowserCanvasImports as _getCanvasImports } from './canvas.js'
 
 /**
  * Configuration for browser imports.
@@ -233,6 +255,8 @@ export interface BrowserImportsConfig {
   dom?: import('./dom.js').DomOptions
   /** Events options */
   events?: import('./events.js').EventsOptions
+  /** Canvas options */
+  canvas?: import('./canvas.js').CanvasOptions
 }
 
 /**
@@ -254,5 +278,7 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     // Phase 2
     ..._getDomImports(config.dom),
     ..._getEventsImports(config.events),
+    // Phase 3
+    ..._getCanvasImports(config.canvas),
   }
 }
