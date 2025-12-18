@@ -23,6 +23,10 @@
       "types": "./dist/wasip3/index.d.ts",
       "import": "./dist/wasip3/index.js"
     },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js"
+    },
     "./wasip2/plugins/random": {
       "types": "./dist/wasip2/plugins/random/index.d.ts",
       "import": "./dist/wasip2/plugins/random/index.js"

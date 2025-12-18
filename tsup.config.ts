@@ -14,6 +14,9 @@ export default defineConfig({
 
     // WASI Preview 3
     'wasip3/index': 'src/wasip3/index.ts',
+
+    // Browser interfaces
+    'browser/index': 'src/browser/index.ts',
     'wasip2/plugins/clocks/index': 'src/wasip2/plugins/clocks/index.ts',
     'wasip2/plugins/io/index': 'src/wasip2/plugins/io/index.ts',
     'wasip2/plugins/cli/index': 'src/wasip2/plugins/cli/index.ts',
