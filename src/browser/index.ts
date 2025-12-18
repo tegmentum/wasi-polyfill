@@ -168,6 +168,44 @@ export {
 } from './performance.js'
 
 // =============================================================================
+// Phase 2: DOM, Events
+// =============================================================================
+
+export {
+  // DOM
+  type NodeHandle,
+  type ElementHandle,
+  type DocumentHandle,
+  NodeType,
+  type ElementInfo,
+  type DomOptions,
+  BrowserDom,
+  getDefaultDom,
+  getBrowserDomImports,
+} from './dom.js'
+
+export {
+  // Events
+  type SubscriptionHandle,
+  type SubscribeOptions,
+  type EventData,
+  type TouchPoint,
+  type TouchEventData,
+  type WheelEventData,
+  type FocusEventData,
+  type InputEventData,
+  type EventStreamResult,
+  type EventsOptions,
+  BrowserEvents,
+  getDefaultEvents,
+  subscribeDocument,
+  subscribeWindow,
+  readEvents,
+  unsubscribe,
+  getBrowserEventsImports,
+} from './events.js'
+
+// =============================================================================
 // Combined Imports
 // =============================================================================
 
@@ -178,6 +216,8 @@ import { getBrowserConsoleImports as _getConsoleImports } from './console.js'
 import { getBrowserFetchImports as _getFetchImports } from './fetch.js'
 import { getBrowserStorageImports as _getStorageImports } from './storage.js'
 import { getBrowserPerformanceImports as _getPerformanceImports } from './performance.js'
+import { getBrowserDomImports as _getDomImports } from './dom.js'
+import { getBrowserEventsImports as _getEventsImports } from './events.js'
 
 /**
  * Configuration for browser imports.
@@ -189,6 +229,10 @@ export interface BrowserImportsConfig {
   storageDatabaseName?: string
   /** Custom fetch function */
   fetch?: typeof globalThis.fetch
+  /** DOM options */
+  dom?: import('./dom.js').DomOptions
+  /** Events options */
+  events?: import('./events.js').EventsOptions
 }
 
 /**
@@ -207,5 +251,8 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     ..._getFetchImports(config.fetch),
     ..._getStorageImports(config.storageDatabaseName),
     ..._getPerformanceImports(),
+    // Phase 2
+    ..._getDomImports(config.dom),
+    ..._getEventsImports(config.events),
   }
 }
