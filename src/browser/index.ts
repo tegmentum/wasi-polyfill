@@ -227,6 +227,69 @@ export {
 } from './canvas.js'
 
 // =============================================================================
+// Phase 4: Clipboard, Geolocation, Notifications, Media
+// =============================================================================
+
+export {
+  // Clipboard
+  type ClipboardItemType,
+  type ClipboardItemData,
+  type ClipboardOptions,
+  BrowserClipboard,
+  getDefaultClipboard,
+  readText,
+  writeText,
+  getBrowserClipboardImports,
+} from './clipboard.js'
+
+export {
+  // Geolocation
+  type GeolocationCoordinates,
+  type GeolocationPosition,
+  type PositionOptions,
+  type WatchHandle,
+  type PositionEvent,
+  type GeolocationOptions,
+  BrowserGeolocation,
+  getDefaultGeolocation,
+  getCurrentPosition,
+  getBrowserGeolocationImports,
+} from './geolocation.js'
+
+export {
+  // Notifications
+  type NotificationHandle,
+  type NotificationDirection,
+  type NotificationOptions,
+  type NotificationAction,
+  type NotificationEvent,
+  type NotificationsConfig,
+  BrowserNotifications,
+  getDefaultNotifications,
+  requestPermission,
+  showNotification,
+  getBrowserNotificationsImports,
+} from './notifications.js'
+
+export {
+  // Media
+  type MediaStreamHandle,
+  type TrackHandle,
+  type MediaTrackKind,
+  type MediaTrackState,
+  type AudioConstraints,
+  type VideoConstraints,
+  type MediaConstraints,
+  type TrackInfo,
+  type StreamInfo,
+  type DeviceInfo,
+  type MediaOptions,
+  BrowserMedia,
+  getDefaultMedia,
+  getBrowserMediaImports,
+} from './media.js'
+
+// =============================================================================
 // Combined Imports
 // =============================================================================
 
@@ -240,6 +303,10 @@ import { getBrowserPerformanceImports as _getPerformanceImports } from './perfor
 import { getBrowserDomImports as _getDomImports } from './dom.js'
 import { getBrowserEventsImports as _getEventsImports } from './events.js'
 import { getBrowserCanvasImports as _getCanvasImports } from './canvas.js'
+import { getBrowserClipboardImports as _getClipboardImports } from './clipboard.js'
+import { getBrowserGeolocationImports as _getGeolocationImports } from './geolocation.js'
+import { getBrowserNotificationsImports as _getNotificationsImports } from './notifications.js'
+import { getBrowserMediaImports as _getMediaImports } from './media.js'
 
 /**
  * Configuration for browser imports.
@@ -257,6 +324,14 @@ export interface BrowserImportsConfig {
   events?: import('./events.js').EventsOptions
   /** Canvas options */
   canvas?: import('./canvas.js').CanvasOptions
+  /** Clipboard options */
+  clipboard?: import('./clipboard.js').ClipboardOptions
+  /** Geolocation options */
+  geolocation?: import('./geolocation.js').GeolocationOptions
+  /** Notifications config */
+  notifications?: import('./notifications.js').NotificationsConfig
+  /** Media options */
+  media?: import('./media.js').MediaOptions
 }
 
 /**
@@ -280,5 +355,10 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     ..._getEventsImports(config.events),
     // Phase 3
     ..._getCanvasImports(config.canvas),
+    // Phase 4
+    ..._getClipboardImports(config.clipboard),
+    ..._getGeolocationImports(config.geolocation),
+    ..._getNotificationsImports(config.notifications),
+    ..._getMediaImports(config.media),
   }
 }
