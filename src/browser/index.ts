@@ -312,6 +312,30 @@ export {
 } from './service-worker.js'
 
 // =============================================================================
+// wasmGC-Enhanced Tier (Experimental)
+// =============================================================================
+
+export {
+  // Types
+  type NodeRef,
+  type ElementRef,
+  type EventRef,
+  type EventPropertyValue,
+  type GcEnhancedOptions,
+  // GC-Enhanced DOM
+  GcEnhancedDom,
+  getDefaultGcDom,
+  // GC-Enhanced Events
+  GcEnhancedEvents,
+  getDefaultGcEvents,
+  // Feature detection
+  supportsGcDom,
+  supportsGcEvents,
+  // Imports
+  getBrowserGcEnhancedImports,
+} from './gc-enhanced.js'
+
+// =============================================================================
 // Combined Imports
 // =============================================================================
 
@@ -330,6 +354,7 @@ import { getBrowserGeolocationImports as _getGeolocationImports } from './geoloc
 import { getBrowserNotificationsImports as _getNotificationsImports } from './notifications.js'
 import { getBrowserMediaImports as _getMediaImports } from './media.js'
 import { getBrowserServiceWorkerImports as _getServiceWorkerImports } from './service-worker.js'
+import { getBrowserGcEnhancedImports as _getGcEnhancedImports } from './gc-enhanced.js'
 
 /**
  * Configuration for browser imports.
@@ -357,6 +382,8 @@ export interface BrowserImportsConfig {
   media?: import('./media.js').MediaOptions
   /** Service worker options */
   serviceWorker?: import('./service-worker.js').ServiceWorkerOptions
+  /** GC-enhanced tier options */
+  gcEnhanced?: import('./gc-enhanced.js').GcEnhancedOptions
 }
 
 /**
@@ -387,5 +414,7 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     ..._getMediaImports(config.media),
     // Phase 5
     ..._getServiceWorkerImports(config.serviceWorker),
+    // wasmGC-enhanced tier
+    ..._getGcEnhancedImports(config.gcEnhanced),
   }
 }

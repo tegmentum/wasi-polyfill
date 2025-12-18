@@ -686,6 +686,20 @@ export class BrowserDom {
   getRawElement(handle: ElementHandle): Element | null {
     return this.getElement(handle)
   }
+
+  /**
+   * Get or create a handle for a raw node (for GC-enhanced tier).
+   */
+  getNodeHandle(node: Node): NodeHandle {
+    return this.getHandle(node)
+  }
+
+  /**
+   * Get or create a handle for a raw element (for GC-enhanced tier).
+   */
+  getElementHandle(element: Element): ElementHandle {
+    return this.getHandle(element)
+  }
 }
 
 // =============================================================================

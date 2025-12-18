@@ -50,7 +50,7 @@ Capability-scoped browser interfaces for WebAssembly components with wasmGC-awar
 | Phase 3 | `browser:canvas` | ✅ Complete |
 | Phase 4 | `browser:clipboard`, `browser:geolocation`, `browser:notifications`, `browser:media` | ✅ Complete |
 | Phase 5 | `browser:service-worker` (experimental) | ✅ Complete |
-| Parallel | wasmGC-enhanced tier for events and DOM | Planned |
+| Parallel | wasmGC-enhanced tier for events and DOM | ✅ Complete |
 
 #### Key Features
 
