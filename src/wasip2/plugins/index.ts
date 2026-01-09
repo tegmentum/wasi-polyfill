@@ -115,3 +115,151 @@ export {
   blobstoreContainerPlugin,
   blobstorePlugins,
 } from './blobstore/index.js'
+
+// wasi:nn
+export {
+  // Handle types
+  type GraphHandle,
+  type GraphExecutionContextHandle,
+  // Tensor types
+  TensorType,
+  type TensorDimensions,
+  type TensorData,
+  type Tensor,
+  type NamedTensor,
+  // Graph types
+  GraphEncoding,
+  ExecutionTarget,
+  type GraphBuilder,
+  // Error types
+  NnErrorCode,
+  type NnError,
+  createNnError,
+  // Result types
+  type NnResult,
+  nnOk,
+  nnErr,
+  // Config types
+  type NnPluginConfig,
+  type BackendInfo,
+  type InferenceStats,
+  // Plugins
+  nnTensorPlugin,
+  nnGraphPlugin,
+  nnInferencePlugin,
+  nnErrorsPlugin,
+  nnPlugins,
+  NN_TENSOR_INTERFACE,
+  NN_GRAPH_INTERFACE,
+  NN_INFERENCE_INTERFACE,
+  NN_ERRORS_INTERFACE,
+  // Implementations
+  webnnImplementation,
+  mockNnImplementation,
+} from './nn/index.js'
+
+// wasi:messaging
+export {
+  // Handle types
+  type ClientHandle,
+  type ChannelHandle,
+  type TopicHandle,
+  type SubscriptionHandle,
+  // Message types
+  type MessageMetadata,
+  type Message,
+  type ReceivedMessage,
+  // Channel types
+  ChannelType,
+  type ChannelOptions,
+  type ChannelInfo,
+  // Subscription types
+  type SubscribeOptions,
+  type SubscriptionInfo,
+  // Error types
+  MessagingErrorCode,
+  type MessagingError,
+  createMessagingError,
+  // Result types
+  type MessagingResult,
+  msgOk,
+  msgErr,
+  // Config types
+  type MessagingPluginConfig,
+  // Acknowledgment types
+  AckAction,
+  // Plugins
+  messagingTypesPlugin,
+  messagingProducerPlugin,
+  messagingConsumerPlugin,
+  messagingHandlerPlugin,
+  messagingPlugins,
+  MESSAGING_TYPES_INTERFACE,
+  MESSAGING_PRODUCER_INTERFACE,
+  MESSAGING_CONSUMER_INTERFACE,
+  MESSAGING_HANDLER_INTERFACE,
+  // Implementations
+  memoryMessagingImplementation,
+} from './messaging/index.js'
+
+// wasi:sql
+export {
+  // Handle types
+  type ConnectionHandle as SqlConnectionHandle,
+  type StatementHandle,
+  type ResultSetHandle,
+  type TransactionHandle,
+  // Value types
+  SqlType,
+  type SqlValue,
+  sqlNull,
+  sqlBoolean,
+  sqlInteger,
+  sqlBigint,
+  sqlReal,
+  sqlText,
+  sqlBlob,
+  sqlJson,
+  extractValue,
+  valueToSqlValue,
+  // Column/Row types
+  type ColumnInfo as SqlColumnInfo,
+  type Row as SqlRow,
+  rowFromObject,
+  rowToObject,
+  // Query types
+  type QueryParams,
+  type QueryResult,
+  type ResultSetInfo,
+  // Connection types
+  DatabaseDriver,
+  type ConnectionOptions as SqlConnectionOptions,
+  type ConnectionInfo as SqlConnectionInfo,
+  // Transaction types
+  IsolationLevel,
+  type TransactionOptions,
+  // Error types
+  SqlErrorCode,
+  type SqlError,
+  createSqlError,
+  // Result types
+  type SqlResult,
+  sqlOk,
+  sqlErr,
+  // Config types
+  type SqlPluginConfig,
+  // Plugins
+  sqlTypesPlugin,
+  sqlConnectionPlugin,
+  sqlQueryPlugin,
+  sqlStatementPlugin,
+  sqlTransactionPlugin,
+  sqlPlugins,
+  SQL_TYPES_INTERFACE,
+  SQL_CONNECTION_INTERFACE,
+  SQL_QUERY_INTERFACE,
+  SQL_STATEMENT_INTERFACE,
+  SQL_TRANSACTION_INTERFACE,
+  // Implementations
+  memorySqlImplementation,
+} from './sql/index.js'

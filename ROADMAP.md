@@ -78,21 +78,23 @@ See [docs/design/browser-interfaces.md](docs/design/browser-interfaces.md#14-des
 ### Future Considerations
 
 #### WebGPU/WebGL Support
-- Extend `browser:canvas` with GPU compute and rendering
-- Requires careful consideration of resource lifetime and memory management
+- ✅ `browser:webgpu` interface complete with full GPU compute and rendering support
+- Comprehensive handle management for adapters, devices, buffers, textures, pipelines
+- Command batching for efficient render/compute passes
 
 #### Worker Thread Support
-- `browser:worker` interface for spawning Web Workers
+- ✅ `browser:worker` interface complete for spawning Web Workers
 - SharedArrayBuffer support for parallel computation
+- MessageChannel for worker-to-worker communication
 
 #### WebAssembly Component Model 1.0
 - Track upstream Component Model specification progress
 - Adopt standardized async semantics when finalized
 
 #### Additional WASI Worlds
-- `wasi:nn` - Neural network inference
-- `wasi:messaging` - Message queue interfaces
-- `wasi:sql` - Database access interfaces
+- ✅ `wasi:nn` - Neural network inference (WebNN and mock backends)
+- ✅ `wasi:messaging` - Message queue interfaces (in-memory broker)
+- ✅ `wasi:sql` - Database access interfaces (in-memory SQL engine)
 
 ---
 
