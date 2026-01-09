@@ -162,6 +162,10 @@
     "./proxy": {
       "types": "./dist/wasip2/proxy/index.d.ts",
       "import": "./dist/wasip2/proxy/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared/index.js"
     }
   },
   "files": [
