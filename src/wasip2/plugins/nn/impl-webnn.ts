@@ -13,7 +13,6 @@ import {
   type GraphExecutionContextHandle,
   type Tensor,
   type TensorDimensions,
-  type NamedTensor,
   type NnPluginConfig,
   type BackendInfo,
   type InferenceStats,
@@ -53,7 +52,9 @@ interface MLGraph {
   // Opaque graph handle
 }
 
-interface MLGraphBuilder {
+// MLGraphBuilder is defined for documentation/future use
+// WebNN graph building requires MLGraphBuilder when implemented
+export type MLGraphBuilder = {
   build(outputs: Record<string, MLOperand>): Promise<MLGraph>
   input(name: string, descriptor: MLOperandDescriptor): MLOperand
   constant(value: ArrayBufferView, type: MLOperandDescriptor): MLOperand
@@ -188,7 +189,6 @@ class WebNNInstance implements PluginInstance {
   private context: MLContext | null = null
   private graphs = new Map<GraphHandle, GraphEntry>()
   private contexts = new Map<GraphExecutionContextHandle, ContextEntry>()
-  private nextGraphHandle = 1
   private nextContextHandle = 1
   private config: NnPluginConfig
   private initPromise: Promise<void> | null = null
@@ -287,9 +287,9 @@ class WebNNInstance implements PluginInstance {
   // ===========================================================================
 
   private async load(
-    builder: Uint8Array[],
+    _builder: Uint8Array[],
     encoding: GraphEncoding,
-    target: ExecutionTarget
+    _target: ExecutionTarget
   ) {
     try {
       // WebNN doesn't support loading arbitrary model files directly
@@ -420,7 +420,6 @@ class WebNNInstance implements PluginInstance {
 
     try {
       const mlContext = await this.ensureContext()
-      const startTime = performance.now()
 
       // Create input tensors
       const inputCopyStart = performance.now()

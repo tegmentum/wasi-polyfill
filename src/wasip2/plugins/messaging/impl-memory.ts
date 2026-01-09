@@ -243,7 +243,7 @@ class MemoryMessagingInstance implements PluginInstance {
     return this.enqueueMessage(channel, message)
   }
 
-  private request(channelName: string, message: Message, timeoutMs: number) {
+  private request(channelName: string, message: Message, _timeoutMs: number) {
     const channel = this.channels.get(channelName)
     if (!channel) {
       return msgErr(MessagingErrorCode.NOT_FOUND, `Channel '${channelName}' not found`)
@@ -396,7 +396,7 @@ class MemoryMessagingInstance implements PluginInstance {
     return msgOk(undefined)
   }
 
-  private receive(handle: SubscriptionHandle, timeoutMs: number) {
+  private receive(handle: SubscriptionHandle, _timeoutMs: number) {
     const sub = this.subscriptions.get(handle)
     if (!sub) {
       return msgErr(MessagingErrorCode.NOT_FOUND, `Subscription ${handle} not found`)
@@ -441,7 +441,7 @@ class MemoryMessagingInstance implements PluginInstance {
     return msgOk(received)
   }
 
-  private receiveBatch(handle: SubscriptionHandle, maxMessages: number, timeoutMs: number) {
+  private receiveBatch(handle: SubscriptionHandle, maxMessages: number, _timeoutMs: number) {
     const sub = this.subscriptions.get(handle)
     if (!sub) {
       return msgErr(MessagingErrorCode.NOT_FOUND, `Subscription ${handle} not found`)

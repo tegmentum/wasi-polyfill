@@ -20,14 +20,11 @@
 import {
   BrowserErrorCode,
   BrowserException,
-  createBrowserError,
   type BrowserError,
   type Result,
   ok,
-  err,
   browserErr,
 } from './types.js'
-import { isMainThread, isWorker as checkIsWorker, supports } from './runtime.js'
 
 // =============================================================================
 // Handle Types
@@ -181,9 +178,9 @@ export interface MessagePortInfo {
 // =============================================================================
 
 /**
- * Worker interface configuration.
+ * Browser worker manager configuration.
  */
-export interface WorkerOptions {
+export interface BrowserWorkerOptions {
   /** Maximum number of concurrent workers */
   maxWorkers?: number
   /** Default worker type */
@@ -216,9 +213,9 @@ export class BrowserWorker {
   private nextWorkerHandle = 1
   private nextBufferHandle = 1
   private nextPortHandle = 1
-  private options: Required<WorkerOptions>
+  private options: Required<BrowserWorkerOptions>
 
-  constructor(options: WorkerOptions = {}) {
+  constructor(options: BrowserWorkerOptions = {}) {
     this.options = {
       maxWorkers: options.maxWorkers ?? 16,
       defaultType: options.defaultType ?? WorkerType.MODULE,
@@ -263,8 +260,10 @@ export class BrowserWorker {
         : this.options.baseUrl + descriptor.url
 
       const workerType = descriptor.type ?? this.options.defaultType
-      const workerOptions: WorkerOptions & { type?: string; credentials?: string } = {
-        ...(descriptor.name && { name: descriptor.name }),
+      const workerOptions: WorkerOptions = {}
+
+      if (descriptor.name) {
+        workerOptions.name = descriptor.name
       }
 
       if (workerType === WorkerType.MODULE) {
@@ -274,7 +273,7 @@ export class BrowserWorker {
         }
       }
 
-      const worker = new Worker(url, workerOptions as WorkerOptions)
+      const worker = new Worker(url, workerOptions)
       const handle = this.nextWorkerHandle++
 
       const info: WorkerInfo = {
@@ -315,7 +314,7 @@ export class BrowserWorker {
         })
       }
 
-      worker.onmessageerror = (event) => {
+      worker.onmessageerror = (_event) => {
         this.errorQueue.push({
           worker: handle,
           message: 'Message deserialization failed',
@@ -526,22 +525,28 @@ export class BrowserWorker {
     }
 
     try {
-      const options: SharedArrayBufferConstructor extends { new(byteLength: number, options?: { maxByteLength?: number }): SharedArrayBuffer }
-        ? { maxByteLength?: number }
-        : never = descriptor.maxByteLength ? { maxByteLength: descriptor.maxByteLength } : {};
-
-      // @ts-ignore - SharedArrayBuffer with options is newer API
-      const buffer = descriptor.maxByteLength
-        ? new SharedArrayBuffer(descriptor.byteLength, options)
-        : new SharedArrayBuffer(descriptor.byteLength)
+      // SharedArrayBuffer with options is a newer API (growable buffers)
+      let buffer: SharedArrayBuffer
+      if (descriptor.maxByteLength) {
+        // @ts-expect-error - SharedArrayBuffer with options requires ES2024+
+        buffer = new SharedArrayBuffer(descriptor.byteLength, {
+          maxByteLength: descriptor.maxByteLength,
+        })
+      } else {
+        buffer = new SharedArrayBuffer(descriptor.byteLength)
+      }
 
       const handle = this.nextBufferHandle++
 
       const info: SharedBufferInfo = {
         handle,
         byteLength: buffer.byteLength,
-        maxByteLength: descriptor.maxByteLength,
         growable: !!descriptor.maxByteLength,
+      }
+
+      // Only set maxByteLength if defined (for exactOptionalPropertyTypes)
+      if (descriptor.maxByteLength !== undefined) {
+        info.maxByteLength = descriptor.maxByteLength
       }
 
       this.sharedBuffers.set(handle, buffer)
@@ -777,7 +782,7 @@ export function createSharedBuffer(
 /**
  * Get browser:worker imports for WebAssembly instantiation.
  */
-export function getBrowserWorkerImports(options?: WorkerOptions): Record<string, unknown> {
+export function getBrowserWorkerImports(options?: BrowserWorkerOptions): Record<string, unknown> {
   const manager = options ? new BrowserWorker(options) : getDefaultWorkerManager()
 
   return {
@@ -789,7 +794,9 @@ export function getBrowserWorkerImports(options?: WorkerOptions): Record<string,
       // Worker management
       'spawn': (url: string, type: number, name: string) => {
         const workerType = type === 0 ? WorkerType.CLASSIC : WorkerType.MODULE
-        const result = manager.spawn({ url, type: workerType, name: name || undefined })
+        const descriptor: WorkerDescriptor = { url, type: workerType }
+        if (name) descriptor.name = name
+        const result = manager.spawn(descriptor)
         if ('error' in result) throw new BrowserException(result.error)
         return result.value
       },
@@ -818,10 +825,9 @@ export function getBrowserWorkerImports(options?: WorkerOptions): Record<string,
 
       // Shared memory
       'create-shared-buffer': (byteLength: number, maxByteLength: number) => {
-        const result = manager.createSharedBuffer({
-          byteLength,
-          maxByteLength: maxByteLength || undefined,
-        })
+        const descriptor: SharedBufferDescriptor = { byteLength }
+        if (maxByteLength) descriptor.maxByteLength = maxByteLength
+        const result = manager.createSharedBuffer(descriptor)
         if ('error' in result) throw new BrowserException(result.error)
         return result.value
       },

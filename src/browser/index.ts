@@ -333,7 +333,7 @@ export {
   // Message port types
   type MessagePortInfo,
   // Configuration
-  type WorkerOptions,
+  type BrowserWorkerOptions,
   // Manager
   BrowserWorker,
   getDefaultWorkerManager,
@@ -591,7 +591,7 @@ export interface BrowserImportsConfig {
   /** Service worker options */
   serviceWorker?: import('./service-worker.js').ServiceWorkerOptions
   /** Worker options */
-  worker?: import('./worker.js').WorkerOptions
+  worker?: import('./worker.js').BrowserWorkerOptions
   /** GC-enhanced tier options */
   gcEnhanced?: import('./gc-enhanced.js').GcEnhancedOptions
 }

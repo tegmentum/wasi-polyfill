@@ -24,12 +24,10 @@ import {
   type SqlResult,
   SqlType,
   DatabaseDriver,
-  IsolationLevel,
   SqlErrorCode,
   sqlOk,
   sqlErr,
   extractValue,
-  valueToSqlValue,
   rowToObject,
 } from './types.js'
 
@@ -111,14 +109,14 @@ interface InternalTransaction {
 
 interface ParsedQuery {
   type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'CREATE_TABLE' | 'DROP_TABLE' | 'UNKNOWN'
-  tableName?: string
-  columns?: string[]
-  values?: SqlValue[][]
-  where?: (row: Row) => boolean
-  set?: Map<string, SqlValue>
-  schema?: TableSchema
-  limit?: number
-  offset?: number
+  tableName?: string | undefined
+  columns?: string[] | undefined
+  values?: SqlValue[][] | undefined
+  where?: ((row: Row) => boolean) | undefined
+  set?: Map<string, SqlValue> | undefined
+  schema?: TableSchema | undefined
+  limit?: number | undefined
+  offset?: number | undefined
 }
 
 /**
@@ -448,10 +446,9 @@ class MemorySqlInstance implements PluginInstance {
   private nextStatementHandle = 1
   private nextResultSetHandle = 1
   private nextTransactionHandle = 1
-  private config: SqlPluginConfig
 
-  constructor(config: SqlPluginConfig) {
-    this.config = config
+  constructor(_config: SqlPluginConfig) {
+    // Config reserved for future use (e.g., max connections, default timeout)
   }
 
   getImports(): Record<string, unknown> {
@@ -684,10 +681,11 @@ class MemorySqlInstance implements PluginInstance {
       table.rows.push(row)
     }
 
-    return sqlOk({
-      rowsAffected: parsed.values.length,
-      lastInsertId,
-    })
+    const result: QueryResult = { rowsAffected: parsed.values.length }
+    if (lastInsertId !== undefined) {
+      result.lastInsertId = lastInsertId
+    }
+    return sqlOk(result)
   }
 
   private executeUpdate(connection: InternalConnection, parsed: ParsedQuery): SqlResult<QueryResult> {
@@ -961,7 +959,7 @@ class MemorySqlInstance implements PluginInstance {
     }
 
     connection.inTransaction = false
-    connection.transactionSavepoint = undefined
+    delete connection.transactionSavepoint
 
     this.transactions.delete(handle)
     return sqlOk(undefined)
@@ -982,7 +980,7 @@ class MemorySqlInstance implements PluginInstance {
     connection.database.tables = transaction.savepoint.tables
 
     connection.inTransaction = false
-    connection.transactionSavepoint = undefined
+    delete connection.transactionSavepoint
 
     this.transactions.delete(handle)
     return sqlOk(undefined)

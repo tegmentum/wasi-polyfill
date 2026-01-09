@@ -59,11 +59,9 @@ class MockNnInstance implements PluginInstance {
   private contexts = new Map<GraphExecutionContextHandle, ContextEntry>()
   private nextGraphHandle = 1
   private nextContextHandle = 1
-  private config: NnPluginConfig
   private registeredModels = new Map<string, MockGraphDef>()
 
-  constructor(config: NnPluginConfig) {
-    this.config = config
+  constructor(_config: NnPluginConfig) {
     this.registerDefaultModels()
   }
 
