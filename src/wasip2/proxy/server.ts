@@ -306,12 +306,26 @@ export class ClientConnection {
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private clientCapabilities: string[] = []
 
+  // Connection-level flow control
+  private connectionSendWindow: number
+  private connectionReceiveWindow: number
+  private connectionPendingData: Array<{
+    type: MessageType
+    streamId: number
+    payload: Uint8Array
+    flags: number
+    resolve: () => void
+    reject: (error: Error) => void
+  }> = []
+
   constructor(
     private readonly ws: WsWebSocket,
     private readonly server: ProxyServer,
     private readonly config: ResolvedConfig
   ) {
     this.id = `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    this.connectionSendWindow = config.initialWindowSize
+    this.connectionReceiveWindow = config.initialWindowSize
     this.setupWebSocket()
   }
 
@@ -336,12 +350,79 @@ export class ClientConnection {
       throw new Error('WebSocket not open')
     }
 
+    // DATA frames are subject to connection-level flow control
+    if (type === MessageType.DATA && payload.length > 0) {
+      // Check if we have enough connection window
+      if (payload.length > this.connectionSendWindow) {
+        // Queue the frame until window is available
+        return new Promise((resolve, reject) => {
+          this.connectionPendingData.push({
+            type,
+            streamId,
+            payload,
+            flags,
+            resolve,
+            reject,
+          })
+        })
+      }
+
+      // Decrement connection window
+      this.connectionSendWindow -= payload.length
+    }
+
     const frame = createFrame(type, streamId, payload, flags)
     return new Promise((resolve, reject) => {
       this.ws.send(frame, (err) => {
         if (err) reject(err)
         else resolve()
       })
+    })
+  }
+
+  /**
+   * Flush pending data when connection window becomes available
+   * @internal
+   */
+  private flushConnectionPendingData(): void {
+    while (this.connectionPendingData.length > 0 && this.connectionSendWindow > 0) {
+      const pending = this.connectionPendingData[0]!
+      if (pending.payload.length <= this.connectionSendWindow) {
+        this.connectionPendingData.shift()
+        this.connectionSendWindow -= pending.payload.length
+
+        if (this.ws.readyState === 1) {
+          const frame = createFrame(pending.type, pending.streamId, pending.payload, pending.flags)
+          this.ws.send(frame, (err) => {
+            if (err) pending.reject(err)
+            else pending.resolve()
+          })
+        } else {
+          pending.reject(new Error('WebSocket not open'))
+        }
+      } else {
+        break
+      }
+    }
+  }
+
+  /**
+   * Send connection-level window update
+   * @internal
+   */
+  private sendConnectionWindowUpdate(increment: number): void {
+    if (this.ws.readyState !== 1) {
+      return
+    }
+
+    const payload = new Uint8Array(4)
+    const view = new DataView(payload.buffer)
+    view.setUint32(0, increment, true)
+
+    // Connection-level window update uses streamId 0
+    const frame = createFrame(MessageType.WINDOW_UPDATE, 0, payload)
+    this.ws.send(frame, () => {
+      // Ignore send errors for window updates
     })
   }
 
@@ -511,7 +592,10 @@ export class ClientConnection {
     const hello = decodeHello(payload)
 
     this.clientCapabilities = hello.capabilities
-    // Note: hello.maxStreams and hello.initialWindowSize could be used for enforcement
+
+    // Initialize connection-level windows based on client's window size
+    this.connectionSendWindow = hello.initialWindowSize
+    this.connectionReceiveWindow = this.config.initialWindowSize
 
     // Send HELLO_ACK
     const ackPayload = this.encodeHelloAck({
@@ -584,9 +668,19 @@ export class ClientConnection {
       return
     }
 
+    // Track connection-level receive window
+    this.connectionReceiveWindow -= data.length
+
+    // Send connection-level window update if needed
+    if (this.connectionReceiveWindow < this.config.initialWindowSize / 2) {
+      const increment = this.config.initialWindowSize - this.connectionReceiveWindow
+      this.connectionReceiveWindow = this.config.initialWindowSize
+      this.sendConnectionWindowUpdate(increment)
+    }
+
     stream.consumeReceiveWindow(data.length)
 
-    // Send window update if needed
+    // Send stream-level window update if needed
     if (stream.needsWindowUpdate) {
       stream.sendWindowUpdate(DEFAULT_WINDOW_SIZE - stream['receiveWindow'])
     }
@@ -656,7 +750,9 @@ export class ClientConnection {
 
     if (streamId === 0) {
       // Connection-level window update
-      // TODO: Implement connection-level flow control
+      this.connectionSendWindow += increment
+      // Flush any pending data that was blocked on connection window
+      this.flushConnectionPendingData()
     } else {
       const stream = this.streams.get(streamId)
       if (stream) {
@@ -693,6 +789,16 @@ export class ClientConnection {
   private handleClose(code: number, reason: string): void {
     this.stopPingTimer()
     this._state = 'closed'
+
+    // Reject pending connection-level data
+    for (const pending of this.connectionPendingData) {
+      pending.reject(new Error('Connection closed'))
+    }
+    this.connectionPendingData = []
+
+    // Reset connection windows
+    this.connectionSendWindow = this.config.initialWindowSize
+    this.connectionReceiveWindow = this.config.initialWindowSize
 
     // Close all streams
     for (const stream of this.streams.values()) {

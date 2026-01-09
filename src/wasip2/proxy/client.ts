@@ -383,6 +383,18 @@ export class ProxyClient {
   private serverMaxStreams = 100
   private serverWindowSize = DEFAULT_WINDOW_SIZE
 
+  // Connection-level flow control
+  private connectionSendWindow = DEFAULT_WINDOW_SIZE
+  private connectionReceiveWindow = DEFAULT_WINDOW_SIZE
+  private connectionPendingData: Array<{
+    type: MessageType
+    streamId: number
+    payload: Uint8Array
+    flags: number
+    resolve: () => void
+    reject: (error: Error) => void
+  }> = []
+
   constructor(config: ProxyClientConfig, events: ConnectionEvents = {}) {
     this.config = {
       url: config.url,
@@ -503,7 +515,70 @@ export class ProxyClient {
       throw new Error('WebSocket not connected')
     }
 
+    // DATA frames are subject to connection-level flow control
+    if (type === MessageType.DATA && payload.length > 0) {
+      // Check if we have enough connection window
+      if (payload.length > this.connectionSendWindow) {
+        // Queue the frame until window is available
+        return new Promise((resolve, reject) => {
+          this.connectionPendingData.push({
+            type,
+            streamId,
+            payload,
+            flags,
+            resolve,
+            reject,
+          })
+        })
+      }
+
+      // Decrement connection window
+      this.connectionSendWindow -= payload.length
+    }
+
     const frame = createFrame(type, streamId, payload, flags)
+    this.ws.send(frame)
+  }
+
+  /**
+   * Flush pending data when connection window becomes available
+   * @internal
+   */
+  private flushConnectionPendingData(): void {
+    while (this.connectionPendingData.length > 0 && this.connectionSendWindow > 0) {
+      const pending = this.connectionPendingData[0]!
+      if (pending.payload.length <= this.connectionSendWindow) {
+        this.connectionPendingData.shift()
+        this.connectionSendWindow -= pending.payload.length
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          const frame = createFrame(pending.type, pending.streamId, pending.payload, pending.flags)
+          this.ws.send(frame)
+          pending.resolve()
+        } else {
+          pending.reject(new Error('WebSocket not connected'))
+        }
+      } else {
+        break
+      }
+    }
+  }
+
+  /**
+   * Send connection-level window update
+   * @internal
+   */
+  private sendConnectionWindowUpdate(increment: number): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    const payload = new Uint8Array(4)
+    const view = new DataView(payload.buffer)
+    view.setUint32(0, increment, true)
+
+    // Connection-level window update uses streamId 0
+    const frame = createFrame(MessageType.WINDOW_UPDATE, 0, payload)
     this.ws.send(frame)
   }
 
@@ -591,6 +666,10 @@ export class ProxyClient {
     this.serverCapabilities = response.capabilities
     this.serverMaxStreams = response.maxStreams
     this.serverWindowSize = response.initialWindowSize
+
+    // Initialize connection-level windows based on server's window size
+    this.connectionSendWindow = response.initialWindowSize
+    this.connectionReceiveWindow = this.config.initialWindowSize
   }
 
   private handleMessage(data: ArrayBuffer): void {
@@ -681,6 +760,16 @@ export class ProxyClient {
       return
     }
 
+    // Track connection-level receive window
+    this.connectionReceiveWindow -= data.length
+
+    // Send connection-level window update if needed
+    if (this.connectionReceiveWindow < DEFAULT_WINDOW_SIZE / 2) {
+      const increment = DEFAULT_WINDOW_SIZE - this.connectionReceiveWindow
+      this.connectionReceiveWindow = DEFAULT_WINDOW_SIZE
+      this.sendConnectionWindowUpdate(increment)
+    }
+
     stream.handleData(data, endStream)
   }
 
@@ -706,7 +795,9 @@ export class ProxyClient {
 
     if (streamId === 0) {
       // Connection-level window update
-      // TODO: Implement connection-level flow control
+      this.connectionSendWindow += increment
+      // Flush any pending data that was blocked on connection window
+      this.flushConnectionPendingData()
     } else {
       const stream = this.streams.get(streamId)
       if (stream) {
@@ -894,6 +985,16 @@ export class ProxyClient {
       stream.handleReset(new Error('Connection closed'))
     }
     this.streams.clear()
+
+    // Reject pending connection-level data
+    for (const pending of this.connectionPendingData) {
+      pending.reject(new Error('Connection closed'))
+    }
+    this.connectionPendingData = []
+
+    // Reset connection windows
+    this.connectionSendWindow = DEFAULT_WINDOW_SIZE
+    this.connectionReceiveWindow = DEFAULT_WINDOW_SIZE
   }
 
   private decodeHelloAck(payload: Uint8Array): HelloAckPayload {
