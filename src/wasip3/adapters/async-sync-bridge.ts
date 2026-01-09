@@ -448,7 +448,8 @@ export async function pipeStream<T>(
  */
 export function mergeStreams<T>(streams: Stream<T>[]): Stream<T> {
   const buffer: T[] = []
-  let closed = false
+  // Empty stream list is immediately closed
+  let closed = streams.length === 0
   let cancelled = false
   const activeStreams = new Set(streams)
   let pendingResolve: ((result: { status: 'values'; values: T[] } | { status: 'end' } | { status: 'cancelled' }) => void) | null = null
