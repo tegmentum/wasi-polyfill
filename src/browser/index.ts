@@ -542,6 +542,131 @@ export {
 } from './webgpu/index.js'
 
 // =============================================================================
+// New Browser APIs
+// =============================================================================
+
+export {
+  // WebSocket
+  type WebSocketHandle,
+  WebSocketState,
+  WebSocketMessageType,
+  type WebSocketMessage,
+  type WebSocketError as WebSocketErrorEvent,
+  type WebSocketClose,
+  type WebSocketInfo,
+  type WebSocketConnectOptions,
+  type WebSocketOptions,
+  BrowserWebSocket,
+  getDefaultWebSocket,
+  isWebSocketSupported,
+  connect as wsConnect,
+  send as wsSend,
+  readMessages as wsReadMessages,
+  close as wsClose,
+  getBrowserWebSocketImports,
+} from './websocket.js'
+
+export {
+  // BroadcastChannel
+  type ChannelHandle,
+  type BroadcastMessage,
+  type ChannelInfo,
+  type BroadcastChannelOptions,
+  BrowserBroadcastChannel,
+  getDefaultBroadcastChannel,
+  isBroadcastChannelSupported,
+  createChannel,
+  postMessage as bcPostMessage,
+  readMessages as bcReadMessages,
+  closeChannel,
+  getBrowserBroadcastChannelImports,
+} from './broadcast-channel.js'
+
+export {
+  // Animation
+  type AnimationFrameHandle,
+  type IdleCallbackHandle,
+  type AnimationFrameData,
+  type IdleDeadline,
+  type IdleCallbackData,
+  type IdleCallbackOptions,
+  type AnimationOptions,
+  BrowserAnimation,
+  getDefaultAnimation,
+  isAnimationFrameSupported,
+  isIdleCallbackSupported,
+  requestFrame,
+  cancelFrame,
+  requestIdle,
+  cancelIdle,
+  getFrameTime,
+  getBrowserAnimationImports,
+} from './animation.js'
+
+export {
+  // History
+  type HistoryState,
+  type NavigationEntry,
+  type PopStateEvent,
+  type HistoryOptions,
+  BrowserHistory,
+  getDefaultHistory,
+  isHistorySupported,
+  pushState,
+  replaceState,
+  back,
+  forward,
+  go,
+  getLength,
+  getState,
+  getBrowserHistoryImports,
+} from './history.js'
+
+export {
+  // Screen
+  type OrientationType,
+  type OrientationLockType,
+  type ScreenInfo,
+  type OrientationChangeEvent,
+  type ScreenOptions,
+  BrowserScreen,
+  getDefaultScreen,
+  isScreenSupported,
+  getScreenInfo,
+  getOrientation,
+  lockOrientation,
+  unlockOrientation,
+  getBrowserScreenImports,
+} from './screen.js'
+
+export {
+  // Fullscreen
+  type FullscreenChangeEvent,
+  type FullscreenErrorEvent,
+  type FullscreenRequestOptions,
+  type FullscreenOptions,
+  BrowserFullscreen,
+  getDefaultFullscreen,
+  isFullscreenSupported,
+  isFullscreen,
+  requestFullscreen,
+  exitFullscreen,
+  getBrowserFullscreenImports,
+} from './fullscreen.js'
+
+export {
+  // Vibration
+  type VibrationPattern,
+  type VibrationOptions,
+  BrowserVibration,
+  getDefaultVibration,
+  isVibrationSupported,
+  vibrate,
+  cancelVibration,
+  getBrowserVibrationImports,
+} from './vibration.js'
+
+// =============================================================================
 // Combined Imports
 // =============================================================================
 
@@ -563,6 +688,13 @@ import { getBrowserServiceWorkerImports as _getServiceWorkerImports } from './se
 import { getBrowserWorkerImports as _getWorkerImports } from './worker.js'
 import { getBrowserGcEnhancedImports as _getGcEnhancedImports } from './gc-enhanced.js'
 import { getBrowserWebGPUImports as _getWebGPUImports } from './webgpu/index.js'
+import { getBrowserWebSocketImports as _getWebSocketImports } from './websocket.js'
+import { getBrowserBroadcastChannelImports as _getBroadcastChannelImports } from './broadcast-channel.js'
+import { getBrowserAnimationImports as _getAnimationImports } from './animation.js'
+import { getBrowserHistoryImports as _getHistoryImports } from './history.js'
+import { getBrowserScreenImports as _getScreenImports } from './screen.js'
+import { getBrowserFullscreenImports as _getFullscreenImports } from './fullscreen.js'
+import { getBrowserVibrationImports as _getVibrationImports } from './vibration.js'
 
 /**
  * Configuration for browser imports.
@@ -594,6 +726,20 @@ export interface BrowserImportsConfig {
   worker?: import('./worker.js').BrowserWorkerOptions
   /** GC-enhanced tier options */
   gcEnhanced?: import('./gc-enhanced.js').GcEnhancedOptions
+  /** WebSocket options */
+  websocket?: import('./websocket.js').WebSocketOptions
+  /** BroadcastChannel options */
+  broadcastChannel?: import('./broadcast-channel.js').BroadcastChannelOptions
+  /** Animation options */
+  animation?: import('./animation.js').AnimationOptions
+  /** History options */
+  history?: import('./history.js').HistoryOptions
+  /** Screen options */
+  screen?: import('./screen.js').ScreenOptions
+  /** Fullscreen options */
+  fullscreen?: import('./fullscreen.js').FullscreenOptions
+  /** Vibration options */
+  vibration?: import('./vibration.js').VibrationOptions
 }
 
 /**
@@ -630,5 +776,13 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     ..._getGcEnhancedImports(config.gcEnhanced),
     // WebGPU
     ..._getWebGPUImports(),
+    // New Browser APIs
+    ..._getWebSocketImports(config.websocket),
+    ..._getBroadcastChannelImports(config.broadcastChannel),
+    ..._getAnimationImports(config.animation),
+    ..._getHistoryImports(config.history),
+    ..._getScreenImports(config.screen),
+    ..._getFullscreenImports(config.fullscreen),
+    ..._getVibrationImports(config.vibration),
   }
 }
