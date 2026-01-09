@@ -1,0 +1,79 @@
+/// wasi:frame-buffer - CPU-based frame buffer rendering
+///
+/// A simple frame buffer API for software rendering.
+/// This interface allows components to create buffers, manipulate pixels,
+/// and present frames to a display surface.
+
+package wasi:frame-buffer@0.0.1;
+
+/// The main frame-buffer interface
+interface frame-buffer-interface {
+    /// Pixel format enumeration
+    enum pixel-format {
+        rgba8,
+        bgra8,
+        rgb8,
+    }
+
+    /// Frame buffer descriptor for creation
+    record frame-buffer-descriptor {
+        width: u32,
+        height: u32,
+        format: pixel-format,
+    }
+
+    /// A handle to a frame buffer resource
+    resource frame-buffer {
+        /// Create a new frame buffer with the given descriptor
+        constructor(desc: frame-buffer-descriptor);
+
+        /// Get the width of the buffer
+        width: func() -> u32;
+
+        /// Get the height of the buffer
+        height: func() -> u32;
+
+        /// Get the pixel format
+        format: func() -> pixel-format;
+
+        /// Get a pixel at the given coordinates (returns RGBA)
+        get-pixel: func(x: u32, y: u32) -> tuple<u8, u8, u8, u8>;
+
+        /// Set a pixel at the given coordinates
+        set-pixel: func(x: u32, y: u32, r: u8, g: u8, b: u8, a: u8);
+
+        /// Fill a rectangular region with a color
+        fill-rect: func(x: u32, y: u32, width: u32, height: u32, r: u8, g: u8, b: u8, a: u8);
+
+        /// Clear the entire buffer with a color
+        clear: func(r: u8, g: u8, b: u8, a: u8);
+
+        /// Get raw pixel data as bytes
+        get-data: func() -> list<u8>;
+
+        /// Set raw pixel data from bytes
+        set-data: func(data: list<u8>);
+
+        /// Mark the buffer as dirty (needs redraw)
+        mark-dirty: func();
+
+        /// Present the buffer to the display
+        present: func();
+    }
+
+    /// Create a new frame buffer
+    create-buffer: func(desc: frame-buffer-descriptor) -> frame-buffer;
+}
+
+/// World for components that use frame-buffer for rendering
+world frame-buffer-renderer {
+    import frame-buffer-interface;
+
+    /// The component exports a render function
+    /// time: animation time in seconds
+    /// delta: time since last frame in seconds
+    export render: func(time: f64, delta: f64);
+
+    /// Initialize the renderer with buffer dimensions
+    export init: func(width: u32, height: u32);
+}

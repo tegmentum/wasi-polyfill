@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animated Fractal Demo - wasi:frame-buffer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      color: #00d4ff;
+      text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+    }
+
+    .subtitle {
+      margin-bottom: 20px;
+      color: #888;
+      font-size: 14px;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .canvas-container {
+      position: relative;
+      border: 2px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px 15px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-family: 'Monaco', 'Consolas', monospace;
+    }
+
+    .overlay div {
+      margin: 2px 0;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.active {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+
+    .instructions {
+      margin-top: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 15px 25px;
+      border-radius: 8px;
+      font-size: 13px;
+      max-width: 600px;
+    }
+
+    .instructions h3 {
+      color: #00d4ff;
+      margin-bottom: 10px;
+    }
+
+    .instructions ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .instructions li {
+      padding: 5px 0;
+      color: #aaa;
+    }
+
+    .instructions kbd {
+      background: #333;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 10px 15px;
+      border-radius: 5px;
+    }
+
+    .slider-group label {
+      min-width: 100px;
+      font-size: 13px;
+    }
+
+    input[type="range"] {
+      width: 150px;
+    }
+
+    .slider-value {
+      min-width: 50px;
+      text-align: right;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Animated Fractal</h1>
+  <p class="subtitle">Powered by wasi:frame-buffer</p>
+
+  <div class="container">
+    <div class="canvas-container">
+      <canvas id="fractal" width="800" height="600"></canvas>
+      <div class="overlay">
+        <div>FPS: <span id="fps">0</span></div>
+        <div>Type: <span id="type">Julia</span></div>
+        <div>Zoom: <span id="zoom">1.00x</span></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="toggle">Toggle Julia/Mandelbrot</button>
+      <button id="zoomIn">Zoom In (+)</button>
+      <button id="zoomOut">Zoom Out (-)</button>
+      <button id="reset">Reset View</button>
+      <button id="pause">Pause</button>
+    </div>
+
+    <div class="slider-group">
+      <label>Max Iterations:</label>
+      <input type="range" id="iterations" min="20" max="300" value="100">
+      <span class="slider-value" id="iterValue">100</span>
+    </div>
+
+    <div class="instructions">
+      <h3>Controls</h3>
+      <ul>
+        <li><kbd>Space</kbd> Toggle pause/play</li>
+        <li><kbd>T</kbd> Toggle Julia/Mandelbrot</li>
+        <li><kbd>+</kbd> / <kbd>-</kbd> Zoom in/out</li>
+        <li><kbd>Arrow keys</kbd> Pan the view</li>
+        <li><kbd>R</kbd> Reset to default view</li>
+        <li>Click and drag to pan</li>
+        <li>Scroll wheel to zoom</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module">
+    // Try to load WASM version, fall back to JS version
+    let FractalAnimation;
+    let useWasm = false;
+
+    try {
+      const wasmModule = await import('./fractal-wasm.js');
+      FractalAnimation = wasmModule.FractalAnimation;
+      useWasm = true;
+      console.log('Using WebAssembly fractal renderer');
+    } catch (e) {
+      console.log('WASM not available, using JavaScript renderer:', e.message);
+      const jsModule = await import('./fractal-renderer.js');
+      FractalAnimation = jsModule.FractalAnimation;
+    }
+
+    // Initialize
+    const canvas = document.getElementById('fractal');
+    let animation;
+
+    if (useWasm) {
+      animation = new FractalAnimation(canvas, './wasm/fractal.wasm');
+      await animation.init();
+    } else {
+      animation = new FractalAnimation(canvas, {
+        maxIterations: 100,
+        fractalType: 'julia',
+      });
+    }
+
+    // UI elements
+    const fpsDisplay = document.getElementById('fps');
+    const typeDisplay = document.getElementById('type');
+    const zoomDisplay = document.getElementById('zoom');
+    const iterSlider = document.getElementById('iterations');
+    const iterValue = document.getElementById('iterValue');
+    const pauseBtn = document.getElementById('pause');
+
+    // Start animation
+    animation.start();
+
+    // Update overlay info
+    setInterval(() => {
+      fpsDisplay.textContent = animation.getFps();
+      const config = animation.getRenderer().getConfig();
+      typeDisplay.textContent = config.fractalType === 'julia' ? 'Julia' : 'Mandelbrot';
+      zoomDisplay.textContent = config.zoom.toFixed(2) + 'x';
+    }, 100);
+
+    // Button handlers
+    document.getElementById('toggle').addEventListener('click', () => {
+      animation.toggleFractalType();
+    });
+
+    document.getElementById('zoomIn').addEventListener('click', () => {
+      animation.zoomIn();
+    });
+
+    document.getElementById('zoomOut').addEventListener('click', () => {
+      animation.zoomOut();
+    });
+
+    document.getElementById('reset').addEventListener('click', () => {
+      animation.reset();
+    });
+
+    let isPaused = false;
+    pauseBtn.addEventListener('click', () => {
+      isPaused = !isPaused;
+      if (isPaused) {
+        animation.stop();
+        pauseBtn.textContent = 'Resume';
+        pauseBtn.classList.add('active');
+      } else {
+        animation.start();
+        pauseBtn.textContent = 'Pause';
+        pauseBtn.classList.remove('active');
+      }
+    });
+
+    // Iteration slider
+    iterSlider.addEventListener('input', (e) => {
+      const value = parseInt(e.target.value);
+      iterValue.textContent = value;
+      animation.getRenderer().setConfig({ maxIterations: value });
+    });
+
+    // Keyboard controls
+    document.addEventListener('keydown', (e) => {
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          pauseBtn.click();
+          break;
+        case 't':
+        case 'T':
+          animation.toggleFractalType();
+          break;
+        case '+':
+        case '=':
+          animation.zoomIn();
+          break;
+        case '-':
+        case '_':
+          animation.zoomOut();
+          break;
+        case 'r':
+        case 'R':
+          animation.reset();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          animation.pan(0, -0.1);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          animation.pan(0, 0.1);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          animation.pan(-0.1, 0);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          animation.pan(0.1, 0);
+          break;
+      }
+    });
+
+    // Mouse drag to pan
+    let isDragging = false;
+    let lastX, lastY;
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      canvas.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+
+      const dx = (e.clientX - lastX) / canvas.width * 2;
+      const dy = (e.clientY - lastY) / canvas.height * 2;
+      animation.pan(-dx, -dy);
+
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      canvas.style.cursor = 'default';
+    });
+
+    // Mouse wheel to zoom
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        animation.zoomIn(1.1);
+      } else {
+        animation.zoomOut(1.1);
+      }
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      animation.destroy();
+    });
+  </script>
+</body>
+</html>

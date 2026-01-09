@@ -1,0 +1,12 @@
+{
+  "name": "fractal-wasm",
+  "version": "1.0.0",
+  "description": "Fractal renderer WebAssembly module",
+  "scripts": {
+    "build": "asc fractal.ts --outFile fractal.wasm --optimize --exportMemory --exportStart _start",
+    "build:debug": "asc fractal.ts --outFile fractal.wasm --debug --exportMemory"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.0"
+  }
+}
