@@ -312,6 +312,45 @@ export {
 } from './service-worker.js'
 
 // =============================================================================
+// Phase 6: Worker (Parallel Computation)
+// =============================================================================
+
+export {
+  // Handle types
+  type WorkerHandle,
+  type SharedBufferHandle,
+  type MessagePortHandle,
+  // Worker types
+  WorkerType,
+  WorkerState,
+  type WorkerDescriptor,
+  type WorkerInfo,
+  type WorkerMessage,
+  type WorkerError,
+  // Shared memory types
+  type SharedBufferDescriptor,
+  type SharedBufferInfo,
+  // Message port types
+  type MessagePortInfo,
+  // Configuration
+  type WorkerOptions,
+  // Manager
+  BrowserWorker,
+  getDefaultWorkerManager,
+  // Standalone functions
+  supportsWorkers,
+  supportsSharedMemory,
+  spawn,
+  spawnInline,
+  terminate,
+  postMessage,
+  readMessages,
+  createSharedBuffer,
+  // Imports
+  getBrowserWorkerImports,
+} from './worker.js'
+
+// =============================================================================
 // wasmGC-Enhanced Tier (Experimental)
 // =============================================================================
 
@@ -336,6 +375,173 @@ export {
 } from './gc-enhanced.js'
 
 // =============================================================================
+// WebGPU Interface
+// =============================================================================
+
+export {
+  // Handle types
+  type AdapterHandle,
+  type DeviceHandle,
+  type QueueHandle,
+  type BufferHandle,
+  type TextureHandle,
+  type TextureViewHandle,
+  type SamplerHandle,
+  type ShaderModuleHandle,
+  type BindGroupLayoutHandle,
+  type BindGroupHandle,
+  type PipelineLayoutHandle,
+  type RenderPipelineHandle,
+  type ComputePipelineHandle,
+  type CommandEncoderHandle,
+  type RenderPassEncoderHandle,
+  type ComputePassEncoderHandle,
+  type CommandBufferHandle,
+  type QuerySetHandle,
+  type CanvasContextHandle,
+  // Error codes
+  WebGPUErrorCode,
+  createWebGPUError,
+  mapGPUError,
+  // GPU limits and features
+  type GPULimitsRecord,
+  type GPUFeaturesSet,
+  type GPUFeatureName,
+  mapGPULimits,
+  mapGPUFeatures,
+  featuresToArray,
+  // Adapter types
+  type GPUPowerPreference,
+  type AdapterOptions,
+  type AdapterInfo,
+  mapAdapterInfo,
+  // Device types
+  type DeviceDescriptor,
+  type DeviceLostInfo,
+  // Buffer types
+  type BufferUsageFlag,
+  type BufferDescriptor,
+  type BufferMapMode,
+  bufferUsageToNative,
+  // Texture types
+  type TextureFormat,
+  type TextureUsageFlag,
+  type TextureDimension,
+  type TextureViewDimension,
+  type TextureAspect,
+  type TextureSize,
+  type TextureDescriptor,
+  type TextureViewDescriptor,
+  textureUsageToNative,
+  // Sampler types
+  type FilterMode,
+  type MipmapFilterMode,
+  type AddressMode,
+  type CompareFunction,
+  type SamplerDescriptor,
+  // Shader types
+  type ShaderModuleDescriptor,
+  type CompilationMessage,
+  mapCompilationMessage,
+  // Bind group types
+  type ShaderStageFlag,
+  type BufferBindingType,
+  type SamplerBindingType,
+  type TextureSampleType,
+  type StorageTextureAccess,
+  type BindGroupLayoutEntry,
+  type BindGroupEntryResource,
+  type BindGroupEntry,
+  shaderStageToNative,
+  // Pipeline types
+  type PrimitiveTopology,
+  type FrontFace,
+  type CullMode,
+  type IndexFormat,
+  type BlendFactor,
+  type BlendOperation,
+  type ColorWriteFlag,
+  type VertexFormat,
+  type VertexStepMode,
+  type VertexAttribute,
+  type VertexBufferLayout,
+  type BlendComponent,
+  type BlendState,
+  type ColorTargetState,
+  type StencilOperation,
+  type StencilFaceState,
+  type DepthStencilState,
+  type MultisampleState,
+  type PrimitiveState,
+  type ProgrammableStage,
+  type VertexState,
+  type FragmentState,
+  type RenderPipelineDescriptor,
+  type ComputePipelineDescriptor,
+  colorWriteToNative,
+  // Command types
+  type LoadOp,
+  type StoreOp,
+  type GPUColorValue,
+  type RenderPassColorAttachment,
+  type RenderPassDepthStencilAttachment,
+  type RenderPassDescriptor,
+  type ComputePassDescriptor,
+  type ImageCopyBuffer,
+  type ImageCopyTexture,
+  type CopySize,
+  // Canvas context types
+  type CanvasAlphaMode,
+  type CanvasColorSpace,
+  type CanvasContextConfiguration,
+  // Command batching types
+  type RenderCommand,
+  type ComputeCommand,
+  // Managers
+  BrowserWebGPUAdapter,
+  BrowserWebGPUDevice,
+  BrowserWebGPUBuffer,
+  BrowserWebGPUTexture,
+  BrowserWebGPUSampler,
+  BrowserWebGPUShader,
+  BrowserWebGPUBindGroup,
+  BrowserWebGPUPipeline,
+  BrowserWebGPUCommand,
+  BrowserWebGPUQueue,
+  BrowserWebGPUCanvasContext,
+  HandleTable,
+  // Default instances
+  getDefaultAdapterManager,
+  getDefaultDeviceManager,
+  getDefaultBufferManager,
+  getDefaultTextureManager,
+  getDefaultSamplerManager,
+  getDefaultShaderManager,
+  getDefaultBindGroupManager,
+  getDefaultPipelineManager,
+  getDefaultCommandManager,
+  getDefaultQueueManager,
+  getDefaultCanvasContextManager,
+  // Support check
+  isWebGPUSupported,
+  getPreferredCanvasFormat,
+  // Combined imports
+  getBrowserWebGPUImports,
+  // Individual imports
+  getBrowserWebGPUAdapterImports,
+  getBrowserWebGPUDeviceImports,
+  getBrowserWebGPUBufferImports,
+  getBrowserWebGPUTextureImports,
+  getBrowserWebGPUSamplerImports,
+  getBrowserWebGPUShaderImports,
+  getBrowserWebGPUBindGroupImports,
+  getBrowserWebGPUPipelineImports,
+  getBrowserWebGPUCommandImports,
+  getBrowserWebGPUQueueImports,
+  getBrowserWebGPUCanvasContextImports,
+} from './webgpu/index.js'
+
+// =============================================================================
 // Combined Imports
 // =============================================================================
 
@@ -354,7 +560,9 @@ import { getBrowserGeolocationImports as _getGeolocationImports } from './geoloc
 import { getBrowserNotificationsImports as _getNotificationsImports } from './notifications.js'
 import { getBrowserMediaImports as _getMediaImports } from './media.js'
 import { getBrowserServiceWorkerImports as _getServiceWorkerImports } from './service-worker.js'
+import { getBrowserWorkerImports as _getWorkerImports } from './worker.js'
 import { getBrowserGcEnhancedImports as _getGcEnhancedImports } from './gc-enhanced.js'
+import { getBrowserWebGPUImports as _getWebGPUImports } from './webgpu/index.js'
 
 /**
  * Configuration for browser imports.
@@ -382,6 +590,8 @@ export interface BrowserImportsConfig {
   media?: import('./media.js').MediaOptions
   /** Service worker options */
   serviceWorker?: import('./service-worker.js').ServiceWorkerOptions
+  /** Worker options */
+  worker?: import('./worker.js').WorkerOptions
   /** GC-enhanced tier options */
   gcEnhanced?: import('./gc-enhanced.js').GcEnhancedOptions
 }
@@ -414,7 +624,11 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     ..._getMediaImports(config.media),
     // Phase 5
     ..._getServiceWorkerImports(config.serviceWorker),
+    // Phase 6
+    ..._getWorkerImports(config.worker),
     // wasmGC-enhanced tier
     ..._getGcEnhancedImports(config.gcEnhanced),
+    // WebGPU
+    ..._getWebGPUImports(),
   }
 }
