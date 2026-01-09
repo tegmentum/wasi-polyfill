@@ -77,6 +77,8 @@ export type {
   XTermLike,
   XTermInputLike,
   XTermOutputLike,
+  XTermDimensionsLike,
+  CustomStdioOptions,
 } from './stdio-provider.js'
 export {
   createConsoleStdio,

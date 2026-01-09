@@ -113,9 +113,23 @@ export interface XTermInputLike {
 }
 
 /**
+ * xterm.js-like terminal interface for dimensions
+ */
+export interface XTermDimensionsLike {
+  /** Number of rows in the terminal */
+  rows: number
+  /** Number of columns in the terminal */
+  cols: number
+  /** Subscribe to resize events */
+  onResize?(
+    callback: (event: { rows: number; cols: number }) => void
+  ): { dispose(): void } | (() => void)
+}
+
+/**
  * Combined xterm.js-like interface
  */
-export type XTermLike = XTermOutputLike & XTermInputLike
+export type XTermLike = XTermOutputLike & XTermInputLike & Partial<XTermDimensionsLike>
 
 /**
  * Configuration for stdio - determines which adapter to use
@@ -129,6 +143,8 @@ export type StdioConfig =
       stdout: OutputStreamLike
       stderr: OutputStreamLike
       isTTY?: boolean
+      terminal?: TerminalCapability
+      destroy?: () => void
     }
 
 // ============================================================================
@@ -405,14 +421,42 @@ export function createXtermStdio(
     const stdout = new XtermOutputStream(term)
     const stderr = new XtermOutputStream(term) // Could be separate terminal
 
+    // Build terminal capability object
+    const terminal: TerminalCapability = {
+      isTTY,
+    }
+
+    // Add getSize if terminal has dimensions
+    if (typeof term.rows === 'number' && typeof term.cols === 'number') {
+      terminal.getSize = () => ({
+        rows: term.rows!,
+        cols: term.cols!,
+      })
+    }
+
+    // xterm.js is always in raw mode - setRawMode is a no-op
+    // but we provide it for API completeness
+    terminal.setRawMode = (_enabled: boolean) => {
+      // xterm.js operates in raw mode by default
+      // Line editing and echo are handled by the application
+    }
+
+    // Add onResize if terminal supports it
+    if (typeof term.onResize === 'function') {
+      terminal.onResize = (callback: (rows: number, cols: number) => void) => {
+        const result = term.onResize!((event) => {
+          callback(event.rows, event.cols)
+        })
+        // Return unsubscribe function
+        return typeof result === 'function' ? result : () => result.dispose()
+      }
+    }
+
     return {
       stdin,
       stdout,
       stderr,
-      terminal: {
-        isTTY,
-        // TODO: Add getSize, setRawMode, onResize when xterm supports them
-      },
+      terminal,
       destroy() {
         unsubscribe()
         stdin.close()
@@ -428,13 +472,27 @@ export function createXtermStdio(
 // ============================================================================
 
 /**
+ * Options for custom stdio provider
+ */
+export interface CustomStdioOptions {
+  /** Whether the streams are connected to a TTY */
+  isTTY?: boolean
+
+  /** Terminal capability bundle (optional) */
+  terminal?: TerminalCapability
+
+  /** Cleanup function called on destroy */
+  destroy?: () => void
+}
+
+/**
  * Custom stdio provider - uses user-provided streams.
  */
 export function createCustomStdio(
   stdin: InputStreamLike,
   stdout: OutputStreamLike,
   stderr: OutputStreamLike,
-  options?: { isTTY?: boolean }
+  options?: CustomStdioOptions
 ): StdioProvider {
   const isTTY = options?.isTTY ?? false
 
@@ -444,9 +502,19 @@ export function createCustomStdio(
       stdout,
       stderr,
     }
-    if (isTTY) {
+
+    // Use provided terminal capability or create a basic one
+    if (options?.terminal) {
+      streams.terminal = options.terminal
+    } else if (isTTY) {
       streams.terminal = { isTTY: true }
     }
+
+    // Add destroy if provided
+    if (options?.destroy) {
+      streams.destroy = options.destroy
+    }
+
     return streams
   }
 }
@@ -468,12 +536,12 @@ export function createStdioProvider(config?: StdioConfig): StdioProvider {
   }
 
   if (config.kind === 'custom') {
-    return createCustomStdio(
-      config.stdin,
-      config.stdout,
-      config.stderr,
-      config.isTTY !== undefined ? { isTTY: config.isTTY } : undefined
-    )
+    const options: CustomStdioOptions = {}
+    if (config.isTTY !== undefined) options.isTTY = config.isTTY
+    if (config.terminal) options.terminal = config.terminal
+    if (config.destroy) options.destroy = config.destroy
+
+    return createCustomStdio(config.stdin, config.stdout, config.stderr, options)
   }
 
   // Exhaustive check
