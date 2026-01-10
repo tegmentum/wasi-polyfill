@@ -152,3 +152,22 @@ export {
   validateIf,
   validateIfDefined,
 } from './validation.js'
+
+// =============================================================================
+// Caching Utilities
+// =============================================================================
+
+export {
+  // Stat cache
+  type CachedStat,
+  type StatCacheOptions,
+  StatCache,
+  createCachedStatFn,
+} from './stat-cache.js'
+
+export {
+  // Write batcher
+  type WriteBatcherOptions,
+  WriteBatcher,
+  createBatchedOperations,
+} from './write-batcher.js'

@@ -786,3 +786,142 @@ export function getBrowserImports(config: BrowserImportsConfig = {}): Record<str
     ..._getVibrationImports(config.vibration),
   }
 }
+
+// =============================================================================
+// Lazy Loading Helpers
+// =============================================================================
+
+/**
+ * Lazily load WebGPU imports.
+ *
+ * Use this instead of the synchronous `getBrowserWebGPUImports` when you want
+ * to defer loading of the WebGPU module until it's actually needed.
+ * This reduces initial bundle size when WebGPU is optional.
+ *
+ * @example
+ * ```typescript
+ * // Only load WebGPU when needed
+ * const webgpuImports = await getWebGPUImportsLazy()
+ * ```
+ */
+export async function getWebGPUImportsLazy(): Promise<Record<string, unknown>> {
+  const { getBrowserWebGPUImports } = await import('./webgpu/index.js')
+  return getBrowserWebGPUImports()
+}
+
+/**
+ * Lazily load GC-enhanced DOM/Events imports.
+ *
+ * Use this when the wasmGC tier is optional and you want to avoid
+ * loading the module until it's confirmed to be needed.
+ *
+ * @example
+ * ```typescript
+ * // Only load GC-enhanced tier when wasmGC is available
+ * if (await isWasmGcSupported()) {
+ *   const gcImports = await getGcEnhancedImportsLazy()
+ * }
+ * ```
+ */
+export async function getGcEnhancedImportsLazy(
+  options?: import('./gc-enhanced.js').GcEnhancedOptions
+): Promise<Record<string, unknown>> {
+  const { getBrowserGcEnhancedImports } = await import('./gc-enhanced.js')
+  return getBrowserGcEnhancedImports(options)
+}
+
+/**
+ * Lazily load Canvas imports.
+ *
+ * Use this when canvas functionality is optional and you want to
+ * defer loading until actually needed.
+ *
+ * @example
+ * ```typescript
+ * // Only load canvas when needed
+ * const canvasImports = await getCanvasImportsLazy()
+ * ```
+ */
+export async function getCanvasImportsLazy(
+  options?: import('./canvas.js').CanvasOptions
+): Promise<Record<string, unknown>> {
+  const { getBrowserCanvasImports } = await import('./canvas.js')
+  return getBrowserCanvasImports(options)
+}
+
+/**
+ * Lazily load Media imports.
+ *
+ * Use this when media functionality is optional and you want to
+ * defer loading until actually needed.
+ *
+ * @example
+ * ```typescript
+ * // Only load media when needed
+ * const mediaImports = await getMediaImportsLazy()
+ * ```
+ */
+export async function getMediaImportsLazy(
+  options?: import('./media.js').MediaOptions
+): Promise<Record<string, unknown>> {
+  const { getBrowserMediaImports } = await import('./media.js')
+  return getBrowserMediaImports(options)
+}
+
+/**
+ * Get a minimal set of browser imports.
+ *
+ * Returns only the essential imports (types, runtime, console) for
+ * applications that need minimal browser functionality.
+ * Use lazy loading helpers to add additional imports as needed.
+ *
+ * @example
+ * ```typescript
+ * // Start with minimal imports
+ * const imports = getMinimalBrowserImports()
+ *
+ * // Add WebGPU only if needed
+ * if (needsWebGPU) {
+ *   Object.assign(imports, await getWebGPUImportsLazy())
+ * }
+ * ```
+ */
+export function getMinimalBrowserImports(config: Pick<BrowserImportsConfig, 'console'> = {}): Record<string, unknown> {
+  return {
+    ..._getTypesImports(),
+    ..._getRuntimeImports(),
+    ..._getConsoleImports(config.console),
+  }
+}
+
+/**
+ * Get core browser imports without heavy modules.
+ *
+ * Returns imports for types, runtime, console, fetch, storage, and performance.
+ * Does not include WebGPU, Canvas, Media, or other heavy modules.
+ *
+ * @example
+ * ```typescript
+ * // Get core imports
+ * const imports = getCoreBrowserImports()
+ *
+ * // Optionally add canvas
+ * if (needsCanvas) {
+ *   Object.assign(imports, await getCanvasImportsLazy())
+ * }
+ * ```
+ */
+export function getCoreBrowserImports(
+  config: Pick<BrowserImportsConfig, 'console' | 'storageDatabaseName' | 'fetch'> = {}
+): Record<string, unknown> {
+  return {
+    // Phase 0
+    ..._getTypesImports(),
+    ..._getRuntimeImports(),
+    ..._getConsoleImports(config.console),
+    // Phase 1
+    ..._getFetchImports(config.fetch),
+    ..._getStorageImports(config.storageDatabaseName),
+    ..._getPerformanceImports(),
+  }
+}

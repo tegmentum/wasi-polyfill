@@ -11,10 +11,16 @@ import { PluginNotFoundError } from '../../shared/errors.js'
  *
  * Manages registration and lookup of plugins that implement WASI interfaces.
  * Supports lazy loading of plugins via factory functions.
+ *
+ * Performance optimizations:
+ * - Version-agnostic lookup cache to avoid O(n) iteration
+ * - Direct key lookups for registered plugins
  */
 export class PluginRegistry {
   private plugins: Map<string, WasiPlugin> = new Map()
   private lazyLoaders: Map<string, () => Promise<WasiPlugin>> = new Map()
+  /** Cache for version-agnostic lookups (key without version -> plugin) */
+  private lookupCache: Map<string, WasiPlugin> = new Map()
 
   /**
    * Register a plugin for a WASI interface
@@ -24,6 +30,8 @@ export class PluginRegistry {
     this.plugins.set(key, plugin)
     // Remove any lazy loader if we have the real plugin
     this.lazyLoaders.delete(key)
+    // Clear lookup cache since registration changed
+    this.lookupCache.clear()
   }
 
   /**
@@ -47,6 +55,8 @@ export class PluginRegistry {
    *
    * Returns undefined if no plugin is registered for the interface.
    * Will load lazy plugins if a loader is registered.
+   *
+   * Uses a lookup cache to avoid O(n) iteration for repeated lookups.
    */
   async get(iface: WasiInterface): Promise<WasiPlugin | undefined> {
     const key = this.makeKey(iface)
@@ -63,12 +73,23 @@ export class PluginRegistry {
       const loadedPlugin = await loader()
       this.plugins.set(key, loadedPlugin)
       this.lazyLoaders.delete(key)
+      // Clear cache since we added a new plugin
+      this.lookupCache.clear()
       return loadedPlugin
+    }
+
+    // Check cache for version-agnostic lookups
+    const cacheKey = `${iface.package}/${iface.name}`
+    const cached = this.lookupCache.get(cacheKey)
+    if (cached) {
+      return cached
     }
 
     // Try without version (find any version)
     for (const [, registeredPlugin] of this.plugins) {
       if (interfaceMatches(iface, registeredPlugin.witInterface, false)) {
+        // Cache the result for future lookups
+        this.lookupCache.set(cacheKey, registeredPlugin)
         return registeredPlugin
       }
     }
@@ -78,17 +99,30 @@ export class PluginRegistry {
 
   /**
    * Get a plugin synchronously (only works for already-loaded plugins)
+   *
+   * Uses a lookup cache to avoid O(n) iteration for repeated lookups.
    */
   getSync(iface: WasiInterface): WasiPlugin | undefined {
     const key = this.makeKey(iface)
+
+    // Direct lookup first (most common case)
     const plugin = this.plugins.get(key)
     if (plugin) {
       return plugin
     }
 
-    // Try without version
+    // Check cache for version-agnostic lookups
+    const cacheKey = `${iface.package}/${iface.name}`
+    const cached = this.lookupCache.get(cacheKey)
+    if (cached) {
+      return cached
+    }
+
+    // Fall back to iteration (only happens once per unique interface)
     for (const [, registeredPlugin] of this.plugins) {
       if (interfaceMatches(iface, registeredPlugin.witInterface, false)) {
+        // Cache the result for future lookups
+        this.lookupCache.set(cacheKey, registeredPlugin)
         return registeredPlugin
       }
     }
@@ -145,6 +179,10 @@ export class PluginRegistry {
     const key = this.makeKey(iface)
     const hadPlugin = this.plugins.delete(key)
     const hadLoader = this.lazyLoaders.delete(key)
+    // Invalidate cache since plugin list changed
+    if (hadPlugin || hadLoader) {
+      this.lookupCache.clear()
+    }
     return hadPlugin || hadLoader
   }
 
@@ -154,6 +192,7 @@ export class PluginRegistry {
   clear(): void {
     this.plugins.clear()
     this.lazyLoaders.clear()
+    this.lookupCache.clear()
   }
 
   /**
