@@ -700,6 +700,97 @@ export function createMockIndexedDB(): IDBFactory {
 }
 
 // =============================================================================
+// Animation Frame Mocks
+// =============================================================================
+
+/**
+ * Create mock requestAnimationFrame/cancelAnimationFrame
+ */
+export function createMockAnimationFrame(): {
+  requestAnimationFrame: typeof requestAnimationFrame
+  cancelAnimationFrame: typeof cancelAnimationFrame
+  _triggerFrame: (timestamp?: number) => void
+  _pendingCount: () => number
+} {
+  let nextId = 1
+  const callbacks = new Map<number, FrameRequestCallback>()
+  let currentTime = 0
+
+  return {
+    requestAnimationFrame: vi.fn((callback: FrameRequestCallback) => {
+      const id = nextId++
+      callbacks.set(id, callback)
+      // Auto-trigger after a short delay to simulate browser behavior
+      setTimeout(() => {
+        const cb = callbacks.get(id)
+        if (cb) {
+          callbacks.delete(id)
+          currentTime += 16.67 // ~60fps
+          cb(currentTime)
+        }
+      }, 10)
+      return id
+    }),
+    cancelAnimationFrame: vi.fn((id: number) => {
+      callbacks.delete(id)
+    }),
+    _triggerFrame: (timestamp?: number) => {
+      currentTime = timestamp ?? currentTime + 16.67
+      for (const [id, callback] of callbacks) {
+        callbacks.delete(id)
+        callback(currentTime)
+      }
+    },
+    _pendingCount: () => callbacks.size,
+  }
+}
+
+/**
+ * Create mock requestIdleCallback/cancelIdleCallback
+ */
+export function createMockIdleCallback(): {
+  requestIdleCallback: typeof requestIdleCallback
+  cancelIdleCallback: typeof cancelIdleCallback
+  _triggerIdle: (timeRemaining?: number, didTimeout?: boolean) => void
+  _pendingCount: () => number
+} {
+  let nextId = 1
+  const callbacks = new Map<number, IdleRequestCallback>()
+
+  return {
+    requestIdleCallback: vi.fn((callback: IdleRequestCallback, options?: IdleRequestOptions) => {
+      const id = nextId++
+      callbacks.set(id, callback)
+      // Auto-trigger after a short delay
+      setTimeout(() => {
+        const cb = callbacks.get(id)
+        if (cb) {
+          callbacks.delete(id)
+          cb({
+            didTimeout: false,
+            timeRemaining: () => 50,
+          })
+        }
+      }, options?.timeout ?? 50)
+      return id
+    }),
+    cancelIdleCallback: vi.fn((id: number) => {
+      callbacks.delete(id)
+    }),
+    _triggerIdle: (timeRemaining = 50, didTimeout = false) => {
+      for (const [id, callback] of callbacks) {
+        callbacks.delete(id)
+        callback({
+          didTimeout,
+          timeRemaining: () => timeRemaining,
+        })
+      }
+    },
+    _pendingCount: () => callbacks.size,
+  }
+}
+
+// =============================================================================
 // Setup Helpers
 // =============================================================================
 
