@@ -13,7 +13,7 @@ The full `getBrowserImports()` function includes all browser interfaces, which c
 For applications that need only basic functionality:
 
 ```typescript
-import { getMinimalBrowserImports } from '@aspect/wasi-polyfill/browser'
+import { getMinimalBrowserImports } from '@tegmentum/wasi-polyfill/browser'
 
 // Includes only: types, runtime, console
 const imports = getMinimalBrowserImports()
@@ -24,7 +24,7 @@ const imports = getMinimalBrowserImports()
 For typical web applications without heavy graphics:
 
 ```typescript
-import { getCoreBrowserImports } from '@aspect/wasi-polyfill/browser'
+import { getCoreBrowserImports } from '@tegmentum/wasi-polyfill/browser'
 
 // Includes: types, runtime, console, fetch, storage, performance
 const imports = getCoreBrowserImports()
@@ -39,7 +39,7 @@ import {
   getCoreBrowserImports,
   getWebGPUImportsLazy,
   getCanvasImportsLazy
-} from '@aspect/wasi-polyfill/browser'
+} from '@tegmentum/wasi-polyfill/browser'
 
 // Start with core imports
 const imports = getCoreBrowserImports()
@@ -68,13 +68,18 @@ if (needsCanvas()) {
 
 ## Direct Module Imports
 
-For maximum control, import specific modules directly:
+For maximum control, import specific modules directly using subpath exports:
 
 ```typescript
-// Import only what you need
-import { getBrowserConsoleImports } from '@aspect/wasi-polyfill/browser'
-import { getBrowserFetchImports } from '@aspect/wasi-polyfill/browser'
-import { getBrowserStorageImports } from '@aspect/wasi-polyfill/browser'
+// Import only what you need - individual browser modules
+import { BrowserFetch } from '@tegmentum/wasi-polyfill/browser/fetch'
+import { BrowserStorage } from '@tegmentum/wasi-polyfill/browser/storage'
+import { ConsoleLogger } from '@tegmentum/wasi-polyfill/browser/console'
+
+// Or use the combined imports from the main browser entry
+import { getBrowserConsoleImports } from '@tegmentum/wasi-polyfill/browser'
+import { getBrowserFetchImports } from '@tegmentum/wasi-polyfill/browser'
+import { getBrowserStorageImports } from '@tegmentum/wasi-polyfill/browser'
 
 const imports = {
   ...getBrowserConsoleImports(),
@@ -83,21 +88,78 @@ const imports = {
 }
 ```
 
+### Available Browser Subpath Exports
+
+| Import Path | Description |
+|-------------|-------------|
+| `@tegmentum/wasi-polyfill/browser/types` | Core types and Result utilities |
+| `@tegmentum/wasi-polyfill/browser/console` | Console logging |
+| `@tegmentum/wasi-polyfill/browser/runtime` | Runtime detection |
+| `@tegmentum/wasi-polyfill/browser/fetch` | HTTP fetch |
+| `@tegmentum/wasi-polyfill/browser/storage` | IndexedDB storage |
+| `@tegmentum/wasi-polyfill/browser/performance` | Performance metrics |
+| `@tegmentum/wasi-polyfill/browser/dom` | DOM manipulation |
+| `@tegmentum/wasi-polyfill/browser/events` | Event handling |
+| `@tegmentum/wasi-polyfill/browser/canvas` | Canvas 2D |
+| `@tegmentum/wasi-polyfill/browser/clipboard` | Clipboard API |
+| `@tegmentum/wasi-polyfill/browser/geolocation` | Geolocation |
+| `@tegmentum/wasi-polyfill/browser/notifications` | Notifications |
+| `@tegmentum/wasi-polyfill/browser/media` | Media capture |
+| `@tegmentum/wasi-polyfill/browser/service-worker` | Service workers |
+| `@tegmentum/wasi-polyfill/browser/worker` | Web workers |
+| `@tegmentum/wasi-polyfill/browser/websocket` | WebSockets |
+| `@tegmentum/wasi-polyfill/browser/broadcast-channel` | Broadcast channels |
+| `@tegmentum/wasi-polyfill/browser/animation` | Animation frames |
+| `@tegmentum/wasi-polyfill/browser/history` | History API |
+| `@tegmentum/wasi-polyfill/browser/screen` | Screen info |
+| `@tegmentum/wasi-polyfill/browser/fullscreen` | Fullscreen API |
+| `@tegmentum/wasi-polyfill/browser/vibration` | Vibration API |
+| `@tegmentum/wasi-polyfill/browser/gc-enhanced` | wasmGC-enhanced DOM |
+
 ## WASIP2 Plugin Selective Loading
 
 For WASIP2 interfaces, use lazy plugin registration:
 
 ```typescript
-import { Polyfill, globalRegistry } from '@aspect/wasi-polyfill/wasip2'
+import { Polyfill, globalRegistry } from '@tegmentum/wasi-polyfill/wasip2'
 
 // Register only needed plugins
 globalRegistry.registerLazy(
   { package: 'wasi:filesystem', name: 'types', version: '0.2.0' },
-  () => import('@aspect/wasi-polyfill/wasip2/plugins/filesystem').then(m => m.filesystemPlugin)
+  () => import('@tegmentum/wasi-polyfill/wasip2/plugins/filesystem').then(m => m.filesystemPlugin)
 )
 
 // Plugin loads only when first accessed
 const polyfill = new Polyfill()
+```
+
+### Available WASIP2 Plugin Subpath Exports
+
+| Import Path | Description |
+|-------------|-------------|
+| `@tegmentum/wasi-polyfill/wasip2/plugins/random` | Random number generation |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/clocks` | Clocks and timers |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/io` | I/O streams |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/cli` | CLI environment |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/filesystem` | File system |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/sockets` | Network sockets |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/http` | HTTP client |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/threads` | Threading |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/ws-gateway` | WebSocket gateway |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/logging` | Logging |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/keyvalue` | Key-value storage |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/blobstore` | Blob storage |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/config` | Configuration |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/messaging` | Messaging |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/nn` | Neural networks |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/sql` | SQL databases |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/webgpu` | WebGPU |
+| `@tegmentum/wasi-polyfill/wasip2/plugins/wasi-gfx` | Graphics context |
+
+Shorthand aliases (without `wasip2/` prefix) are also available:
+```typescript
+import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
+import { filesystemPlugin } from '@tegmentum/wasi-polyfill/plugins/filesystem'
 ```
 
 ## Bundle Size Comparison
@@ -128,8 +190,8 @@ export default {
     rollupOptions: {
       output: {
         manualChunks: {
-          'wasi-core': ['@aspect/wasi-polyfill/browser'],
-          'wasi-webgpu': ['@aspect/wasi-polyfill/browser/webgpu'],
+          'wasi-core': ['@tegmentum/wasi-polyfill/browser'],
+          'wasi-webgpu': ['@tegmentum/wasi-polyfill/browser/gc-enhanced'],
         }
       }
     }
@@ -148,7 +210,7 @@ module.exports = {
       chunks: 'all',
       cacheGroups: {
         wasiPolyfill: {
-          test: /[\\/]node_modules[\\/]@aspect[\\/]wasi-polyfill/,
+          test: /[\\/]node_modules[\\/]@tegmentum[\\/]wasi-polyfill/,
           name: 'wasi-polyfill',
           chunks: 'all',
         }
@@ -167,7 +229,7 @@ import {
   getCoreBrowserImports,
   isWebGPUSupported,
   getWebGPUImportsLazy
-} from '@aspect/wasi-polyfill/browser'
+} from '@tegmentum/wasi-polyfill/browser'
 
 async function createImports() {
   const imports = getCoreBrowserImports()

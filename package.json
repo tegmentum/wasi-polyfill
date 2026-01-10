@@ -166,6 +166,162 @@
     "./shared": {
       "types": "./dist/shared/index.d.ts",
       "import": "./dist/shared/index.js"
+    },
+    "./browser/types": {
+      "types": "./dist/browser/types.d.ts",
+      "import": "./dist/browser/types.js"
+    },
+    "./browser/console": {
+      "types": "./dist/browser/console.d.ts",
+      "import": "./dist/browser/console.js"
+    },
+    "./browser/runtime": {
+      "types": "./dist/browser/runtime.d.ts",
+      "import": "./dist/browser/runtime.js"
+    },
+    "./browser/fetch": {
+      "types": "./dist/browser/fetch.d.ts",
+      "import": "./dist/browser/fetch.js"
+    },
+    "./browser/storage": {
+      "types": "./dist/browser/storage.d.ts",
+      "import": "./dist/browser/storage.js"
+    },
+    "./browser/performance": {
+      "types": "./dist/browser/performance.d.ts",
+      "import": "./dist/browser/performance.js"
+    },
+    "./browser/dom": {
+      "types": "./dist/browser/dom.d.ts",
+      "import": "./dist/browser/dom.js"
+    },
+    "./browser/events": {
+      "types": "./dist/browser/events.d.ts",
+      "import": "./dist/browser/events.js"
+    },
+    "./browser/canvas": {
+      "types": "./dist/browser/canvas.d.ts",
+      "import": "./dist/browser/canvas.js"
+    },
+    "./browser/clipboard": {
+      "types": "./dist/browser/clipboard.d.ts",
+      "import": "./dist/browser/clipboard.js"
+    },
+    "./browser/geolocation": {
+      "types": "./dist/browser/geolocation.d.ts",
+      "import": "./dist/browser/geolocation.js"
+    },
+    "./browser/notifications": {
+      "types": "./dist/browser/notifications.d.ts",
+      "import": "./dist/browser/notifications.js"
+    },
+    "./browser/media": {
+      "types": "./dist/browser/media.d.ts",
+      "import": "./dist/browser/media.js"
+    },
+    "./browser/service-worker": {
+      "types": "./dist/browser/service-worker.d.ts",
+      "import": "./dist/browser/service-worker.js"
+    },
+    "./browser/worker": {
+      "types": "./dist/browser/worker.d.ts",
+      "import": "./dist/browser/worker.js"
+    },
+    "./browser/websocket": {
+      "types": "./dist/browser/websocket.d.ts",
+      "import": "./dist/browser/websocket.js"
+    },
+    "./browser/broadcast-channel": {
+      "types": "./dist/browser/broadcast-channel.d.ts",
+      "import": "./dist/browser/broadcast-channel.js"
+    },
+    "./browser/animation": {
+      "types": "./dist/browser/animation.d.ts",
+      "import": "./dist/browser/animation.js"
+    },
+    "./browser/history": {
+      "types": "./dist/browser/history.d.ts",
+      "import": "./dist/browser/history.js"
+    },
+    "./browser/screen": {
+      "types": "./dist/browser/screen.d.ts",
+      "import": "./dist/browser/screen.js"
+    },
+    "./browser/fullscreen": {
+      "types": "./dist/browser/fullscreen.d.ts",
+      "import": "./dist/browser/fullscreen.js"
+    },
+    "./browser/vibration": {
+      "types": "./dist/browser/vibration.d.ts",
+      "import": "./dist/browser/vibration.js"
+    },
+    "./browser/gc-enhanced": {
+      "types": "./dist/browser/gc-enhanced.d.ts",
+      "import": "./dist/browser/gc-enhanced.js"
+    },
+    "./wasip2/plugins/messaging": {
+      "types": "./dist/wasip2/plugins/messaging/index.d.ts",
+      "import": "./dist/wasip2/plugins/messaging/index.js"
+    },
+    "./wasip2/plugins/nn": {
+      "types": "./dist/wasip2/plugins/nn/index.d.ts",
+      "import": "./dist/wasip2/plugins/nn/index.js"
+    },
+    "./wasip2/plugins/sql": {
+      "types": "./dist/wasip2/plugins/sql/index.d.ts",
+      "import": "./dist/wasip2/plugins/sql/index.js"
+    },
+    "./wasip2/plugins/frame-buffer": {
+      "types": "./dist/wasip2/plugins/frame-buffer/index.d.ts",
+      "import": "./dist/wasip2/plugins/frame-buffer/index.js"
+    },
+    "./wasip2/plugins/graphics-context": {
+      "types": "./dist/wasip2/plugins/graphics-context/index.d.ts",
+      "import": "./dist/wasip2/plugins/graphics-context/index.js"
+    },
+    "./wasip2/plugins/surface": {
+      "types": "./dist/wasip2/plugins/surface/index.d.ts",
+      "import": "./dist/wasip2/plugins/surface/index.js"
+    },
+    "./wasip2/plugins/wasi-gfx": {
+      "types": "./dist/wasip2/plugins/wasi-gfx/index.d.ts",
+      "import": "./dist/wasip2/plugins/wasi-gfx/index.js"
+    },
+    "./wasip2/plugins/webgpu": {
+      "types": "./dist/wasip2/plugins/webgpu/index.d.ts",
+      "import": "./dist/wasip2/plugins/webgpu/index.js"
+    },
+    "./plugins/messaging": {
+      "types": "./dist/wasip2/plugins/messaging/index.d.ts",
+      "import": "./dist/wasip2/plugins/messaging/index.js"
+    },
+    "./plugins/nn": {
+      "types": "./dist/wasip2/plugins/nn/index.d.ts",
+      "import": "./dist/wasip2/plugins/nn/index.js"
+    },
+    "./plugins/sql": {
+      "types": "./dist/wasip2/plugins/sql/index.d.ts",
+      "import": "./dist/wasip2/plugins/sql/index.js"
+    },
+    "./plugins/frame-buffer": {
+      "types": "./dist/wasip2/plugins/frame-buffer/index.d.ts",
+      "import": "./dist/wasip2/plugins/frame-buffer/index.js"
+    },
+    "./plugins/graphics-context": {
+      "types": "./dist/wasip2/plugins/graphics-context/index.d.ts",
+      "import": "./dist/wasip2/plugins/graphics-context/index.js"
+    },
+    "./plugins/surface": {
+      "types": "./dist/wasip2/plugins/surface/index.d.ts",
+      "import": "./dist/wasip2/plugins/surface/index.js"
+    },
+    "./plugins/wasi-gfx": {
+      "types": "./dist/wasip2/plugins/wasi-gfx/index.d.ts",
+      "import": "./dist/wasip2/plugins/wasi-gfx/index.js"
+    },
+    "./plugins/webgpu": {
+      "types": "./dist/wasip2/plugins/webgpu/index.d.ts",
+      "import": "./dist/wasip2/plugins/webgpu/index.js"
     }
   },
   "files": [
