@@ -11,7 +11,7 @@ import { PluginRegistry } from '../core/plugin-registry.js'
 import type { PluginConfig, WasiInterface, PluginInstance, WasiPlugin } from '../core/types.js'
 import { VirtualClock, SeededRandom } from '../runtime/provider.js'
 import { type BundlePreset, deterministicBundle, getBundlePreset } from './bundles.js'
-import { type LogEntry, loggingPlugin, createBufferLogger } from '../plugins/logging/index.js'
+import { type LogEntry, loggingPlugin, isBufferLoggerInstance, type BufferLoggerBuffer } from '../plugins/logging/index.js'
 import { keyvalueStorePlugin } from '../plugins/keyvalue/index.js'
 import { blobstorePlugin } from '../plugins/blobstore/index.js'
 import { randomPlugin, insecureRandomPlugin, insecureSeedPlugin } from '../plugins/random/index.js'
@@ -165,7 +165,7 @@ export class TestHarness {
   private exitCode?: number
 
   // Direct access to stores for assertions
-  private logBuffer?: ReturnType<typeof createBufferLogger>['buffer']
+  private logBuffer?: BufferLoggerBuffer
 
   constructor(config: TestHarnessConfig = {}) {
     // Resolve bundle
@@ -243,17 +243,9 @@ export class TestHarness {
    * Track special instances for direct access in tests
    */
   private trackInstance(key: string, instance: PluginInstance): void {
-    // Buffer logger
-    if (key === 'wasi:logging/logging') {
-      const typedInstance = instance as unknown as {
-        getEntries: () => LogEntry[]
-        clear: () => void
-        count: number
-        hasErrors: boolean
-      }
-      if (typeof typedInstance.getEntries === 'function') {
-        this.logBuffer = typedInstance as unknown as ReturnType<typeof createBufferLogger>['buffer']
-      }
+    // Buffer logger - use type guard for safe type checking
+    if (key === 'wasi:logging/logging' && isBufferLoggerInstance(instance)) {
+      this.logBuffer = instance
     }
   }
 

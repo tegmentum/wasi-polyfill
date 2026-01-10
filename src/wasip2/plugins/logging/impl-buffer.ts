@@ -34,11 +34,41 @@ export interface BufferLogConfig extends PluginConfig, LogFilterConfig {
 }
 
 /**
- * Buffer logging instance
+ * Buffer logging instance interface.
  *
  * Provides queryable access to captured logs.
+ * This interface is exported for type checking purposes.
  */
-class BufferLogInstance implements PluginInstance {
+export interface BufferLoggerBuffer {
+  getEntries(): readonly LogEntry[]
+  getEntriesByLevel(level: LogLevel): LogEntry[]
+  getEntriesByContext(context: string): LogEntry[]
+  getEntriesAtLevel(minLevel: LogLevel): LogEntry[]
+  clear(): void
+  readonly count: number
+  readonly hasErrors: boolean
+  format(options?: { showTimestamp?: boolean }): string[]
+  toJSON(): LogEntry[]
+}
+
+/**
+ * Type guard to check if a plugin instance is a buffer logger
+ */
+export function isBufferLoggerInstance(
+  instance: PluginInstance
+): instance is PluginInstance & BufferLoggerBuffer {
+  return (
+    typeof instance === 'object' &&
+    instance !== null &&
+    'getEntries' in instance &&
+    typeof (instance as Record<string, unknown>).getEntries === 'function' &&
+    'clear' in instance &&
+    typeof (instance as Record<string, unknown>).clear === 'function' &&
+    'count' in instance
+  )
+}
+
+class BufferLogInstance implements PluginInstance, BufferLoggerBuffer {
   private readonly minLevel: LogLevel
   private readonly filterConfig: LogFilterConfig
   private readonly maxEntries: number

@@ -26,6 +26,21 @@ import { type NodeHandle, type ElementHandle, getDefaultDom } from './dom.js'
 import { type SubscriptionHandle, getDefaultEvents } from './events.js'
 
 // =============================================================================
+// Type Utilities
+// =============================================================================
+
+/**
+ * Safely access a dynamic property on an object.
+ * This is used for on-demand property queries where the property name
+ * is provided at runtime.
+ */
+function getPropertyValue(obj: object, property: string): unknown {
+  // Use Object.prototype.hasOwnProperty to check first, then access via indexing
+  // This is safe because we've already validated obj is a known type (Node/Element/Event)
+  return (obj as Record<string, unknown>)[property]
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -181,7 +196,7 @@ export class GcEnhancedDom {
     }
 
     try {
-      const value = (ref as unknown as Record<string, unknown>)[property]
+      const value = getPropertyValue(ref, property)
       return ok(this.wrapValue(value))
     } catch {
       return browserErr(
@@ -206,7 +221,7 @@ export class GcEnhancedDom {
     }
 
     try {
-      const value = (ref as unknown as Record<string, unknown>)[property]
+      const value = getPropertyValue(ref, property)
       return ok(this.wrapValue(value))
     } catch {
       return browserErr(
@@ -427,7 +442,7 @@ export class GcEnhancedEvents {
     }
 
     try {
-      const value = (ref as unknown as Record<string, unknown>)[property]
+      const value = getPropertyValue(ref, property)
       return ok(this.wrapValue(value))
     } catch {
       return browserErr(

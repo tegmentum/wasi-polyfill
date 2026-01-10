@@ -36,7 +36,9 @@ export {
 export {
   bufferLogImplementation,
   createBufferLogger,
+  isBufferLoggerInstance,
   type BufferLogConfig,
+  type BufferLoggerBuffer,
 } from './impl-buffer.js'
 
 // NDJSON implementation

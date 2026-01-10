@@ -308,7 +308,7 @@ class OutgoingHandlerInstance implements PluginInstance {
     }
 
     // Execute fetch
-    const promise = fetch(url, {
+    const promise: Promise<IncomingResponse | HttpError> = fetch(url, {
       method: methodToString(request.method),
       headers,
       body,
@@ -333,7 +333,10 @@ class OutgoingHandlerInstance implements PluginInstance {
           body: bodyHandle,
         }
 
-        return this.responseRegistry.register(incomingResponse) as unknown as IncomingResponse
+        // Register and update handle
+        const registeredHandle = this.responseRegistry.register(incomingResponse)
+        incomingResponse.handle = registeredHandle
+        return incomingResponse
       })
       .catch((error: Error) => {
         clearTimeout(timeoutId)
@@ -343,20 +346,13 @@ class OutgoingHandlerInstance implements PluginInstance {
     // Create future
     const future: FutureIncomingResponse = {
       handle: 0,
-      promise: promise as Promise<IncomingResponse | HttpError>,
+      promise,
       abortController,
     }
 
     // Track when promise resolves
     promise.then((result) => {
-      if (typeof result === 'number') {
-        const response = this.responseRegistry.get(result)
-        if (response) {
-          future.result = response
-        }
-      } else {
-        future.result = result as HttpError
-      }
+      future.result = result
     })
 
     return this.futureRegistry.register(future)

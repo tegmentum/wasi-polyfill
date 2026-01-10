@@ -253,18 +253,11 @@ export class ServiceWorkerHandler {
     if (response.body !== undefined) {
       const stream = globalStreamRegistry.getOutput(response.body)
       if (stream && stream instanceof MemoryOutputStream) {
-        // Access the internal chunks - need to get all written data
-        // Use a trick to access the private chunks array
-        const chunks = (stream as unknown as { chunks: Uint8Array[] }).chunks
-        if (chunks && chunks.length > 0) {
-          const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-          const combined = new Uint8Array(totalLength)
-          let offset = 0
-          for (const chunk of chunks) {
-            combined.set(chunk, offset)
-            offset += chunk.length
-          }
-          body = combined.buffer
+        // Use the public getBuffer() method to access written data
+        const buffer = stream.getBuffer()
+        if (buffer.length > 0) {
+          // Create a proper ArrayBuffer copy (buffer.buffer may be SharedArrayBuffer)
+          body = buffer.slice().buffer as ArrayBuffer
         }
       }
     }
