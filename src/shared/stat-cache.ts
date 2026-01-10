@@ -3,6 +3,17 @@
  *
  * Provides a TTL-based cache for filesystem metadata to reduce
  * repeated stat calls on the same paths.
+ *
+ * @example
+ * ```typescript
+ * import { StatCache } from '@aspect/wasi-polyfill/shared'
+ *
+ * const cache = new StatCache<{ size: number }>({ ttl: 1000 })
+ * cache.set('/file.txt', { size: 1024 })
+ * const cached = cache.get('/file.txt') // { size: 1024 } or undefined
+ * ```
+ *
+ * @packageDocumentation
  */
 
 /**

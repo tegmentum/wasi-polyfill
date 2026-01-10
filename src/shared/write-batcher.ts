@@ -3,6 +3,21 @@
  *
  * Automatically batches individual write operations into single transactions
  * to improve performance when many writes occur in quick succession.
+ *
+ * @example
+ * ```typescript
+ * import { WriteBatcher } from '@aspect/wasi-polyfill/shared'
+ *
+ * const batcher = new WriteBatcher<Uint8Array>({ flushDelay: 10 })
+ * batcher.setFlushHandler(async (writes, deletes) => {
+ *   // Execute all writes/deletes in single transaction
+ * })
+ *
+ * await batcher.set('key1', data1)
+ * await batcher.set('key2', data2) // Batched with key1
+ * ```
+ *
+ * @packageDocumentation
  */
 
 /**
