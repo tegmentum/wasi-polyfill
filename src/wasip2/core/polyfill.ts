@@ -27,6 +27,14 @@ export interface GetImportsOptions {
   throwOnMissing?: boolean
   /** Whether to throw on policy denial (default: true) */
   throwOnDenied?: boolean
+  /**
+   * Enable jco compatibility mode (default: false)
+   * When true:
+   * - Import keys omit version suffix ("wasi:cli/environment" not "wasi:cli/environment@0.2.0")
+   * - Function names are converted to camelCase ("getEnvironment" not "get-environment")
+   * This is required when using components transpiled with jco.
+   */
+  jcoCompat?: boolean
 }
 
 /**
@@ -89,6 +97,7 @@ export class Polyfill {
 
     const throwOnMissing = options?.throwOnMissing ?? true
     const throwOnDenied = options?.throwOnDenied ?? true
+    const jcoCompat = options?.jcoCompat ?? false
 
     const imports: Record<string, Record<string, unknown>> = {}
     const loaded: WasiInterface[] = []
@@ -119,8 +128,15 @@ export class Polyfill {
       const instance = await this.getOrCreateInstance(iface, plugin)
 
       // Merge imports
-      const pluginImports = instance.getImports()
-      const importKey = this.makeImportKey(iface)
+      let pluginImports = instance.getImports()
+
+      // In jco compatibility mode, convert function names to camelCase
+      if (jcoCompat) {
+        pluginImports = transformImportsForJco(pluginImports)
+      }
+
+      // Use import key without version in jco mode
+      const importKey = this.makeImportKey(iface, !jcoCompat)
 
       if (!imports[importKey]) {
         imports[importKey] = {}
@@ -247,9 +263,13 @@ export class Polyfill {
     return instance
   }
 
-  private makeImportKey(iface: WasiInterface): string {
-    // Format: "wasi:package/interface@version"
-    return formatInterfaceString(iface)
+  private makeImportKey(iface: WasiInterface, includeVersion = true): string {
+    // Format: "wasi:package/interface" or "wasi:package/interface@version"
+    // jco transpilation expects keys WITHOUT version suffix
+    if (includeVersion) {
+      return formatInterfaceString(iface)
+    }
+    return `${iface.package}/${iface.name}`
   }
 
   private checkDestroyed(): void {
@@ -273,4 +293,59 @@ export function createDevPolyfill(): Polyfill {
   return new Polyfill({
     policy: new AllowAllPolicy(),
   })
+}
+
+/**
+ * Create a Polyfill pre-configured for jco-transpiled components
+ *
+ * This is a convenience function that:
+ * - Creates a polyfill with the AllowAllPolicy (for development)
+ * - Sets up jcoCompat mode by default
+ *
+ * Usage:
+ * ```typescript
+ * import { createJcoPolyfill, registerCorePlugins } from '@tegmentum/wasi-polyfill'
+ *
+ * // Register plugins first
+ * registerCorePlugins()
+ *
+ * const polyfill = createJcoPolyfill()
+ * const { imports } = await polyfill.getImports(interfaces)
+ * ```
+ */
+export function createJcoPolyfill(config?: Omit<PolyfillConfig, 'policy'>): Polyfill {
+  return new Polyfill({
+    ...config,
+    policy: new AllowAllPolicy(),
+  })
+}
+
+/**
+ * Convert kebab-case to camelCase
+ * Examples:
+ * - "get-environment" -> "getEnvironment"
+ * - "[method]input-stream.read" -> "[method]inputStream.read"
+ */
+function kebabToCamel(str: string): string {
+  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+}
+
+/**
+ * Transform plugin imports for jco compatibility
+ *
+ * jco-transpiled components expect:
+ * - camelCase function names (getEnvironment, not get-environment)
+ * - camelCase in method names ([method]outputStream.checkWrite, not [method]output-stream.check-write)
+ */
+function transformImportsForJco(
+  imports: Record<string, unknown>
+): Record<string, unknown> {
+  const transformed: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(imports)) {
+    const camelKey = kebabToCamel(key)
+    transformed[camelKey] = value
+  }
+
+  return transformed
 }

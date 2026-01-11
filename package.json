@@ -371,9 +371,13 @@
     "ws": "^8.18.0"
   },
   "peerDependencies": {
+    "@bytecodealliance/jco": "^1.8.0",
     "ws": "^8.0.0"
   },
   "peerDependenciesMeta": {
+    "@bytecodealliance/jco": {
+      "optional": true
+    },
     "ws": {
       "optional": true
     }

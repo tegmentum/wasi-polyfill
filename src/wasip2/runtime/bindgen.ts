@@ -4,7 +4,7 @@
  * Provides runtime transpilation and instantiation of components
  * without build-time code generation.
  *
- * This uses jco for component model transpilation when available,
+ * This uses jco's browser build for component model transpilation,
  * enabling full component model support in the browser.
  */
 
@@ -54,21 +54,29 @@ export interface JcoTranspileOptions {
   name?: string
 
   /**
-   * Whether to generate types
-   * @default false (runtime only)
+   * Whether to use top-level await compatibility mode
+   * @default true (for broader browser support)
    */
   tlaCompat?: boolean
-
-  /**
-   * Import mappings
-   */
-  map?: Record<string, string>
 
   /**
    * Whether to emit minified output
    * @default false
    */
   minify?: boolean
+
+  /**
+   * Whether to optimize the wasm
+   * @default false
+   */
+  optimize?: boolean
+
+  /**
+   * Base64 cutoff for inlining wasm
+   * Set to 0 to disable inlining
+   * @default 5000
+   */
+  base64Cutoff?: number
 }
 
 /**
@@ -102,19 +110,47 @@ export interface BindgenResult<T = Record<string, unknown>> {
 }
 
 /**
+ * Transpile result from jco
+ * files is an array of [filename, contents] tuples
+ */
+interface TranspileResult {
+  files: Array<[string, Uint8Array]>
+  imports: string[]
+  exports: Array<[string, 'function' | 'instance']>
+}
+
+/**
+ * The instantiate function signature from jco instantiation mode
+ */
+type InstantiateFunction<T> = (
+  getCoreModule: (path: string) => Promise<WebAssembly.Module>,
+  imports: Record<string, Record<string, unknown>>,
+  instantiateCore?: (
+    module: WebAssembly.Module,
+    imports: Record<string, unknown>
+  ) => Promise<WebAssembly.Instance>
+) => Promise<T>
+
+/**
  * Runtime bindgen for component model
  *
  * This class provides full component model support by:
  * 1. Parsing component imports
- * 2. Transpiling the component to JavaScript+WASM using jco (if available)
+ * 2. Transpiling the component to JavaScript+WASM using jco (browser build)
  * 3. Providing WASI imports via the polyfill
  * 4. Instantiating and returning typed exports
  *
  * @example
  * ```typescript
+ * import { RuntimeBindgen } from '@tegmentum/wasi-polyfill/runtime'
+ * import { registerCorePlugins } from '@tegmentum/wasi-polyfill'
+ *
+ * // Register plugins first
+ * await registerCorePlugins()
+ *
  * const bindgen = new RuntimeBindgen({ devMode: true })
  *
- * // Instantiate a component
+ * // Instantiate a component directly from .wasm bytes
  * const result = await bindgen.instantiate<MyExports>(wasmBytes)
  *
  * // Use exports with type safety
@@ -124,11 +160,35 @@ export interface BindgenResult<T = Record<string, unknown>> {
  * result.destroy()
  * ```
  */
+/**
+ * jco generate options with proper instantiation mode format
+ */
+interface JcoGenerateOptions {
+  name: string
+  instantiation?: { tag: 'async' } | { tag: 'sync' }
+  tlaCompat?: boolean
+  compat?: boolean
+  noNodejsCompat?: boolean
+  base64Cutoff?: number
+  tracing?: boolean
+  map?: Array<[string, string]>
+}
+
+/**
+ * Type for the jco generate function
+ * Note: The browser build wraps this in async, but types show sync
+ */
+type JcoGenerateFunction = (
+  component: Uint8Array,
+  options: JcoGenerateOptions
+) => TranspileResult | Promise<TranspileResult>
+
 export class RuntimeBindgen {
   private polyfill: Polyfill
   private ownsPolyfill: boolean
   private options: RuntimeBindgenOptions
   private jcoAvailable: boolean | null = null
+  private jcoModule: { generate: JcoGenerateFunction } | null = null
 
   constructor(options: RuntimeBindgenOptions = {}) {
     this.options = options
@@ -213,7 +273,10 @@ export class RuntimeBindgen {
     }
 
     try {
-      await import('@bytecodealliance/jco')
+      // Use the browser-compatible build of jco
+      // This import path works in both Node.js and browsers
+      const jco = await import('@bytecodealliance/jco/component')
+      this.jcoModule = { generate: jco.generate as JcoGenerateFunction }
       this.jcoAvailable = true
     } catch {
       this.jcoAvailable = false
@@ -226,13 +289,14 @@ export class RuntimeBindgen {
     bytes: ArrayBuffer | Uint8Array,
     componentInfo: ParsedComponentInfo
   ): Promise<BindgenResult<T>> {
-    // Dynamic import jco
-    const jco = await import('@bytecodealliance/jco')
+    if (!this.jcoModule) {
+      throw new Error('jco module not loaded')
+    }
 
-    // Get WASI imports
+    // Get WASI imports from polyfill
     const { imports: wasiImports, loaded } = await this.polyfill.getImports(
       componentInfo.requiredInterfaces,
-      { throwOnMissing: true, throwOnDenied: true }
+      { throwOnMissing: true, throwOnDenied: true, jcoCompat: true }
     )
 
     // Merge with additional imports
@@ -241,25 +305,17 @@ export class RuntimeBindgen {
       ...this.options.additionalImports,
     }
 
-    // Build import map for jco
-    const importMap: Record<string, string> = {}
-    for (const iface of componentInfo.requiredInterfaces) {
-      const key = `${iface.package}/${iface.name}@${iface.version}`
-      // Map to a virtual module that will be provided via imports
-      importMap[key] = `#wasi/${iface.package}/${iface.name}`
-    }
-
-    // Transpile the component
+    // Transpile the component using jco's generate function with instantiation mode
     const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-    const transpiled = await jco.transpile(data, {
+    const transpiled: TranspileResult = await this.jcoModule.generate(data, {
       name: this.options.jcoOptions?.name ?? 'component',
-      map: { ...importMap, ...this.options.jcoOptions?.map },
+      instantiation: { tag: 'async' }, // Use async instantiation mode
       tlaCompat: this.options.jcoOptions?.tlaCompat ?? true,
-      minify: this.options.jcoOptions?.minify ?? false,
+      base64Cutoff: this.options.jcoOptions?.base64Cutoff ?? 5000,
+      noNodejsCompat: true, // Browser-only output
     })
 
-    // The transpiled output includes JS and WASM files
-    // We need to execute the JS with our imports
+    // Execute the transpiled code and get exports
     const exports = await this.executeTranspiled<T>(transpiled, allImports)
 
     return {
@@ -276,77 +332,130 @@ export class RuntimeBindgen {
   }
 
   private async executeTranspiled<T>(
-    transpiled: { files: { name: string; contents: Uint8Array }[] },
+    transpiled: TranspileResult,
     imports: Record<string, Record<string, unknown>>
   ): Promise<T> {
+    // Files are tuples: [filename, contents]
     // Find the main JS file
     const mainJs = transpiled.files.find(
-      (f) => f.name.endsWith('.js') && !f.name.includes('.d.ts')
+      ([name]) => name.endsWith('.js') && !name.endsWith('.d.ts')
     )
 
     if (!mainJs) {
       throw new Error('Transpilation did not produce a JavaScript file')
     }
 
-    // Create blob URLs for WASM files
-    const wasmUrls: Record<string, string> = {}
-    for (const file of transpiled.files) {
-      if (file.name.endsWith('.wasm')) {
-        const blob = new Blob([file.contents.buffer as ArrayBuffer], {
-          type: 'application/wasm',
-        })
-        wasmUrls[file.name] = URL.createObjectURL(blob)
+    // Create a map of WASM file contents for the getCoreModule function
+    const wasmModules = new Map<string, Uint8Array>()
+    for (const [name, contents] of transpiled.files) {
+      if (name.endsWith('.wasm')) {
+        wasmModules.set(name, contents)
+      }
+    }
+
+    // Compile WASM modules ahead of time
+    const compiledModules = new Map<string, WebAssembly.Module>()
+    for (const [name, contents] of wasmModules) {
+      // Create a proper ArrayBuffer from the Uint8Array
+      const buffer = contents.buffer.slice(
+        contents.byteOffset,
+        contents.byteOffset + contents.byteLength
+      ) as ArrayBuffer
+      const module = await WebAssembly.compile(buffer)
+      compiledModules.set(name, module)
+    }
+
+    // Create the getCoreModule function
+    const getCoreModule = async (path: string): Promise<WebAssembly.Module> => {
+      // Normalize the path - jco generates relative paths like './component.core.wasm'
+      const normalizedPath = path.replace(/^\.\//, '')
+      const module = compiledModules.get(normalizedPath)
+      if (!module) {
+        throw new Error(`Core module not found: ${path}`)
+      }
+      return module
+    }
+
+    // Execute the JS module to get the instantiate function
+    const instantiate = await this.loadInstantiateFunction<T>(
+      mainJs[1], // contents is at index 1
+      transpiled.files
+    )
+
+    // Call instantiate with our imports
+    return instantiate(getCoreModule, imports)
+  }
+
+  private async loadInstantiateFunction<T>(
+    jsContents: Uint8Array,
+    allFiles: Array<[string, Uint8Array]>
+  ): Promise<InstantiateFunction<T>> {
+    const jsCode = new TextDecoder().decode(jsContents)
+
+    // Find the main JS file name for comparison
+    const mainJsFile = allFiles.find(
+      ([name]) => name.endsWith('.js') && !name.endsWith('.d.ts')
+    )
+
+    // Create blob URLs for any additional JS files (like .core.js files)
+    const jsBlobUrls = new Map<string, string>()
+
+    for (const [name, contents] of allFiles) {
+      if (
+        name.endsWith('.js') &&
+        !name.endsWith('.d.ts') &&
+        mainJsFile && name !== mainJsFile[0]
+      ) {
+        // Create a proper ArrayBuffer for the Blob
+        const buffer = contents.buffer.slice(
+          contents.byteOffset,
+          contents.byteOffset + contents.byteLength
+        ) as ArrayBuffer
+        const blob = new Blob([buffer], { type: 'text/javascript' })
+        jsBlobUrls.set(name, URL.createObjectURL(blob))
       }
     }
 
     try {
-      // Modify the JS to use our imports and WASM URLs
-      const jsCode = new TextDecoder().decode(mainJs.contents)
-      const modifiedJs = this.patchTranspiledJs(jsCode, wasmUrls, imports)
+      // Patch the JS to remove any imports we need to replace
+      // jco with instantiation mode generates self-contained code
+      // that doesn't import WASI shims - it expects them via the imports parameter
+      let patchedJs = jsCode
 
-      // Create a blob URL for the modified JS
-      const jsBlob = new Blob([modifiedJs], { type: 'text/javascript' })
+      // Replace relative .js imports with blob URLs if any exist
+      for (const [filename, blobUrl] of jsBlobUrls) {
+        patchedJs = patchedJs.replace(
+          new RegExp(`['"]\\.\/${filename.replace('.', '\\.')}['"]`, 'g'),
+          `'${blobUrl}'`
+        )
+      }
+
+      // Create a blob URL for the main JS and import it
+      const jsBlob = new Blob([patchedJs], { type: 'text/javascript' })
       const jsUrl = URL.createObjectURL(jsBlob)
 
       try {
-        // Dynamically import and execute
+        // Dynamic import the module
         const module = await import(/* @vite-ignore */ jsUrl)
-        return module as T
+
+        // The module should export an instantiate function
+        if (typeof module.instantiate !== 'function') {
+          throw new Error(
+            'Transpiled module does not export an instantiate function. ' +
+              'This may indicate a jco version mismatch.'
+          )
+        }
+
+        return module.instantiate as InstantiateFunction<T>
       } finally {
         URL.revokeObjectURL(jsUrl)
       }
     } finally {
-      // Clean up WASM blob URLs
-      for (const url of Object.values(wasmUrls)) {
+      // Clean up blob URLs
+      for (const url of jsBlobUrls.values()) {
         URL.revokeObjectURL(url)
       }
     }
-  }
-
-  private patchTranspiledJs(
-    code: string,
-    wasmUrls: Record<string, string>,
-    imports: Record<string, Record<string, unknown>>
-  ): string {
-    // This is a simplified patching - full implementation would need
-    // more sophisticated code transformation
-
-    // Replace WASM fetch URLs with blob URLs
-    let patched = code
-    for (const [filename, url] of Object.entries(wasmUrls)) {
-      patched = patched.replace(
-        new RegExp(`['"]${filename.replace('.', '\\.')}['"]`, 'g'),
-        `'${url}'`
-      )
-    }
-
-    // Inject imports at the start
-    const importSetup = `
-const __wasiImports = ${JSON.stringify(imports, null, 2)};
-globalThis.__wasiPolyfillImports = __wasiImports;
-`
-
-    return importSetup + patched
   }
 
   private async instantiateDirect<T>(

@@ -153,7 +153,48 @@ const policy = createPolicy({
 
 ## Runtime Component Loading
 
-For dynamically loading unknown components at runtime:
+The polyfill supports running WebAssembly components directly in the browser without pre-transpilation. This uses jco's browser build for runtime transpilation.
+
+### Setup
+
+First, install jco as a dependency:
+
+```bash
+npm install @bytecodealliance/jco
+```
+
+### Using RuntimeBindgen
+
+`RuntimeBindgen` provides full component model support by transpiling components at runtime:
+
+```typescript
+import { createRuntimeBindgen, registerCorePlugins } from '@tegmentum/wasi-polyfill'
+
+// Register WASI plugins at startup
+await registerCorePlugins()
+
+// Create a bindgen instance
+const bindgen = createRuntimeBindgen({ devMode: true })
+
+// Load and instantiate a component directly from .wasm bytes
+const result = await bindgen.instantiate<MyExports>(wasmBytes)
+
+// Or load from a URL
+const result = await bindgen.instantiateFromUrl('/my-component.wasm')
+
+// Access exports with type safety
+result.exports.myFunction()
+
+// Check if jco was used for transpilation
+console.log('Used jco:', result.usedJco)
+
+// Clean up when done
+result.destroy()
+```
+
+### Using ComponentLoader
+
+For simpler use cases, `ComponentLoader` provides a lightweight API:
 
 ```typescript
 import { createComponentLoader } from '@tegmentum/wasi-polyfill/runtime'
@@ -171,6 +212,15 @@ component.exports.myFunction()
 // Clean up
 component.destroy()
 ```
+
+### How It Works
+
+1. **Component parsing** - The component binary is parsed to extract WASI interface requirements
+2. **Runtime transpilation** - jco's browser build transpiles the component to JavaScript + core WASM
+3. **WASI imports** - The polyfill provides WASI implementations via the imports parameter
+4. **Instantiation** - The transpiled code is executed via blob URLs with dynamic import
+
+If jco is not installed, `RuntimeBindgen` falls back to direct instantiation (which works for pre-transpiled components or core modules).
 
 ## Build-Time Tooling
 
