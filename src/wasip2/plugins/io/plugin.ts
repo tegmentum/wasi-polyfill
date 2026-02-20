@@ -145,25 +145,28 @@ class StreamsInstance implements PluginInstance {
       return result
     }
     if (result.tag === 'closed') {
-      throw new Error('Stream closed')
+      throw { tag: 'closed' }
     }
     throw result.val
   }
 
-  private async inputStreamBlockingRead(
+  private inputStreamBlockingRead(
     handle: number,
     len: bigint
-  ): Promise<Uint8Array> {
+  ): Uint8Array {
     const stream = this.streamRegistry.getInput(handle)
     if (!stream) {
       throw new Error(`Invalid input stream handle: ${handle}`)
     }
-    const result = await stream.blockingRead(len)
+    const result = stream.blockingRead(len)
+    if (result instanceof Promise) {
+      throw new Error('Async blocking-read not supported in synchronous context')
+    }
     if (result instanceof Uint8Array) {
       return result
     }
     if (result.tag === 'closed') {
-      throw new Error('Stream closed')
+      throw { tag: 'closed' }
     }
     throw result.val
   }
@@ -178,15 +181,15 @@ class StreamsInstance implements PluginInstance {
       return result
     }
     if (result.tag === 'closed') {
-      throw new Error('Stream closed')
+      throw { tag: 'closed' }
     }
     throw result.val
   }
 
-  private async inputStreamBlockingSkip(
+  private inputStreamBlockingSkip(
     handle: number,
     len: bigint
-  ): Promise<bigint> {
+  ): bigint {
     // For memory streams, skip is the same blocking or not
     return this.inputStreamSkip(handle, len)
   }
@@ -214,7 +217,7 @@ class StreamsInstance implements PluginInstance {
       return result
     }
     if (result.tag === 'closed') {
-      throw new Error('Stream closed')
+      throw { tag: 'closed' }
     }
     throw result.val
   }
@@ -227,26 +230,29 @@ class StreamsInstance implements PluginInstance {
     const error = stream.write(contents)
     if (error) {
       if (error.tag === 'closed') {
-        throw new Error('Stream closed')
+        throw { tag: 'closed' }
       }
       throw error.val
     }
   }
 
-  private async outputStreamBlockingWriteAndFlush(
+  private outputStreamBlockingWriteAndFlush(
     handle: number,
     contents: Uint8Array
-  ): Promise<void> {
+  ): void {
     const stream = this.streamRegistry.getOutput(handle)
     if (!stream) {
       throw new Error(`Invalid output stream handle: ${handle}`)
     }
-    const error = await stream.blockingWriteAndFlush(contents)
-    if (error) {
-      if (error.tag === 'closed') {
-        throw new Error('Stream closed')
+    const result = stream.blockingWriteAndFlush(contents)
+    if (result instanceof Promise) {
+      throw new Error('Async blocking-write not supported in synchronous context')
+    }
+    if (result) {
+      if (result.tag === 'closed') {
+        throw { tag: 'closed' }
       }
-      throw error.val
+      throw result.val
     }
   }
 
@@ -258,23 +264,26 @@ class StreamsInstance implements PluginInstance {
     const error = stream.flush()
     if (error) {
       if (error.tag === 'closed') {
-        throw new Error('Stream closed')
+        throw { tag: 'closed' }
       }
       throw error.val
     }
   }
 
-  private async outputStreamBlockingFlush(handle: number): Promise<void> {
+  private outputStreamBlockingFlush(handle: number): void {
     const stream = this.streamRegistry.getOutput(handle)
     if (!stream) {
       throw new Error(`Invalid output stream handle: ${handle}`)
     }
-    const error = await stream.blockingFlush()
-    if (error) {
-      if (error.tag === 'closed') {
-        throw new Error('Stream closed')
+    const result = stream.blockingFlush()
+    if (result instanceof Promise) {
+      throw new Error('Async blocking-flush not supported in synchronous context')
+    }
+    if (result) {
+      if (result.tag === 'closed') {
+        throw { tag: 'closed' }
       }
-      throw error.val
+      throw result.val
     }
   }
 
@@ -294,18 +303,18 @@ class StreamsInstance implements PluginInstance {
     const error = stream.writeZeroes(len)
     if (error) {
       if (error.tag === 'closed') {
-        throw new Error('Stream closed')
+        throw { tag: 'closed' }
       }
       throw error.val
     }
   }
 
-  private async outputStreamBlockingWriteZeroesAndFlush(
+  private outputStreamBlockingWriteZeroesAndFlush(
     handle: number,
     len: bigint
-  ): Promise<void> {
+  ): void {
     this.outputStreamWriteZeroes(handle, len)
-    await this.outputStreamBlockingFlush(handle)
+    this.outputStreamBlockingFlush(handle)
   }
 
   private outputStreamSplice(
@@ -326,16 +335,16 @@ class StreamsInstance implements PluginInstance {
       return result
     }
     if (result.tag === 'closed') {
-      throw new Error('Stream closed')
+      throw { tag: 'closed' }
     }
     throw result.val
   }
 
-  private async outputStreamBlockingSplice(
+  private outputStreamBlockingSplice(
     handle: number,
     srcHandle: number,
     len: bigint
-  ): Promise<bigint> {
+  ): bigint {
     return this.outputStreamSplice(handle, srcHandle, len)
   }
 

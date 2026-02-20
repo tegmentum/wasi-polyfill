@@ -104,6 +104,11 @@ export class Polyfill {
     const denied: WasiInterface[] = []
     const missing: WasiInterface[] = []
 
+    // In jco mode, collect raw imports first for post-processing
+    const rawJcoImports = jcoCompat
+      ? new Map<string, Record<string, unknown>>()
+      : null
+
     for (const iface of required) {
       // Check policy
       if (!this.policy.allow(iface)) {
@@ -128,22 +133,26 @@ export class Polyfill {
       const instance = await this.getOrCreateInstance(iface, plugin)
 
       // Merge imports
-      let pluginImports = instance.getImports()
-
-      // In jco compatibility mode, convert function names to camelCase
-      if (jcoCompat) {
-        pluginImports = transformImportsForJco(pluginImports)
-      }
+      const pluginImports = instance.getImports()
 
       // Use import key without version in jco mode
       const importKey = this.makeImportKey(iface, !jcoCompat)
 
-      if (!imports[importKey]) {
-        imports[importKey] = {}
+      if (rawJcoImports) {
+        const existing = rawJcoImports.get(importKey) ?? {}
+        rawJcoImports.set(importKey, { ...existing, ...pluginImports })
+      } else {
+        if (!imports[importKey]) {
+          imports[importKey] = {}
+        }
+        Object.assign(imports[importKey], pluginImports)
       }
 
-      Object.assign(imports[importKey], pluginImports)
       loaded.push(iface)
+    }
+
+    if (rawJcoImports) {
+      return { imports: buildJcoImports(rawJcoImports), loaded, denied, missing }
     }
 
     return { imports, loaded, denied, missing }
@@ -320,32 +329,333 @@ export function createJcoPolyfill(config?: Omit<PolyfillConfig, 'policy'>): Poly
   })
 }
 
-/**
- * Convert kebab-case to camelCase
- * Examples:
- * - "get-environment" -> "getEnvironment"
- * - "[method]input-stream.read" -> "[method]inputStream.read"
- */
+// ---------------------------------------------------------------------------
+// jco resource bridge
+//
+// jco-transpiled components expect JavaScript resource classes (Descriptor,
+// InputStream, …) with prototype methods.  The polyfill plugins provide flat
+// functions keyed with WIT conventions ([method]descriptor.read-via-stream,
+// [resource-drop]descriptor, etc.).  The code below bridges between the two.
+// ---------------------------------------------------------------------------
+
+/** Well-known jco symbols (global via Symbol.for, accessible cross-module) */
+const symbolCabiRep = Symbol.for('cabiRep')
+const symbolCabiDispose = Symbol.for('cabiDispose')
+
+/** Convert kebab-case to camelCase: "read-via-stream" → "readViaStream" */
 function kebabToCamel(str: string): string {
-  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+  return str.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
+}
+
+/** Convert kebab-case to PascalCase: "input-stream" → "InputStream" */
+function kebabToPascal(str: string): string {
+  return str.replace(/(^|-)([a-z])/g, (_, _sep: string, letter: string) =>
+    letter.toUpperCase()
+  )
 }
 
 /**
- * Transform plugin imports for jco compatibility
+ * Describes how a function/method return value should be wrapped.
  *
- * jco-transpiled components expect:
- * - camelCase function names (getEnvironment, not get-environment)
- * - camelCase in method names ([method]outputStream.checkWrite, not [method]output-stream.check-write)
+ * - `resource`            – single resource handle → class instance
+ * - `option-resource`     – handle | undefined → instance | undefined
+ * - `list-tuple-resource` – [[handle, …], …] → [[instance, …], …]
+ *   (wraps the element at `tupleIndex` in each tuple)
  */
-function transformImportsForJco(
-  imports: Record<string, unknown>
-): Record<string, unknown> {
-  const transformed: Record<string, unknown> = {}
+type WrapDescriptor =
+  | { kind: 'resource'; classRef: string }
+  | { kind: 'option-resource'; classRef: string }
+  | { kind: 'list-tuple-resource'; classRef: string; tupleIndex: number }
 
-  for (const [key, value] of Object.entries(imports)) {
-    const camelKey = kebabToCamel(key)
-    transformed[camelKey] = value
+/**
+ * Static map of WASI standard functions whose return values contain resource
+ * handles that must be wrapped in class instances for jco.
+ *
+ * Key format: "interfaceKey:originalFlatFnKey" (kebab-case, before camelCase)
+ * classRef format: "interfaceKey:PascalClassName"
+ */
+const WASI_RETURN_WRAPS: Record<string, WrapDescriptor> = {
+  // filesystem/types  → io/streams
+  'wasi:filesystem/types:[method]descriptor.open-at':
+    { kind: 'resource', classRef: 'wasi:filesystem/types:Descriptor' },
+  'wasi:filesystem/types:[method]descriptor.read-via-stream':
+    { kind: 'resource', classRef: 'wasi:io/streams:InputStream' },
+  'wasi:filesystem/types:[method]descriptor.write-via-stream':
+    { kind: 'resource', classRef: 'wasi:io/streams:OutputStream' },
+  'wasi:filesystem/types:[method]descriptor.append-via-stream':
+    { kind: 'resource', classRef: 'wasi:io/streams:OutputStream' },
+  'wasi:filesystem/types:[method]descriptor.read-directory':
+    { kind: 'resource', classRef: 'wasi:filesystem/types:DirectoryEntryStream' },
+
+  // io/streams  → io/poll
+  'wasi:io/streams:[method]input-stream.subscribe':
+    { kind: 'resource', classRef: 'wasi:io/poll:Pollable' },
+  'wasi:io/streams:[method]output-stream.subscribe':
+    { kind: 'resource', classRef: 'wasi:io/poll:Pollable' },
+
+  // cli  → io/streams
+  'wasi:cli/stdin:get-stdin':
+    { kind: 'resource', classRef: 'wasi:io/streams:InputStream' },
+  'wasi:cli/stdout:get-stdout':
+    { kind: 'resource', classRef: 'wasi:io/streams:OutputStream' },
+  'wasi:cli/stderr:get-stderr':
+    { kind: 'resource', classRef: 'wasi:io/streams:OutputStream' },
+
+  // cli/terminal  → terminal resources (option types)
+  'wasi:cli/terminal-stdin:get-terminal-stdin':
+    { kind: 'option-resource', classRef: 'wasi:cli/terminal-input:TerminalInput' },
+  'wasi:cli/terminal-stdout:get-terminal-stdout':
+    { kind: 'option-resource', classRef: 'wasi:cli/terminal-output:TerminalOutput' },
+  'wasi:cli/terminal-stderr:get-terminal-stderr':
+    { kind: 'option-resource', classRef: 'wasi:cli/terminal-output:TerminalOutput' },
+
+  // filesystem/preopens  → filesystem/types (list of tuples)
+  'wasi:filesystem/preopens:get-directories':
+    { kind: 'list-tuple-resource', classRef: 'wasi:filesystem/types:Descriptor', tupleIndex: 0 },
+
+  // clocks  → io/poll
+  'wasi:clocks/monotonic-clock:subscribe-instant':
+    { kind: 'resource', classRef: 'wasi:io/poll:Pollable' },
+  'wasi:clocks/monotonic-clock:subscribe-duration':
+    { kind: 'resource', classRef: 'wasi:io/poll:Pollable' },
+
+  // sockets  → various
+  'wasi:sockets/ip-name-lookup:resolve-addresses':
+    { kind: 'resource', classRef: 'wasi:sockets/ip-name-lookup:ResolveAddressStream' },
+  'wasi:sockets/tcp-create-socket:create-tcp-socket':
+    { kind: 'resource', classRef: 'wasi:sockets/tcp:TcpSocket' },
+  'wasi:sockets/udp-create-socket:create-udp-socket':
+    { kind: 'resource', classRef: 'wasi:sockets/udp:UdpSocket' },
+  'wasi:sockets/instance-network:instance-network':
+    { kind: 'resource', classRef: 'wasi:sockets/network:Network' },
+}
+
+/**
+ * Functions that are legitimately async in the WASI specification.
+ * These are handled specially by jco and should not be guarded.
+ */
+const ASYNC_ALLOWED: ReadonlySet<string> = new Set([
+  'wasi:io/poll:poll',
+])
+
+/**
+ * Guard against async return values in jco-compatible wrappers.
+ *
+ * jco trampolines are synchronous — if a polyfill implementation accidentally
+ * returns a Promise the transpiled component will silently receive `undefined`
+ * for things like `.byteLength`, causing hard-to-diagnose data corruption.
+ * This guard makes the failure loud and immediate.
+ */
+function guardSyncReturn(value: unknown, ifaceKey: string, fnKey: string): unknown {
+  if (value instanceof Promise && !ASYNC_ALLOWED.has(`${ifaceKey}:${fnKey}`)) {
+    throw new Error(
+      `jco-compat: ${fnKey} returned a Promise. ` +
+      `jco trampolines are synchronous; the underlying implementation must not be async.`
+    )
+  }
+  return value
+}
+
+/**
+ * Unwrap a polyfill result object into jco convention.
+ * Polyfill returns { tag: 'ok', val } | { tag: 'err', val } for WIT result types.
+ * jco expects the function to return the ok value directly or throw the err value.
+ */
+function unwrapResult(value: unknown): unknown {
+  if (value != null && typeof value === 'object' && 'tag' in value) {
+    const result = value as { tag: string; val: unknown }
+    if (result.tag === 'err') throw result.val
+    if (result.tag === 'ok') return result.val
+  }
+  return value
+}
+
+/**
+ * If `arg` is a resource instance (has cabiRep), extract the handle.
+ * Recurse into arrays so that e.g. poll([Pollable, …]) works.
+ */
+function unwrapArg(arg: unknown): unknown {
+  if (arg != null && typeof arg === 'object') {
+    if (symbolCabiRep in arg) return (arg as Record<symbol, unknown>)[symbolCabiRep]
+    if (Array.isArray(arg)) return arg.map(unwrapArg)
+  }
+  return arg
+}
+
+/** Create a resource instance with the correct prototype and cabiRep. */
+function makeResourceInstance(
+  TargetClass: { prototype: object },
+  rep: unknown
+): object {
+  const inst = Object.create(TargetClass.prototype) as Record<symbol, unknown>
+  inst[symbolCabiRep] = rep
+  return inst
+}
+
+/** Wrap a raw return value according to a WrapDescriptor. */
+function wrapReturn(
+  value: unknown,
+  desc: WrapDescriptor,
+  registry: Map<string, { prototype: object }>
+): unknown {
+  const TargetClass = registry.get(desc.classRef)
+  if (!TargetClass) return value // class not loaded, pass through
+
+  switch (desc.kind) {
+    case 'resource':
+      return value == null ? value : makeResourceInstance(TargetClass, value)
+    case 'option-resource':
+      return value == null ? undefined : makeResourceInstance(TargetClass, value)
+    case 'list-tuple-resource': {
+      if (!Array.isArray(value)) return value
+      const idx = desc.tupleIndex
+      return (value as unknown[][]).map((tuple) => {
+        const wrapped = [...tuple]
+        wrapped[idx] = makeResourceInstance(TargetClass, tuple[idx])
+        return wrapped
+      })
+    }
+  }
+}
+
+/**
+ * Build jco-compatible imports from raw plugin imports.
+ *
+ * Transforms flat WIT-keyed functions ([method]descriptor.read-via-stream,
+ * [resource-drop]descriptor, etc.) into JavaScript resource classes with
+ * prototype methods, as expected by jco-transpiled components.
+ */
+function buildJcoImports(
+  rawImports: Map<string, Record<string, unknown>>
+): Record<string, Record<string, unknown>> {
+  // --- Phase 1: discover resource types and create classes ----------------
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+  type ResourceClass = { new (): object; prototype: object; [k: string | symbol]: unknown }
+  const classRegistry = new Map<string, ResourceClass>()
+
+  for (const [ifaceKey, fns] of rawImports) {
+    const resourceNames = new Set<string>()
+    for (const key of Object.keys(fns)) {
+      const rn = parseResourceName(key)
+      if (rn) resourceNames.add(rn)
+    }
+
+    for (const rn of resourceNames) {
+      const className = kebabToPascal(rn)
+      const classRef = `${ifaceKey}:${className}`
+
+      // Dynamically-named class
+      const ResourceClass = { [className]: class {} }[className] as ResourceClass
+
+      // Static dispose for jco resource cleanup
+      const dropFn = fns[`[resource-drop]${rn}`] as
+        | ((...a: unknown[]) => void)
+        | undefined
+      if (dropFn) {
+        (ResourceClass as Record<symbol, unknown>)[symbolCabiDispose] = (rep: unknown) =>
+          dropFn(rep)
+      }
+
+      classRegistry.set(classRef, ResourceClass)
+    }
   }
 
-  return transformed
+  // --- Phase 2: populate methods & plain functions -----------------------
+  const result: Record<string, Record<string, unknown>> = {}
+
+  for (const [ifaceKey, fns] of rawImports) {
+    const out: Record<string, unknown> = {}
+
+    for (const [key, fn] of Object.entries(fns)) {
+      // [resource-drop]resource-name  →  add class to interface exports
+      const dropMatch = key.match(/^\[resource-drop\](.+)$/)
+      if (dropMatch) {
+        const cn = kebabToPascal(dropMatch[1]!)
+        out[cn] = classRegistry.get(`${ifaceKey}:${cn}`)
+        continue
+      }
+
+      // [method]resource-name.method-name  →  prototype method
+      const methodMatch = key.match(/^\[method\]([^.]+)\.(.+)$/)
+      if (methodMatch) {
+        const cn = kebabToPascal(methodMatch[1]!)
+        const cls = classRegistry.get(`${ifaceKey}:${cn}`)
+        if (!cls) continue
+        const methodName = kebabToCamel(methodMatch[2]!)
+        const flatFn = fn as (...a: unknown[]) => unknown
+        const wrapDesc = WASI_RETURN_WRAPS[`${ifaceKey}:${key}`]
+
+        ;(cls.prototype as Record<string, unknown>)[methodName] = wrapDesc
+          ? function (this: Record<symbol, unknown>, ...args: unknown[]) {
+              return guardSyncReturn(
+                wrapReturn(
+                  unwrapResult(flatFn(this[symbolCabiRep], ...args.map(unwrapArg))),
+                  wrapDesc,
+                  classRegistry
+                ),
+                ifaceKey, key
+              )
+            }
+          : function (this: Record<symbol, unknown>, ...args: unknown[]) {
+              return guardSyncReturn(
+                unwrapResult(flatFn(this[symbolCabiRep], ...args.map(unwrapArg))),
+                ifaceKey, key
+              )
+            }
+
+        out[cn] = cls
+        continue
+      }
+
+      // [static]resource-name.method-name  →  static method
+      const staticMatch = key.match(/^\[static\]([^.]+)\.(.+)$/)
+      if (staticMatch) {
+        const cn = kebabToPascal(staticMatch[1]!)
+        const cls = classRegistry.get(`${ifaceKey}:${cn}`)
+        if (!cls) continue
+        const methodName = kebabToCamel(staticMatch[2]!)
+        const flatFn = fn as (...a: unknown[]) => unknown
+        cls[methodName] = (...args: unknown[]) => unwrapResult(flatFn(...args.map(unwrapArg)))
+        out[cn] = cls
+        continue
+      }
+
+      // [constructor]resource-name  →  skip (handled by class creation)
+      if (key.startsWith('[constructor]')) continue
+
+      // Plain function  →  camelCase export
+      const fnName = kebabToCamel(key)
+      const flatFn = fn as (...a: unknown[]) => unknown
+      const wrapDesc = WASI_RETURN_WRAPS[`${ifaceKey}:${key}`]
+
+      out[fnName] = wrapDesc
+        ? (...args: unknown[]) =>
+            guardSyncReturn(
+              wrapReturn(unwrapResult(flatFn(...args.map(unwrapArg))), wrapDesc, classRegistry),
+              ifaceKey, key
+            )
+        : (...args: unknown[]) =>
+            guardSyncReturn(
+              unwrapResult(flatFn(...args.map(unwrapArg))),
+              ifaceKey, key
+            )
+    }
+
+    result[ifaceKey] = out
+  }
+
+  return result
+}
+
+/** Extract the resource name from a WIT import key, or undefined. */
+function parseResourceName(key: string): string | undefined {
+  let m = key.match(/^\[resource-drop\](.+)$/)
+  if (m) return m[1]
+  m = key.match(/^\[method\]([^.]+)\./)
+  if (m) return m[1]
+  m = key.match(/^\[static\]([^.]+)\./)
+  if (m) return m[1]
+  m = key.match(/^\[constructor\](.+)$/)
+  if (m) return m[1]
+  return undefined
 }

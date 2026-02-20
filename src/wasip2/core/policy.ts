@@ -159,36 +159,44 @@ export class ConfigurablePolicy implements Policy {
 
     // Filesystem configuration
     if (iface.package === 'wasi:filesystem') {
-      config.options['preopens'] = this.config.preopens ?? []
+      if (config.options['preopens'] === undefined) {
+        config.options['preopens'] = this.config.preopens ?? []
+      }
     }
 
     // CLI configuration
     if (iface.package === 'wasi:cli') {
       if (iface.name === 'environment') {
-        if (this.config.env === true) {
-          // Expose all environment variables (not recommended)
-          config.options['inheritEnv'] = true
-        } else if (typeof this.config.env === 'object') {
-          config.options['env'] = this.config.env
-        } else {
-          config.options['env'] = {}
+        if (config.options['inheritEnv'] === undefined && config.options['env'] === undefined) {
+          if (this.config.env === true) {
+            // Expose all environment variables (not recommended)
+            config.options['inheritEnv'] = true
+          } else if (typeof this.config.env === 'object') {
+            config.options['env'] = this.config.env
+          } else {
+            config.options['env'] = {}
+          }
         }
       }
 
-      if (iface.name === 'run' || iface.name === 'main') {
-        if (this.config.args === true) {
-          config.options['inheritArgs'] = true
-        } else if (Array.isArray(this.config.args)) {
-          config.options['args'] = this.config.args
-        } else {
-          config.options['args'] = []
+      if (iface.name === 'environment') {
+        if (config.options['inheritArgs'] === undefined && config.options['args'] === undefined) {
+          if (this.config.args === true) {
+            config.options['inheritArgs'] = true
+          } else if (Array.isArray(this.config.args)) {
+            config.options['args'] = this.config.args
+          } else {
+            config.options['args'] = []
+          }
         }
       }
     }
 
     // Network configuration
     if (iface.package === 'wasi:sockets' || iface.package === 'wasi:http') {
-      config.options['network'] = this.config.network ?? { allowAll: false }
+      if (config.options['network'] === undefined) {
+        config.options['network'] = this.config.network ?? { allowAll: false }
+      }
     }
   }
 

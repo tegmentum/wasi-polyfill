@@ -128,24 +128,24 @@ export class WasiInputStreamWrapper implements InputStream {
     return new Uint8Array(0)
   }
 
-  async blockingRead(len: bigint): Promise<Uint8Array | StreamError> {
+  blockingRead(len: bigint): Uint8Array | StreamError {
     if (this.closed) {
       return { tag: 'closed' }
     }
 
-    try {
-      const data = await this.impl.read(Number(len))
-      if (data.length === 0) {
-        // EOF
-        return { tag: 'closed' }
-      }
-      return data
-    } catch (error) {
-      return {
-        tag: 'last-operation-failed',
-        val: error instanceof Error ? error : new Error(String(error)),
+    // Try synchronous read first
+    if (this.impl.tryRead) {
+      const data = this.impl.tryRead(Number(len))
+      if (data !== null) {
+        if (data.length === 0) {
+          return { tag: 'closed' }
+        }
+        return data
       }
     }
+
+    // No data available - return empty (WASI streams can return 0 bytes)
+    return new Uint8Array(0)
   }
 
   skip(_len: bigint): bigint | StreamError {
@@ -239,26 +239,20 @@ export class WasiOutputStreamWrapper implements OutputStream {
     return undefined
   }
 
-  async blockingWriteAndFlush(contents: Uint8Array): Promise<StreamError | undefined> {
+  blockingWriteAndFlush(contents: Uint8Array): StreamError | undefined {
     if (this.closed) {
       return { tag: 'closed' }
     }
 
-    try {
-      await this.impl.write(contents)
-      await this.impl.flush()
+    // Fire and forget - queue the write and flush
+    this.impl.write(contents).catch(() => {})
+    this.impl.flush().catch(() => {})
 
-      if (this.callback) {
-        this.callback(contents)
-      }
-
-      return undefined
-    } catch (error) {
-      return {
-        tag: 'last-operation-failed',
-        val: error instanceof Error ? error : new Error(String(error)),
-      }
+    if (this.callback) {
+      this.callback(contents)
     }
+
+    return undefined
   }
 
   flush(): StreamError | undefined {
@@ -270,20 +264,14 @@ export class WasiOutputStreamWrapper implements OutputStream {
     return undefined
   }
 
-  async blockingFlush(): Promise<StreamError | undefined> {
+  blockingFlush(): StreamError | undefined {
     if (this.closed) {
       return { tag: 'closed' }
     }
 
-    try {
-      await this.impl.flush()
-      return undefined
-    } catch (error) {
-      return {
-        tag: 'last-operation-failed',
-        val: error instanceof Error ? error : new Error(String(error)),
-      }
-    }
+    // Fire and forget
+    this.impl.flush().catch(() => {})
+    return undefined
   }
 
   subscribe(registry: PollableRegistry): number {

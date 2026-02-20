@@ -33,8 +33,8 @@ export interface StreamBase {
 export interface InputStream extends StreamBase {
   /** Read up to len bytes */
   read(len: bigint): Uint8Array | StreamError
-  /** Read bytes without blocking - returns empty if none available */
-  blockingRead(len: bigint): Promise<Uint8Array | StreamError>
+  /** Blocking read - returns data or stream error */
+  blockingRead(len: bigint): (Uint8Array | StreamError) | Promise<Uint8Array | StreamError>
   /** Skip up to len bytes */
   skip(len: bigint): bigint | StreamError
   /** Get a pollable for when data is available */
@@ -50,11 +50,11 @@ export interface OutputStream extends StreamBase {
   /** Write bytes (may write fewer than requested) */
   write(contents: Uint8Array): StreamError | undefined
   /** Write bytes, blocking until all are written */
-  blockingWriteAndFlush(contents: Uint8Array): Promise<StreamError | undefined>
+  blockingWriteAndFlush(contents: Uint8Array): (StreamError | undefined) | Promise<StreamError | undefined>
   /** Flush the stream */
   flush(): StreamError | undefined
   /** Blocking flush */
-  blockingFlush(): Promise<StreamError | undefined>
+  blockingFlush(): (StreamError | undefined) | Promise<StreamError | undefined>
   /** Get a pollable for when the stream can accept writes */
   subscribe(registry: PollableRegistry): number
   /** Write zeroes */
@@ -175,7 +175,7 @@ export class MemoryInputStream implements InputStream {
     return result
   }
 
-  async blockingRead(len: bigint): Promise<Uint8Array | StreamError> {
+  blockingRead(len: bigint): Uint8Array | StreamError {
     // Memory streams are always ready, so this is the same as read
     return this.read(len)
   }
@@ -250,9 +250,9 @@ export class MemoryOutputStream implements OutputStream {
     return undefined
   }
 
-  async blockingWriteAndFlush(
+  blockingWriteAndFlush(
     contents: Uint8Array
-  ): Promise<StreamError | undefined> {
+  ): StreamError | undefined {
     const error = this.write(contents)
     if (error) return error
     return this.flush()
@@ -266,7 +266,7 @@ export class MemoryOutputStream implements OutputStream {
     return undefined
   }
 
-  async blockingFlush(): Promise<StreamError | undefined> {
+  blockingFlush(): StreamError | undefined {
     return this.flush()
   }
 

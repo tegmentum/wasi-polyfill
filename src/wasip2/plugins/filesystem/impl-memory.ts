@@ -6,6 +6,7 @@
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
 import { PollableRegistry, createReadyPollable, globalPollableRegistry } from '../io/pollable.js'
+import { MemoryInputStream, globalStreamRegistry } from '../io/streams.js'
 import {
   DescriptorType,
   DescriptorFlags,
@@ -25,6 +26,76 @@ import {
   FsNode,
   now,
 } from './types.js'
+import type { OutputStream, InputStream, StreamError } from '../io/streams.js'
+
+/**
+ * Output stream that writes directly into a FileNode's content buffer.
+ * Used by writeViaStream / appendViaStream.
+ */
+class FileWriteStream implements OutputStream {
+  handle = 0
+  private readonly node: FileNode
+  private offset: number
+  private closed = false
+
+  /** Pass startOffset = -1 for append mode */
+  constructor(node: FileNode, startOffset: number) {
+    this.node = node
+    this.offset = startOffset === -1 ? node.content.length : startOffset
+  }
+
+  isClosed(): boolean { return this.closed }
+  close(): void { this.closed = true }
+
+  checkWrite(): bigint | StreamError {
+    if (this.closed) return { tag: 'closed' }
+    return 65536n
+  }
+
+  write(contents: Uint8Array): StreamError | undefined {
+    if (this.closed) return { tag: 'closed' }
+    const end = this.offset + contents.length
+    if (end > this.node.content.length) {
+      const grown = new Uint8Array(end)
+      grown.set(this.node.content)
+      this.node.content = grown
+    }
+    this.node.content.set(contents, this.offset)
+    this.offset += contents.length
+    return undefined
+  }
+
+  blockingWriteAndFlush(contents: Uint8Array): StreamError | undefined {
+    const error = this.write(contents)
+    if (error) return error
+    return this.flush()
+  }
+
+  flush(): StreamError | undefined {
+    if (this.closed) return { tag: 'closed' }
+    return undefined
+  }
+
+  blockingFlush(): StreamError | undefined {
+    return this.flush()
+  }
+
+  subscribe(registry: PollableRegistry): number {
+    return createReadyPollable(registry)
+  }
+
+  writeZeroes(len: bigint): StreamError | undefined {
+    return this.write(new Uint8Array(Number(len)))
+  }
+
+  splice(src: InputStream, len: bigint): bigint | StreamError {
+    const data = src.read(len)
+    if (!(data instanceof Uint8Array)) return data
+    const error = this.write(data)
+    if (error) return error
+    return BigInt(data.length)
+  }
+}
 
 /**
  * Descriptor handle manager
@@ -437,6 +508,71 @@ export class Descriptor {
     this.node.modified = now()
 
     return ok(BigInt(buffer.length))
+  }
+
+  /**
+   * Get file content from offset as an InputStream handle.
+   */
+  readViaStream(offset: bigint): FilesystemResult<number> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (this.node.type !== 'file') {
+      return err(FilesystemErrorCode.IsDirectory)
+    }
+
+    if (!this.flags.read) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    const start = Math.min(Number(offset), this.node.content.length)
+    const data = this.node.content.slice(start)
+    const stream = new MemoryInputStream(data)
+    const streamHandle = globalStreamRegistry.register(stream)
+
+    this.node.accessed = now()
+
+    return ok(streamHandle)
+  }
+
+  /**
+   * Get an OutputStream handle that writes to this file at offset.
+   */
+  writeViaStream(offset: bigint): FilesystemResult<number> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (this.node.type !== 'file') {
+      return err(FilesystemErrorCode.IsDirectory)
+    }
+
+    if (!this.flags.write) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    const stream = new FileWriteStream(this.node, Number(offset))
+    const streamHandle = globalStreamRegistry.register(stream)
+    return ok(streamHandle)
+  }
+
+  /**
+   * Get an OutputStream handle that appends to this file.
+   */
+  appendViaStream(): FilesystemResult<number> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (this.node.type !== 'file') {
+      return err(FilesystemErrorCode.IsDirectory)
+    }
+
+    if (!this.flags.write) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    const stream = new FileWriteStream(this.node, -1)
+    const streamHandle = globalStreamRegistry.register(stream)
+    return ok(streamHandle)
   }
 
   /**
@@ -873,17 +1009,22 @@ class FilesystemTypesInstance implements PluginInstance {
     this.descriptorRegistry.drop(handle)
   }
 
-  private readViaStream(_handle: number, _offset: bigint): FilesystemResult<number> {
-    // Stream-based read not implemented for memory fs
-    return err(FilesystemErrorCode.Unsupported)
+  private readViaStream(handle: number, offset: bigint): FilesystemResult<number> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.readViaStream(offset)
   }
 
-  private writeViaStream(_handle: number, _offset: bigint): FilesystemResult<number> {
-    return err(FilesystemErrorCode.Unsupported)
+  private writeViaStream(handle: number, offset: bigint): FilesystemResult<number> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.writeViaStream(offset)
   }
 
-  private appendViaStream(_handle: number): FilesystemResult<number> {
-    return err(FilesystemErrorCode.Unsupported)
+  private appendViaStream(handle: number): FilesystemResult<number> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.appendViaStream()
   }
 
   private advise(

@@ -121,6 +121,83 @@ describe('ConfigurablePolicy', () => {
       const config = policy.configure(filesystemInterface)
       expect(config.implementation).toBe('opfs')
     })
+
+    it('override preopens take precedence over top-level preopens', () => {
+      const preopensInterface: WasiInterface = {
+        package: 'wasi:filesystem',
+        name: 'preopens',
+        version: '0.2.0',
+      }
+      const p = new ConfigurablePolicy({
+        defaultAllow: true,
+        preopens: ['/data'],
+        overrides: [
+          {
+            interface: preopensInterface,
+            options: { preopens: [{ path: '/', alias: '/' }] },
+          },
+        ],
+      })
+      const config = p.configure(preopensInterface)
+      expect(config.options?.['preopens']).toEqual([{ path: '/', alias: '/' }])
+    })
+
+    it('override env takes precedence over top-level env', () => {
+      const envInterface: WasiInterface = {
+        package: 'wasi:cli',
+        name: 'environment',
+        version: '0.2.0',
+      }
+      const p = new ConfigurablePolicy({
+        defaultAllow: true,
+        env: { TOP: 'level' },
+        overrides: [
+          {
+            interface: envInterface,
+            options: { env: { OVERRIDE: 'value' } },
+          },
+        ],
+      })
+      const config = p.configure(envInterface)
+      expect(config.options?.['env']).toEqual({ OVERRIDE: 'value' })
+    })
+
+    it('override args takes precedence over top-level args', () => {
+      const envInterface: WasiInterface = {
+        package: 'wasi:cli',
+        name: 'environment',
+        version: '0.2.0',
+      }
+      const p = new ConfigurablePolicy({
+        defaultAllow: true,
+        args: ['--top-level'],
+        overrides: [
+          {
+            interface: envInterface,
+            options: { args: ['--override'] },
+          },
+        ],
+      })
+      const config = p.configure(envInterface)
+      expect(config.options?.['args']).toEqual(['--override'])
+    })
+
+    it('override network takes precedence over top-level network', () => {
+      const p = new ConfigurablePolicy({
+        defaultAllow: true,
+        network: { allowAll: false },
+        overrides: [
+          {
+            interface: socketsInterface,
+            options: { network: { allowedHosts: ['example.com'] } },
+          },
+        ],
+      })
+      const config = p.configure(socketsInterface)
+      expect(config.options?.['network']).toEqual({
+        allowedHosts: ['example.com'],
+      })
+    })
   })
 
   describe('interface-specific configuration', () => {
@@ -148,6 +225,38 @@ describe('ConfigurablePolicy', () => {
 
       const config = policy.configure(envInterface)
       expect(config.options?.['env']).toEqual({ FOO: 'bar' })
+    })
+
+    it('adds args for cli/environment interface', () => {
+      const policy = new ConfigurablePolicy({
+        defaultAllow: true,
+        args: ['python', '-c', 'print("hello")'],
+      })
+
+      const envInterface: WasiInterface = {
+        package: 'wasi:cli',
+        name: 'environment',
+        version: '0.2.0',
+      }
+
+      const config = policy.configure(envInterface)
+      expect(config.options?.['args']).toEqual(['python', '-c', 'print("hello")'])
+    })
+
+    it('does not add args for cli/run interface', () => {
+      const policy = new ConfigurablePolicy({
+        defaultAllow: true,
+        args: ['python', '-c', 'print("hello")'],
+      })
+
+      const runInterface: WasiInterface = {
+        package: 'wasi:cli',
+        name: 'run',
+        version: '0.2.0',
+      }
+
+      const config = policy.configure(runInterface)
+      expect(config.options?.['args']).toBeUndefined()
     })
 
     it('adds network config for sockets interfaces', () => {
