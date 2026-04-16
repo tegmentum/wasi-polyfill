@@ -362,6 +362,79 @@ export class MemoryFileSystem {
   getRoot(): DirectoryNode {
     return this.root
   }
+
+  /**
+   * Create a directory and all intermediate directories (like mkdir -p).
+   * Returns the final directory node.
+   */
+  mkdirp(path: string): FilesystemResult<DirectoryNode> {
+    const parts = this.normalizePath(path).split('/').filter(Boolean)
+    let current = this.root
+    for (const part of parts) {
+      const existing = current.children.get(part)
+      if (existing) {
+        if (existing.type !== 'directory') {
+          return err(FilesystemErrorCode.NotDirectory)
+        }
+        current = existing
+      } else {
+        const timestamp = now()
+        const newDir: DirectoryNode = {
+          type: 'directory',
+          children: new Map(),
+          created: timestamp,
+          modified: timestamp,
+          accessed: timestamp,
+        }
+        current.children.set(part, newDir)
+        current.modified = timestamp
+        current = newDir
+      }
+    }
+    return ok(current)
+  }
+
+  /**
+   * Write a file at the given path, creating intermediate directories
+   * as needed.  Overwrites any existing file at that path.
+   */
+  writeFile(path: string, content: Uint8Array): FilesystemResult<FileNode> {
+    const normalized = this.normalizePath(path)
+    const lastSlash = normalized.lastIndexOf('/')
+    if (lastSlash > 0) {
+      const dirPath = normalized.slice(0, lastSlash)
+      const dirResult = this.mkdirp(dirPath)
+      if (dirResult.tag === 'err') return dirResult as FilesystemResult<FileNode>
+    }
+    const result = this.createFile(path, { create: true, truncate: true } as OpenFlags)
+    if (result.tag === 'err') return result
+    result.val.content = content
+    result.val.modified = now()
+    return result
+  }
+
+  /**
+   * Build a pre-populated filesystem from a map of path → content.
+   * Creates all intermediate directories automatically.
+   *
+   * @example
+   * ```typescript
+   * const fs = MemoryFileSystem.fromEntries({
+   *   '/machine/cpu/vcpu0.bin': cpuBytes,
+   *   '/machine/manifest.json': manifestBytes,
+   * })
+   * ```
+   */
+  static fromEntries(entries: Record<string, Uint8Array>): MemoryFileSystem {
+    const fs = new MemoryFileSystem()
+    for (const [path, content] of Object.entries(entries)) {
+      const result = fs.writeFile(path, content)
+      if (result.tag === 'err') {
+        throw new Error(`Failed to write ${path}: ${result.val}`)
+      }
+    }
+    return fs
+  }
 }
 
 /**
@@ -923,8 +996,8 @@ class FilesystemTypesInstance implements PluginInstance {
   private readonly directoryStreamRegistry: DirectoryEntryStreamRegistry
   private readonly pollableRegistry: PollableRegistry
 
-  constructor() {
-    this.fs = new MemoryFileSystem()
+  constructor(prepopulatedFs?: MemoryFileSystem) {
+    this.fs = prepopulatedFs ?? new MemoryFileSystem()
     this.descriptorRegistry = globalDescriptorRegistry
     this.directoryStreamRegistry = globalDirectoryStreamRegistry
     this.pollableRegistry = globalPollableRegistry
@@ -1283,6 +1356,49 @@ class FilesystemTypesInstance implements PluginInstance {
 // Global instance for singleton access
 let globalFilesystemInstance: FilesystemTypesInstance | null = null
 
+// Optional pre-populated filesystem to use when the singleton is created.
+// Set via setGlobalFilesystem() before any plugin instantiation.
+let pendingFilesystem: MemoryFileSystem | null = null
+
+/**
+ * Set a pre-populated MemoryFileSystem to be used as the global
+ * filesystem.  Must be called BEFORE any filesystem plugin is
+ * instantiated (before `getImports()` or `instantiate()`).
+ *
+ * This is the primary integration point for use cases like
+ * WasmMachine snapshot restore, where the filesystem needs to be
+ * pre-populated with snapshot segments, firmware images, etc.
+ *
+ * @example
+ * ```typescript
+ * const fs = MemoryFileSystem.fromEntries({
+ *   '/snapshots/machine/snap-1/manifest.json': manifestBytes,
+ *   '/snapshots/machine/snap-1/cpu/vcpu0.bin': cpuBytes,
+ * })
+ * setGlobalFilesystem(fs)
+ *
+ * // Now create the polyfill — it will use the pre-populated FS
+ * const polyfill = new Polyfill()
+ * ```
+ */
+export function setGlobalFilesystem(fs: MemoryFileSystem): void {
+  if (globalFilesystemInstance) {
+    throw new Error(
+      'setGlobalFilesystem must be called before any filesystem plugin is instantiated'
+    )
+  }
+  pendingFilesystem = fs
+}
+
+/**
+ * Reset the global filesystem state.  Useful for tests or
+ * re-initialization.
+ */
+export function resetGlobalFilesystem(): void {
+  globalFilesystemInstance = null
+  pendingFilesystem = null
+}
+
 /**
  * Memory filesystem implementation
  */
@@ -1292,7 +1408,10 @@ export const memoryFilesystemImplementation: Implementation = {
   create(_config: PluginConfig): PluginInstance {
     // Use singleton pattern so preopens can access the same filesystem
     if (!globalFilesystemInstance) {
-      globalFilesystemInstance = new FilesystemTypesInstance()
+      globalFilesystemInstance = new FilesystemTypesInstance(
+        pendingFilesystem ?? undefined
+      )
+      pendingFilesystem = null
     }
     return globalFilesystemInstance
   },

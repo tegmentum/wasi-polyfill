@@ -56,6 +56,8 @@ export {
   MemoryFileSystem,
   Descriptor,
   getGlobalFilesystemInstance,
+  setGlobalFilesystem,
+  resetGlobalFilesystem,
 } from './impl-memory.js'
 
 // OPFS Implementation
