@@ -88,6 +88,7 @@ export {
   ConsoleOutputStream,
   EmptyInputStream,
   QueueInputStream,
+  SharedBufferInputStream,
   XtermOutputStream,
 } from './stdio-provider.js'
 

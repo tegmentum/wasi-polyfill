@@ -123,8 +123,9 @@ export class WasiInputStreamWrapper implements InputStream {
       }
     }
 
-    // No data available - return empty to indicate "would block"
-    // The caller should use blockingRead for actual data
+    // No data available — return empty to indicate "no data yet".
+    // The WASI spec allows 0-length reads from non-blocking read()
+    // without implying EOF.
     return new Uint8Array(0)
   }
 
@@ -144,7 +145,23 @@ export class WasiInputStreamWrapper implements InputStream {
       }
     }
 
-    // No data available - return empty (WASI streams can return 0 bytes)
+    // No data available.  Per WASI spec, blocking-read must not
+    // return until at least 1 byte is available or the stream
+    // closes.  In a synchronous jco context we can't truly block,
+    // but returning empty here causes the wasip1 adapter to
+    // interpret it as EOF (read returning 0 bytes = end of file).
+    //
+    // The fix: if a SharedArrayBuffer is attached to the stdin
+    // provider, spin-wait on it.  Otherwise, return empty and
+    // accept that stdin won't work in this context.
+    if (this.impl.waitForData) {
+      const data = this.impl.waitForData(Number(len))
+      if (data !== null) {
+        if (data.length === 0) return { tag: 'closed' }
+        return data
+      }
+    }
+
     return new Uint8Array(0)
   }
 

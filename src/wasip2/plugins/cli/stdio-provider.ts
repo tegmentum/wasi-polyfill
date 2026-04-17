@@ -34,6 +34,20 @@ export interface InputStreamLike {
 
   /** Optional: Non-blocking synchronous read. Returns null if no data available. */
   tryRead?(max: number): Uint8Array | null
+
+  /**
+   * Optional: Synchronous blocking wait for data.
+   *
+   * Called by blockingRead when tryRead returns null.  Implementations
+   * should busy-wait (e.g. via Atomics.wait on a SharedArrayBuffer)
+   * until data is available, then return it.  Returns null if the wait
+   * times out without data.
+   *
+   * This is the key integration point for running WASI components in
+   * Web Workers where the main thread pushes stdin data via SAB while
+   * the worker's synchronous WASM execution blocks the event loop.
+   */
+  waitForData?(max: number): Uint8Array | null
 }
 
 /**
@@ -345,6 +359,119 @@ export class QueueInputStream implements InputStreamLike {
     while (this.pending.length > 0) {
       const resolve = this.pending.shift()!
       resolve(new Uint8Array(0))
+    }
+  }
+}
+
+// ============================================================================
+// SharedArrayBuffer Input Stream
+// ============================================================================
+
+/**
+ * Ring buffer format: [writeIdx:i32, readIdx:i32, data:u8[ringSize-8]]
+ *
+ * The main thread writes data and advances writeIdx.
+ * The worker reads data and advances readIdx.
+ * Lock-free single-producer single-consumer via Atomics.
+ */
+
+/**
+ * Input stream backed by a SharedArrayBuffer ring buffer.
+ *
+ * Designed for cross-thread stdin delivery: the main thread writes
+ * keystrokes into the ring while the Worker's synchronous WASM
+ * execution reads from it via `waitForData` (Atomics.wait).
+ *
+ * Usage:
+ * ```typescript
+ * const ring = new SharedArrayBuffer(4096)
+ * const stream = new SharedBufferInputStream(ring)
+ *
+ * // Main thread: write keystrokes
+ * SharedBufferInputStream.write(ring, encoder.encode('ls\n'))
+ *
+ * // Worker: stream.waitForData(64) blocks until data arrives
+ * ```
+ */
+export class SharedBufferInputStream implements InputStreamLike {
+  readonly isTTY = true
+  private readonly ring: SharedArrayBuffer
+  private readonly ringSize: number
+
+  constructor(ring: SharedArrayBuffer) {
+    this.ring = ring
+    this.ringSize = ring.byteLength - 8
+  }
+
+  hasData(): boolean {
+    const view = new Int32Array(this.ring)
+    return Atomics.load(view, 0) !== Atomics.load(view, 1)
+  }
+
+  tryRead(max: number): Uint8Array | null {
+    const view = new Int32Array(this.ring)
+    const buf = new Uint8Array(this.ring, 8, this.ringSize)
+    const ri = Atomics.load(view, 1)
+    const wi = Atomics.load(view, 0)
+    if (ri === wi) return null
+
+    const avail = ri < wi ? wi - ri : this.ringSize - ri + wi
+    const n = Math.min(max, avail)
+    const chunk = new Uint8Array(n)
+    for (let i = 0; i < n; i++) {
+      chunk[i] = buf[(ri + i) % this.ringSize]!
+    }
+    Atomics.store(view, 1, (ri + n) % this.ringSize)
+    return chunk
+  }
+
+  /**
+   * Synchronous blocking wait for data.  Uses Atomics.wait to
+   * sleep the thread until the main thread writes to the ring.
+   *
+   * @param max Maximum bytes to read
+   * @param timeoutMs Maximum time to wait (default 100ms)
+   */
+  waitForData(max: number, timeoutMs = 100): Uint8Array | null {
+    const view = new Int32Array(this.ring)
+    const deadline = performance.now() + timeoutMs
+
+    while (performance.now() < deadline) {
+      const data = this.tryRead(max)
+      if (data) return data
+
+      // Sleep 1ms waiting for writeIdx to change
+      const currentWi = Atomics.load(view, 0)
+      Atomics.wait(view, 0, currentWi, 1)
+    }
+
+    return null
+  }
+
+  async read(max: number): Promise<Uint8Array> {
+    const data = this.tryRead(max)
+    if (data) return data
+    return new Uint8Array(0)
+  }
+
+  /**
+   * Static helper: write bytes into a SharedArrayBuffer ring
+   * from the main thread.
+   */
+  static write(ring: SharedArrayBuffer, data: Uint8Array | string): void {
+    const encoder = typeof data === 'string' ? new TextEncoder() : null
+    const bytes = encoder ? encoder.encode(data as string) : data as Uint8Array
+    const view = new Int32Array(ring)
+    const buf = new Uint8Array(ring, 8, ring.byteLength - 8)
+    const ringSize = ring.byteLength - 8
+
+    for (const b of bytes) {
+      const wi = Atomics.load(view, 0)
+      const next = (wi + 1) % ringSize
+      if (next === Atomics.load(view, 1)) continue // full
+      buf[wi] = b
+      Atomics.store(view, 0, next)
+      Atomics.notify(view, 0, 1) // wake waiting reader
     }
   }
 }
