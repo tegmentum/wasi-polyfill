@@ -364,6 +364,32 @@ describe('WASIP1 FD Functions', () => {
       expect(stat.atim).toBeGreaterThanOrEqual(before)
       expect(stat.mtim).toBeGreaterThanOrEqual(before)
     })
+
+    it('returns EINVAL when ATIM and ATIM_NOW are both set', () => {
+      const fileResource = createMockFileResource()
+      const fd = fdTable.allocate(createFileEntry('/test.txt', 0, undefined, fileResource))
+
+      const result = fdFunctions.fd_filestat_set_times(
+        fd,
+        1000000000n,
+        0n,
+        FstFlags.ATIM | FstFlags.ATIM_NOW
+      )
+      expect(result).toBe(Errno.EINVAL)
+    })
+
+    it('returns EINVAL when MTIM and MTIM_NOW are both set', () => {
+      const fileResource = createMockFileResource()
+      const fd = fdTable.allocate(createFileEntry('/test.txt', 0, undefined, fileResource))
+
+      const result = fdFunctions.fd_filestat_set_times(
+        fd,
+        0n,
+        2000000000n,
+        FstFlags.MTIM | FstFlags.MTIM_NOW
+      )
+      expect(result).toBe(Errno.EINVAL)
+    })
   })
 
   describe('fd_pread', () => {

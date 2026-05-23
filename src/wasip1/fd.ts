@@ -363,6 +363,15 @@ export function createFdFunctions(
       const resource = entry.resource as FileResource | undefined
       if (!resource?.setTimes) return Errno.EBADF
 
+      // It is invalid to request both an explicit timestamp and "now" for the
+      // same field (WASI requires EINVAL).
+      if (
+        (fstFlags & FstFlags.ATIM && fstFlags & FstFlags.ATIM_NOW) ||
+        (fstFlags & FstFlags.MTIM && fstFlags & FstFlags.MTIM_NOW)
+      ) {
+        return Errno.EINVAL
+      }
+
       const now = BigInt(Date.now()) * 1_000_000n
 
       let newAtim: bigint | null = null

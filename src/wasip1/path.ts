@@ -196,6 +196,15 @@ export function createPathFunctions(
     ): number {
       if (!fdTable.hasRights(fd, Rights.PATH_FILESTAT_SET_TIMES)) return Errno.ENOTCAPABLE
 
+      // It is invalid to request both an explicit timestamp and "now" for the
+      // same field (WASI requires EINVAL).
+      if (
+        (fstFlags & FstFlags.ATIM && fstFlags & FstFlags.ATIM_NOW) ||
+        (fstFlags & FstFlags.MTIM && fstFlags & FstFlags.MTIM_NOW)
+      ) {
+        return Errno.EINVAL
+      }
+
       const fsInfo = getFilesystem(fd)
       if (!fsInfo) return Errno.EBADF
 
