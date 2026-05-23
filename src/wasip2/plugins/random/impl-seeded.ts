@@ -48,7 +48,7 @@ class SeededRandomInstance implements PluginInstance {
    */
   private getRandomBytes(len: bigint): Uint8Array {
     const length = Number(len)
-    if (length < 0 || length > 65536) {
+    if (length < 0) {
       throw new Error(`Invalid length: ${length}`)
     }
 
@@ -115,7 +115,7 @@ class SeededInsecureRandomInstance implements PluginInstance {
 
   private getInsecureRandomBytes(len: bigint): Uint8Array {
     const length = Number(len)
-    if (length < 0 || length > 65536) {
+    if (length < 0) {
       throw new Error(`Invalid length: ${length}`)
     }
 

@@ -56,9 +56,18 @@ describe('wasi:random/random', () => {
       expect(value).toBeLessThan(2n ** 64n)
     })
 
-    it('throws for invalid length', () => {
+    it('throws for negative length', () => {
       expect(() => imports['get-random-bytes'](-1n)).toThrow()
-      expect(() => imports['get-random-bytes'](100000n)).toThrow()
+    })
+
+    it('fulfills requests larger than the 64KiB getRandomValues quota', () => {
+      // Regression: crypto.getRandomValues rejects > 65536 bytes per call, but
+      // WASI get-random-bytes permits arbitrary lengths; the impl now chunks.
+      const length = 100000
+      const bytes = imports['get-random-bytes'](BigInt(length))
+      expect(bytes.length).toBe(length)
+      // Sanity: the buffer is actually filled (not left all-zero across chunks).
+      expect(bytes.some((b) => b !== 0)).toBe(true)
     })
   })
 })
@@ -242,14 +251,15 @@ describe('Seeded Random Implementations', () => {
       expect(new Set(values).size).toBe(3)
     })
 
-    it('throws for invalid length', () => {
+    it('throws for negative length but fulfills large requests', () => {
       const instance = seededRandomImplementation.create({ seed: 1n })
       const imports = instance.getImports() as {
         'get-random-bytes': (len: bigint) => Uint8Array
       }
 
       expect(() => imports['get-random-bytes'](-1n)).toThrow()
-      expect(() => imports['get-random-bytes'](100000n)).toThrow()
+      // Lengths above 64KiB are valid for WASI get-random-bytes.
+      expect(imports['get-random-bytes'](100000n).length).toBe(100000)
     })
   })
 

@@ -26,13 +26,18 @@ class CryptoRandomInstance implements PluginInstance {
    */
   private getRandomBytes(len: bigint): Uint8Array {
     const length = Number(len)
-    if (length < 0 || length > 65536) {
+    if (length < 0) {
       throw new Error(`Invalid length: ${length}`)
     }
 
     const bytes = new Uint8Array(length)
-    if (length > 0) {
-      crypto.getRandomValues(bytes)
+    // crypto.getRandomValues rejects requests larger than 65536 bytes per call,
+    // so fill the buffer in chunks (writing directly into subarray views, no
+    // extra copies). WASI get-random-bytes itself permits arbitrary lengths.
+    const MAX_CHUNK = 65536
+    for (let offset = 0; offset < length; offset += MAX_CHUNK) {
+      const end = Math.min(offset + MAX_CHUNK, length)
+      crypto.getRandomValues(bytes.subarray(offset, end))
     }
     return bytes
   }
