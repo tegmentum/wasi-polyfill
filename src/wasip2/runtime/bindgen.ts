@@ -77,6 +77,36 @@ export interface JcoTranspileOptions {
    * @default 5000
    */
   base64Cutoff?: number
+
+  /**
+   * Async transpilation mode.
+   *
+   * Set to `'jspi'` for components whose imports SUSPEND the guest — e.g.
+   * blocking `wasi:io/poll` (`pollable.block`), `wasi:http`, `wasi:sockets`, or
+   * any host-async custom interface. In the default `'sync'` mode such imports
+   * cannot await the polyfill's async plugins, so the guest cannot truly block:
+   * the sync trampoline is handed a Promise it cannot suspend on. JSPI
+   * (JavaScript Promise Integration) makes the suspend real.
+   *
+   * Requires JSPI support in the host (`WebAssembly.Suspending`/`promising`;
+   * Chrome 137+, Node 22+).
+   * @default 'sync'
+   */
+  asyncMode?: 'sync' | 'jspi'
+
+  /**
+   * Imports to make async (suspending) when `asyncMode: 'jspi'`. Each entry is a
+   * jco import specifier, e.g. `'wasi:io/poll@0.2.0#[method]pollable.block'` or a
+   * custom `'my:pkg/iface@0.1.0#func'`.
+   */
+  asyncImports?: string[]
+
+  /**
+   * Exports to make async (promising) when `asyncMode: 'jspi'`. Any export that
+   * (transitively) reaches a suspending import must be listed, e.g. `'handle'`
+   * or `'wasi:cli/run@0.2.0#run'`.
+   */
+  asyncExports?: string[]
 }
 
 /**
@@ -166,12 +196,37 @@ type InstantiateFunction<T> = (
 interface JcoGenerateOptions {
   name: string
   instantiation?: { tag: 'async' } | { tag: 'sync' }
+  asyncMode?: JcoAsyncMode
   tlaCompat?: boolean
   compat?: boolean
   noNodejsCompat?: boolean
   base64Cutoff?: number
   tracing?: boolean
   map?: Array<[string, string]>
+}
+
+/**
+ * jco's `GenerateOptions.asyncMode` shape: `null` = sync; `'jspi'` carries the
+ * suspending imports and promising exports.
+ */
+export type JcoAsyncMode = null | {
+  tag: 'jspi'
+  val: { imports: string[]; exports: string[] }
+}
+
+/**
+ * Map the polyfill's async transpile options onto jco's `asyncMode` argument.
+ * `'sync'` (the default) → `null`; `'jspi'` → a JSPI descriptor with the
+ * suspending imports / promising exports. Exported for testing.
+ */
+export function buildAsyncMode(opts?: JcoTranspileOptions): JcoAsyncMode {
+  if (!opts || (opts.asyncMode ?? 'sync') !== 'jspi') {
+    return null
+  }
+  return {
+    tag: 'jspi',
+    val: { imports: opts.asyncImports ?? [], exports: opts.asyncExports ?? [] },
+  }
 }
 
 /**
@@ -310,6 +365,8 @@ export class RuntimeBindgen {
     const transpiled: TranspileResult = await this.jcoModule.generate(data, {
       name: this.options.jcoOptions?.name ?? 'component',
       instantiation: { tag: 'async' }, // Use async instantiation mode
+      // JSPI when requested (suspending imports / promising exports), else sync.
+      asyncMode: buildAsyncMode(this.options.jcoOptions),
       tlaCompat: this.options.jcoOptions?.tlaCompat ?? true,
       base64Cutoff: this.options.jcoOptions?.base64Cutoff ?? 5000,
       noNodejsCompat: true, // Browser-only output

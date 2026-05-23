@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   RuntimeBindgen,
   createRuntimeBindgen,
+  buildAsyncMode,
 } from '../../src/wasip2/runtime/bindgen.js'
 import { randomPlugin } from '../../src/wasip2/plugins/random/index.js'
 import { monotonicClockPlugin } from '../../src/wasip2/plugins/clocks/index.js'
@@ -141,6 +142,54 @@ describe('RuntimeBindgen', () => {
 
       expect(customBindgen).toBeInstanceOf(RuntimeBindgen)
       customBindgen.destroy()
+    })
+
+    it('should accept JSPI async options', () => {
+      const asyncBindgen = createRuntimeBindgen({
+        devMode: true,
+        jcoOptions: {
+          asyncMode: 'jspi',
+          asyncImports: ['wasi:io/poll@0.2.0#[method]pollable.block'],
+          asyncExports: ['handle'],
+        },
+      })
+
+      expect(asyncBindgen).toBeInstanceOf(RuntimeBindgen)
+      asyncBindgen.destroy()
+    })
+  })
+
+  // The async/JSPI mapping is the bridge that lets a transpiled component
+  // actually suspend on the polyfill's async plugins (blocking wasi:io/poll,
+  // wasi:http, wasi:sockets) or any host-async custom import.
+  describe('buildAsyncMode', () => {
+    it('returns null by default (sync transpilation)', () => {
+      expect(buildAsyncMode(undefined)).toBeNull()
+      expect(buildAsyncMode({})).toBeNull()
+      expect(buildAsyncMode({ asyncMode: 'sync' })).toBeNull()
+    })
+
+    it('maps jspi to the jco asyncMode descriptor with imports/exports', () => {
+      expect(
+        buildAsyncMode({
+          asyncMode: 'jspi',
+          asyncImports: ['wasi:io/poll@0.2.0#[method]pollable.block'],
+          asyncExports: ['handle'],
+        })
+      ).toEqual({
+        tag: 'jspi',
+        val: {
+          imports: ['wasi:io/poll@0.2.0#[method]pollable.block'],
+          exports: ['handle'],
+        },
+      })
+    })
+
+    it('defaults imports/exports to empty arrays under jspi', () => {
+      expect(buildAsyncMode({ asyncMode: 'jspi' })).toEqual({
+        tag: 'jspi',
+        val: { imports: [], exports: [] },
+      })
     })
   })
 })

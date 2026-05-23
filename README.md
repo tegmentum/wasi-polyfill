@@ -192,6 +192,37 @@ console.log('Used jco:', result.usedJco)
 result.destroy()
 ```
 
+### Async imports (JSPI)
+
+Some components have imports that **suspend** the guest — blocking
+`wasi:io/poll` (`pollable.block`), `wasi:http`, `wasi:sockets`, or any
+host-async custom interface. In the default sync transpilation, those imports
+cannot await the polyfill's async plugins (the sync trampoline is handed a
+Promise it can't suspend on), so the guest cannot truly block.
+
+Set `asyncMode: 'jspi'` to transpile with [JSPI](https://github.com/WebAssembly/js-promise-integration)
+(JavaScript Promise Integration): the listed imports become suspending and the
+listed exports become promising (they return a `Promise`).
+
+```typescript
+const bindgen = createRuntimeBindgen({
+  devMode: true,
+  jcoOptions: {
+    asyncMode: 'jspi',
+    // Imports that should suspend (jco import specifiers).
+    asyncImports: ['wasi:io/poll@0.2.0#[method]pollable.block'],
+    // Exports that (transitively) reach a suspending import.
+    asyncExports: ['handle'],
+  },
+})
+
+const result = await bindgen.instantiate<MyExports>(wasmBytes)
+const value = await result.exports.handle(input) // promising export -> await it
+```
+
+Requires JSPI in the host (`WebAssembly.Suspending`/`promising`; Chrome 137+,
+Node 22+).
+
 ### Using ComponentLoader
 
 For simpler use cases, `ComponentLoader` provides a lightweight API:
