@@ -311,6 +311,22 @@ describe('createCliPolicy', () => {
     expect(policy.allow(stdinInterface)).toBe(true)
   })
 
+  it('allows terminal interfaces used by jco-transpiled CLI components', () => {
+    const policy = createCliPolicy()
+    for (const name of [
+      'terminal-input',
+      'terminal-output',
+      'terminal-stdin',
+      'terminal-stdout',
+      'terminal-stderr',
+    ]) {
+      expect(
+        policy.allow({ package: 'wasi:cli', name, version: '0.2.0' }),
+        `wasi:cli/${name}`
+      ).toBe(true)
+    }
+  })
+
   it('accepts custom env and args', () => {
     const policy = createCliPolicy({
       env: { NODE_ENV: 'test' },
