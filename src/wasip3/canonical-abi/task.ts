@@ -224,6 +224,20 @@ export class Task {
   }
 
   /**
+   * Get the error from a failed subtask, if any.
+   *
+   * A subtask whose async call rejected transitions to `returned` with empty
+   * return values and the rejection stored here, so callers must check this to
+   * avoid silently treating a failure as an empty success.
+   *
+   * @param handle - The subtask handle
+   * @returns The error, or undefined if the subtask did not fail
+   */
+  subtaskError(handle: SubtaskHandle): Error | undefined {
+    return this.subtaskManager.getError(handle)
+  }
+
+  /**
    * Drop a subtask handle.
    *
    * @param handle - The subtask handle

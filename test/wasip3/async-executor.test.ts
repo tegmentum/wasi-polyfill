@@ -162,6 +162,21 @@ describe('WASIP3 AsyncExecutor', () => {
 
       expect(result).toBe(13) // (5 * 2) + 3
     })
+
+    it('propagates errors from a rejected async call', async () => {
+      // Regression: a rejected subtask used to transition to 'returned' with
+      // empty values, so callAsync silently returned [] and the error vanished.
+      const executor = new AsyncExecutor()
+
+      await expect(
+        executor.executeSync(async (caller: AsyncCaller) => {
+          await caller.callAsync(async () => {
+            throw new Error('async import failed')
+          })
+          return 'should not reach here'
+        })
+      ).rejects.toThrow('async import failed')
+    })
   })
 
   describe('activeTaskCount', () => {
