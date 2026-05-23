@@ -529,7 +529,6 @@ function buildJcoImports(
   rawImports: Map<string, Record<string, unknown>>
 ): Record<string, Record<string, unknown>> {
   // --- Phase 1: discover resource types and create classes ----------------
-  // eslint-disable-next-line @typescript-eslint/no-extraneous-class
   type ResourceClass = { new (): object; prototype: object; [k: string | symbol]: unknown }
   const classRegistry = new Map<string, ResourceClass>()
 

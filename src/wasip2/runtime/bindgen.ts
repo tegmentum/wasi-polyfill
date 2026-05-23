@@ -482,7 +482,7 @@ export class RuntimeBindgen {
       // Replace relative .js imports with blob URLs if any exist
       for (const [filename, blobUrl] of jsBlobUrls) {
         patchedJs = patchedJs.replace(
-          new RegExp(`['"]\\.\/${filename.replace('.', '\\.')}['"]`, 'g'),
+          new RegExp(`['"]\\./${filename.replace('.', '\\.')}['"]`, 'g'),
           `'${blobUrl}'`
         )
       }

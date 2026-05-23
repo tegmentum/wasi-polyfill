@@ -255,7 +255,7 @@ class ThreadSpawnInstance implements PluginInstance {
       })
 
       return spawnSuccess(threadId)
-    } catch (error) {
+    } catch {
       return spawnError(ThreadSpawnError.InternalError)
     }
   }

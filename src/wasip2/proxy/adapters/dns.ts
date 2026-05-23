@@ -150,38 +150,35 @@ export class DnsAdapter implements StreamAdapter {
 
     // Perform lookup
     let addresses: string[]
-    try {
-      switch (recordType) {
-        case DnsRecordType.A:
-          addresses = await this.withTimeout(this.resolve4(hostname))
-          break
+    switch (recordType) {
+      case DnsRecordType.A:
+        addresses = await this.withTimeout(this.resolve4(hostname))
+        break
 
-        case DnsRecordType.AAAA:
-          addresses = await this.withTimeout(this.resolve6(hostname))
-          break
+      case DnsRecordType.AAAA:
+        addresses = await this.withTimeout(this.resolve6(hostname))
+        break
 
-        default:
-          // For other record types, try both A and AAAA
-          const [ipv4, ipv6] = await Promise.allSettled([
-            this.withTimeout(this.resolve4(hostname)),
-            this.withTimeout(this.resolve6(hostname)),
-          ])
+      default: {
+        // For other record types, try both A and AAAA
+        const [ipv4, ipv6] = await Promise.allSettled([
+          this.withTimeout(this.resolve4(hostname)),
+          this.withTimeout(this.resolve6(hostname)),
+        ])
 
-          addresses = []
-          if (ipv4.status === 'fulfilled') {
-            addresses.push(...ipv4.value)
-          }
-          if (ipv6.status === 'fulfilled') {
-            addresses.push(...ipv6.value)
-          }
+        addresses = []
+        if (ipv4.status === 'fulfilled') {
+          addresses.push(...ipv4.value)
+        }
+        if (ipv6.status === 'fulfilled') {
+          addresses.push(...ipv6.value)
+        }
 
-          if (addresses.length === 0) {
-            throw new Error(`No DNS records found for ${hostname}`)
-          }
-          break
+        if (addresses.length === 0) {
+          throw new Error(`No DNS records found for ${hostname}`)
+        }
+        break
       }
-    } catch (error) {
-      throw error
     }
 
     // Update cache

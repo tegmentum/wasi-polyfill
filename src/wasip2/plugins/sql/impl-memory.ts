@@ -420,10 +420,11 @@ function evaluateParsedCondition(cond: ParsedCondition, row: Row): boolean {
     case '>=': return (a as number) >= (b as number)
     case '<': return (a as number) < (b as number)
     case '<=': return (a as number) <= (b as number)
-    case 'LIKE':
+    case 'LIKE': {
       // Simple LIKE with % wildcards
       const pattern = String(b).replace(/%/g, '.*').replace(/_/g, '.')
       return new RegExp(`^${pattern}$`, 'i').test(String(a))
+    }
     default:
       return false
   }

@@ -252,7 +252,7 @@ export class WsTunnelManager {
             resolve(false)
           }
         }, this.config.connectTimeoutMs)
-      } catch (error) {
+      } catch {
         this.state = TunnelState.Error
         resolve(false)
       }
