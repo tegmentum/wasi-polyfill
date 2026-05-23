@@ -209,6 +209,7 @@ export class MemoryInputStream implements InputStream {
 export class MemoryOutputStream implements OutputStream {
   handle = 0
   private chunks: Uint8Array[] = []
+  private totalSize = 0
   private closed = false
   private readonly maxSize: number
 
@@ -238,15 +239,16 @@ export class MemoryOutputStream implements OutputStream {
       return { tag: 'closed' }
     }
 
-    const currentSize = this.chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-    if (currentSize + contents.length > this.maxSize) {
+    if (this.totalSize + contents.length > this.maxSize) {
       return {
         tag: 'last-operation-failed',
         val: new WasiError(WasiErrorCode.OutOfMemory, 'Stream buffer full'),
       }
     }
 
+    // Copy: the caller may reuse its buffer after write returns.
     this.chunks.push(contents.slice())
+    this.totalSize += contents.length
     return undefined
   }
 
@@ -294,11 +296,7 @@ export class MemoryOutputStream implements OutputStream {
    * Get all written data as a single buffer
    */
   getBuffer(): Uint8Array {
-    const totalLength = this.chunks.reduce(
-      (sum, chunk) => sum + chunk.length,
-      0
-    )
-    const result = new Uint8Array(totalLength)
+    const result = new Uint8Array(this.totalSize)
     let offset = 0
     for (const chunk of this.chunks) {
       result.set(chunk, offset)
@@ -319,6 +317,7 @@ export class MemoryOutputStream implements OutputStream {
    */
   clear(): void {
     this.chunks = []
+    this.totalSize = 0
   }
 }
 

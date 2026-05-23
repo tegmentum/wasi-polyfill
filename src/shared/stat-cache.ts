@@ -174,13 +174,15 @@ export class StatCache<T> {
    * Evict the oldest entries to make room for new ones.
    */
   private evictOldest(): void {
-    // Find and remove the oldest 10% of entries
+    // Remove the oldest ~10% of entries. Map preserves insertion order and
+    // timestamps are monotonic with insertion, so the first keys are the oldest
+    // — no full sort needed.
     const entriesToRemove = Math.max(1, Math.floor(this.maxEntries * 0.1))
-    const entries = Array.from(this.cache.entries())
-      .sort((a, b) => a[1].timestamp - b[1].timestamp)
-
-    for (let i = 0; i < entriesToRemove && i < entries.length; i++) {
-      this.cache.delete(entries[i]![0])
+    let removed = 0
+    for (const path of this.cache.keys()) {
+      if (removed >= entriesToRemove) break
+      this.cache.delete(path)
+      removed++
     }
   }
 }

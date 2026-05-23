@@ -37,6 +37,11 @@ export class WasiMemoryError extends Error {
   }
 }
 
+// Reused across all string operations (these are hot paths, e.g. per-dirent in
+// fd_readdir) — constructing a new encoder/decoder per call is wasteful.
+const UTF8_ENCODER = new TextEncoder()
+const UTF8_DECODER = new TextDecoder()
+
 /**
  * Helper class for reading/writing to WebAssembly linear memory.
  */
@@ -170,7 +175,7 @@ export class WasiMemory {
    */
   readString(ptr: number, len: number): string {
     const bytes = this.readBytes(ptr, len)
-    return new TextDecoder().decode(bytes)
+    return UTF8_DECODER.decode(bytes)
   }
 
   /**
@@ -270,7 +275,7 @@ export class WasiMemory {
    * Returns the number of bytes written (including null terminator).
    */
   writeString(ptr: number, str: string): number {
-    const encoded = new TextEncoder().encode(str)
+    const encoded = UTF8_ENCODER.encode(str)
     this.writeBytes(ptr, encoded)
     this.writeU8(ptr + encoded.length, 0) // null terminator
     return encoded.length + 1
@@ -281,7 +286,7 @@ export class WasiMemory {
    * Returns the number of bytes written.
    */
   writeStringNoNull(ptr: number, str: string): number {
-    const encoded = new TextEncoder().encode(str)
+    const encoded = UTF8_ENCODER.encode(str)
     this.writeBytes(ptr, encoded)
     return encoded.length
   }

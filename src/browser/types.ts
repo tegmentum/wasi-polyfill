@@ -373,18 +373,22 @@ export function unsafeAttributeReason(
  */
 export type Bytes = Uint8Array
 
+// Reused across all byte<->string conversions (hot in storage/console/websocket).
+const UTF8_ENCODER = new TextEncoder()
+const UTF8_DECODER = new TextDecoder()
+
 /**
  * Encode a string to bytes (UTF-8).
  */
 export function stringToBytes(str: string): Bytes {
-  return new TextEncoder().encode(str)
+  return UTF8_ENCODER.encode(str)
 }
 
 /**
  * Decode bytes to a string (UTF-8).
  */
 export function bytesToString(bytes: Bytes): string {
-  return new TextDecoder().decode(bytes)
+  return UTF8_DECODER.decode(bytes)
 }
 
 /**
