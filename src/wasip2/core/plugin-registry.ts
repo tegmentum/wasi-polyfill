@@ -78,23 +78,7 @@ export class PluginRegistry {
       return loadedPlugin
     }
 
-    // Check cache for version-agnostic lookups
-    const cacheKey = `${iface.package}/${iface.name}`
-    const cached = this.lookupCache.get(cacheKey)
-    if (cached) {
-      return cached
-    }
-
-    // Try without version (find any version)
-    for (const [, registeredPlugin] of this.plugins) {
-      if (interfaceMatches(iface, registeredPlugin.witInterface, false)) {
-        // Cache the result for future lookups
-        this.lookupCache.set(cacheKey, registeredPlugin)
-        return registeredPlugin
-      }
-    }
-
-    return undefined
+    return this.resolveVersionAgnostic(iface)
   }
 
   /**
@@ -103,25 +87,29 @@ export class PluginRegistry {
    * Uses a lookup cache to avoid O(n) iteration for repeated lookups.
    */
   getSync(iface: WasiInterface): WasiPlugin | undefined {
-    const key = this.makeKey(iface)
-
     // Direct lookup first (most common case)
-    const plugin = this.plugins.get(key)
+    const plugin = this.plugins.get(this.makeKey(iface))
     if (plugin) {
       return plugin
     }
+    return this.resolveVersionAgnostic(iface)
+  }
 
-    // Check cache for version-agnostic lookups
+  /**
+   * Resolve a plugin ignoring the version suffix, using (and populating) the
+   * lookup cache to avoid repeated O(n) scans. Shared by get and getSync.
+   */
+  private resolveVersionAgnostic(
+    iface: WasiInterface
+  ): WasiPlugin | undefined {
     const cacheKey = `${iface.package}/${iface.name}`
     const cached = this.lookupCache.get(cacheKey)
     if (cached) {
       return cached
     }
 
-    // Fall back to iteration (only happens once per unique interface)
     for (const [, registeredPlugin] of this.plugins) {
       if (interfaceMatches(iface, registeredPlugin.witInterface, false)) {
-        // Cache the result for future lookups
         this.lookupCache.set(cacheKey, registeredPlugin)
         return registeredPlugin
       }

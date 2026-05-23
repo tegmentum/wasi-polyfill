@@ -76,11 +76,13 @@ export class Polyfill {
   private readonly registry: PluginRegistry
   private readonly policy: Policy
   private readonly instances: Map<string, PluginInstance> = new Map()
+  private readonly defaultJcoCompat: boolean
   private destroyed = false
 
   constructor(config?: PolyfillConfig) {
     this.registry = globalRegistry
     this.policy = config?.policy ?? createSafePolicy()
+    this.defaultJcoCompat = config?.jcoCompat ?? false
 
     // Plugin overrides are handled by the policy
     // The policy.configure() method returns per-interface configuration
@@ -97,7 +99,7 @@ export class Polyfill {
 
     const throwOnMissing = options?.throwOnMissing ?? true
     const throwOnDenied = options?.throwOnDenied ?? true
-    const jcoCompat = options?.jcoCompat ?? false
+    const jcoCompat = options?.jcoCompat ?? this.defaultJcoCompat
 
     const imports: Record<string, Record<string, unknown>> = {}
     const loaded: WasiInterface[] = []
@@ -326,6 +328,7 @@ export function createJcoPolyfill(config?: Omit<PolyfillConfig, 'policy'>): Poly
   return new Polyfill({
     ...config,
     policy: new AllowAllPolicy(),
+    jcoCompat: config?.jcoCompat ?? true,
   })
 }
 
