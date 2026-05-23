@@ -49,7 +49,35 @@ Note: WASIP1 and WASIP3 already have substantial test suites (the `COMPLETION.md
 "0 tests" claim was stale), so Phase 0.4/0.5 became "add regression tests with
 each fix" rather than building suites from scratch.
 
-Remaining: rest of Phase 2 (2.3–2.10, 2.15–2.17), Phases 1, 3, 4 (minus 4.3), 5.
+Second autonomous batch (same branch):
+
+- ✅ **2.3** — DOM `setAttribute` blocks `javascript:`/`vbscript:`/`data:` URLs
+  (shared `unsafeAttributeReason`, used by dom.ts + gc-enhanced.ts).
+- ✅ **2.15** — `worker.terminate` releases handlers + purges queues; geolocation
+  and notification queues are bounded.
+- ✅ **3.5** — WebGPU resource-drops added for the 9 leaf resource types;
+  `create-query-set` returns an error instead of a fake handle.
+- ✅ **4.2 / 4.6 / 4.7** — incremental stream size; TextEncoder/Decoder
+  singletons; StatCache eviction without a full sort. *(4.5 jco memoization
+  deferred — complexity vs. payoff.)*
+- ✅ **5.2 / 5.3 / 5.7 / 5.9** — manifest parse dedup; `createJcoPolyfill` honors
+  a real `jcoCompat` default; registry get/getSync dedup; removed empty
+  `browser/plugins/` dir.
+
+Decisions captured: continue autonomously; **P3 → scope to jco + document (3.7)**;
+**mock backends → implement real**.
+
+Remaining (large / dependency-bearing, best as dedicated PRs):
+- **Phase 1 full migration** of ~40 hand-rolled tables to the existing
+  `shared/registry.ts` HandleRegistry (mechanical, large).
+- **2.4** browser capability enforcement; **2.5–2.9** (wasip1 path_open/traversal,
+  ws-gateway UDP/framing); **2.10** per-instance registries (high-risk overhaul).
+- **2.16/2.17** worker import ABI; OPFS atomicity.
+- **3.1** hostfs (Node), **3.2** symlinks, **3.3** streaming HTTP, **3.6** P3 fs
+  methods, **3.7** document P3-jco scope.
+- **3.8–3.10 real backends** (NN onnx-runtime-web, SQL sql.js/SQLite-WASM,
+  messaging durability) — these add heavy external dependencies and an async
+  init model; flagged for an explicit dependency decision before adding.
 
 ---
 
