@@ -20,6 +20,7 @@ import {
   ok,
   mapMouseEvent,
   mapKeyboardEvent,
+  unsafeAttributeReason,
 } from './types.js'
 import { isWasmGcEnabled, supports, isMainThread } from './runtime.js'
 import { type NodeHandle, type ElementHandle, getDefaultDom } from './dom.js'
@@ -262,12 +263,10 @@ export class GcEnhancedDom {
       )
     }
 
-    // Security: block event handlers
-    if (name.toLowerCase().startsWith('on')) {
-      return browserErr(
-        BrowserErrorCode.DENIED,
-        'Setting event handler attributes is not allowed'
-      )
+    // Security: block event handlers, srcdoc, and javascript:/data: URLs.
+    const unsafe = unsafeAttributeReason(name, value)
+    if (unsafe) {
+      return browserErr(BrowserErrorCode.DENIED, unsafe)
     }
 
     ref.setAttribute(name, value)
