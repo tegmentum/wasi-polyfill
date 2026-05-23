@@ -7,7 +7,11 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry, createReadyPollable } from '../io/pollable.js'
+import {
+  PollableRegistry,
+  globalPollableRegistry,
+  createReadyPollable,
+} from '../io/pollable.js'
 import {
   type IpAddress,
   type IpAddressFamily,
@@ -550,7 +554,7 @@ export const virtualIpNameLookupImplementation: Implementation = {
 
     return new IpNameLookupInstance(
       globalResolveAddressStreamRegistry,
-      new PollableRegistry(),
+      globalPollableRegistry,
       lookupConfig
     )
   },
@@ -598,7 +602,7 @@ export const dohIpNameLookupImplementation: Implementation = {
 
     return new IpNameLookupInstance(
       globalResolveAddressStreamRegistry,
-      new PollableRegistry(),
+      globalPollableRegistry,
       lookupConfig
     )
   },
@@ -628,7 +632,7 @@ export const stubIpNameLookupImplementation: Implementation = {
 
     return new IpNameLookupInstance(
       globalResolveAddressStreamRegistry,
-      new PollableRegistry(),
+      globalPollableRegistry,
       lookupConfig
     )
   },

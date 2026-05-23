@@ -9,7 +9,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry } from '../io/pollable.js'
+import { globalPollableRegistry } from '../io/pollable.js'
 import type {
   DescriptorType,
   DescriptorFlags,
@@ -406,22 +406,19 @@ class IdbFilesystemInstance implements PluginInstance {
     const descriptor = this.registry.get(fd)
     if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
     // Return a pollable for the stream
-    const pollableRegistry = new PollableRegistry()
-    return ok(pollableRegistry.create(Promise.resolve()))
+    return ok(globalPollableRegistry.create(Promise.resolve()))
   }
 
   private async writeViaStream(fd: number): Promise<FilesystemResult<number>> {
     const descriptor = this.registry.get(fd)
     if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    const pollableRegistry = new PollableRegistry()
-    return ok(pollableRegistry.create(Promise.resolve()))
+    return ok(globalPollableRegistry.create(Promise.resolve()))
   }
 
   private async appendViaStream(fd: number): Promise<FilesystemResult<number>> {
     const descriptor = this.registry.get(fd)
     if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    const pollableRegistry = new PollableRegistry()
-    return ok(pollableRegistry.create(Promise.resolve()))
+    return ok(globalPollableRegistry.create(Promise.resolve()))
   }
 
   private advise(): FilesystemResult<void> {

@@ -7,7 +7,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry } from '../io/pollable.js'
+import { PollableRegistry, globalPollableRegistry } from '../io/pollable.js'
 import { globalStreamRegistry, MemoryInputStream, MemoryOutputStream } from '../io/streams.js'
 import { Fields, FieldsRegistry, globalFieldsRegistry } from './fields.js'
 import type { Method, Scheme, HttpError } from './types.js'
@@ -568,7 +568,7 @@ export const stubIncomingHandlerImplementation: Implementation = {
       globalOutgoingResponseRegistry,
       globalResponseOutparamRegistry,
       globalFieldsRegistry,
-      new PollableRegistry()
+      globalPollableRegistry
     )
   },
 }
@@ -593,7 +593,7 @@ export const callbackIncomingHandlerImplementation: Implementation = {
       globalOutgoingResponseRegistry,
       globalResponseOutparamRegistry,
       globalFieldsRegistry,
-      new PollableRegistry(),
+      globalPollableRegistry,
       handlerConfig
     )
   },
@@ -613,7 +613,7 @@ export const incomingRequestTypesImplementation: Implementation = {
       globalOutgoingResponseRegistry,
       globalResponseOutparamRegistry,
       globalFieldsRegistry,
-      new PollableRegistry()
+      globalPollableRegistry
     )
   },
 }
