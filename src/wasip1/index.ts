@@ -38,7 +38,7 @@
  * @packageDocumentation
  */
 
-import { WasiMemory } from './memory.js'
+import { WasiMemory, WasiMemoryError } from './memory.js'
 import {
   FileDescriptorTable,
   createStdinEntry,
@@ -252,7 +252,7 @@ export class Wasip1 {
       }
     }
 
-    return {
+    const imports: Record<string, (...args: never[]) => unknown> = {
       // Process functions
       proc_exit: (code: number) => {
         ensureInitialized()
@@ -453,6 +453,26 @@ export class Wasip1 {
         return Errno.ENOSYS
       },
     }
+
+    // Translate guest memory faults (out-of-range pointers) into EFAULT instead
+    // of letting a RangeError escape the import and trap the host. Every WASI
+    // p1 function returns an errno, so returning EFAULT here is well-typed;
+    // WasiExitError and init errors are not WasiMemoryError and pass through.
+    for (const name of Object.keys(imports)) {
+      const fn = imports[name]!
+      imports[name] = (...args: never[]) => {
+        try {
+          return fn(...args)
+        } catch (err) {
+          if (err instanceof WasiMemoryError) {
+            return err.errno
+          }
+          throw err
+        }
+      }
+    }
+
+    return imports
   }
 
   /**
