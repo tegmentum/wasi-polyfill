@@ -30,6 +30,29 @@ missing/incomplete features, refactoring, optimizations, and tooling gaps).
 
 ---
 
+## Progress (updated 2026-05-23)
+
+Completed on branch `remediation/phase-0-2` (each item shipped with a regression
+test; full suite green at 2810 tests, typecheck + lint clean):
+
+- ✅ **0.1 / 0.2 / 0.3** — ESLint v9 flat config, `.prettierrc`, CI lint now required.
+- ✅ **2.1** — pollables routed through the global registry (HTTP/socket/DNS async).
+- ✅ **2.2** — keyvalue atomics + batch wired up (memory backend) incl. CAS; shared
+  BucketStore across interfaces. *(idb backend deferred — async/jco-incompatible.)*
+- ✅ **2.11** — `wasi:cli/terminal-*` added to `createCliPolicy`.
+- ✅ **2.12** — WASIP3 rejected-subtask errors surfaced.
+- ✅ **2.13** — WASIP1 out-of-bounds pointers return EFAULT instead of trapping.
+- ✅ **2.14** — `set-times` conflicting `*_NOW` flags return EINVAL.
+- ✅ **4.3** — `get-random-bytes` supports lengths > 64KiB (chunked).
+
+Note: WASIP1 and WASIP3 already have substantial test suites (the `COMPLETION.md`
+"0 tests" claim was stale), so Phase 0.4/0.5 became "add regression tests with
+each fix" rather than building suites from scratch.
+
+Remaining: rest of Phase 2 (2.3–2.10, 2.15–2.17), Phases 1, 3, 4 (minus 4.3), 5.
+
+---
+
 ## Phase 0 — Tooling & test safety net
 
 | # | Item | Finding | Files | Effort | Risk |
