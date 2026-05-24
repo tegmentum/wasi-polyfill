@@ -5,7 +5,10 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { getGlobalFilesystemInstance } from './impl-memory.js'
+import {
+  resolveFilesystemTypesInstance,
+  type FilesystemTypesInstance,
+} from './impl-memory.js'
 import { DescriptorFlags } from './types.js'
 
 /**
@@ -31,8 +34,7 @@ const DEFAULT_PREOPEN_FLAGS: DescriptorFlags = {
 class PreopensInstance implements PluginInstance {
   private readonly preopens: Array<[number, string]> = []
 
-  constructor(config: PreopensConfig) {
-    const fsInstance = getGlobalFilesystemInstance()
+  constructor(config: PreopensConfig, fsInstance: FilesystemTypesInstance | null) {
     if (!fsInstance) {
       // No filesystem instance, return empty preopens
       return
@@ -89,7 +91,9 @@ export const memoryPreopensImplementation: Implementation = {
       }>
     }
 
-    return new PreopensInstance(preopensConfig)
+    // Resolve the same filesystem instance the fs/types plugin uses for this
+    // polyfill's context, so preopened descriptors live in that filesystem.
+    return new PreopensInstance(preopensConfig, resolveFilesystemTypesInstance(config))
   },
 }
 
@@ -100,6 +104,6 @@ export const emptyPreopensImplementation: Implementation = {
   name: 'empty',
   description: 'No pre-opened directories',
   create(): PluginInstance {
-    return new PreopensInstance({})
+    return new PreopensInstance({}, null)
   },
 }
