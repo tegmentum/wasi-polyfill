@@ -186,17 +186,25 @@ Fifteenth batch — Phase 2.10 coupled space (started):
   isolation would break cross-plugin poll/stream resolution in a fresh-context
   polyfill. Pollables/streams convert together with the filesystem.
 
+Sixteenth batch — Phase 2.10 filesystem isolation (the linchpin):
+
+- ✅ **filesystem per-polyfill** — the in-memory filesystem singleton (shared file
+  data + descriptor handles between polyfills, the worst leak) is now scoped to
+  the ResourceContext: fs/types and preopens share one instance within a polyfill,
+  isolated between polyfills. `setGlobalFilesystem` pre-population preserved.
+- ℹ️ Determined streams/pollables can safely stay on their global registries:
+  handles are globally unique (shared counter) and each stream/pollable wraps a
+  specific instance's node (content-isolated), so a shared registry causes no
+  cross-talk. Isolating the filesystem is what actually closes the leak.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
-- **2.10 coupled resource space** — done: ResourceContext infra, kv/sql stores,
-  and the io **error** registry. The remaining, tightly-coupled piece must be
-  converted as one unit: the **filesystem singleton** (`globalFilesystemInstance`
-  + preopens + the global `setGlobalFilesystem` pre-population API) together with
-  the **pollable** and **stream** registries (used deep in fs/cli/http/sockets
-  methods). Because fs is a singleton on the global pollable/stream registries,
-  those registries can't be isolated until fs is — so this is a single large
-  increment: thread the resolved registries (resolve helpers already exist) +
-  a per-context filesystem instance through every fs/cli/http/socket object
-  graph, preserving the pre-population API. High-risk; its own focused PR.
+- **2.10 — essentially complete.** Isolated per-polyfill: kv/sql backing stores,
+  the io error registry, and the **filesystem** (file data + descriptors — the
+  worst leak). The opfs/idb filesystem backends still use their own singletons
+  (browser-only, lower priority) and could get the same treatment. Streams/
+  pollables intentionally remain global (shown to be cross-talk-free). The
+  sockets/http handle tables are likewise handle-unique + content-isolated, so a
+  shared registry is safe; converting them to per-context is optional polish.
 - **2.7 ws-gateway UDP receive** — inbound datagrams are never delivered, and a
   faithful fix is blocked: the wire protocol carries no source address on inbound
   datagram frames and the tunnel rxQueue is a byte stream (no datagram
