@@ -365,6 +365,17 @@ Thirtieth batch — Phase 4.4 async-executor waitAll:
   P2 pollables are poll-based by contract (no onReady to subscribe to). (1 test:
   multiple concurrent waiters wake on drain.)
 
+Thirty-first batch — Phase 3.11 incoming-handler dispatch:
+
+- ✅ Added `createIncomingHandler(handler).dispatch(request)`: a host-side
+  round-trip that turns a Fetch `Request` into a `Response` by running the
+  handler (createFromFetchRequest → handle → read the response outparam → build
+  a `Response`; request body attached as an input stream). This is the concrete
+  Service Worker `fetch`-event integration point that was previously only
+  sketched. 501 when no handler, 500 on throw / error-outparam; handles cleaned
+  up. The `stub`/`callback` plugin implementations remain for the registry path.
+  (6 tests: status/headers/body, method+path, body passthrough, 501, 500×2.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -464,7 +475,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 3.8 | ✅ NN — added an opt-in `onnx` implementation backed by a host-provided ONNX Runtime (optional peer dep); real model load/compute, fake-`ort` unit tests | webnn default can't load models | `nn/impl-onnx.ts`, `nn/plugin.ts` | L–XL | Med |
 | 3.9 | **Decision-gated:** SQL — adopt sql.js/WASM SQLite, or scope+document the subset and escape `LIKE`; add connection isolation | regex parser, no isolation | `sql/impl-memory.ts`, `sql/plugin.ts:14` | L–XL | Med |
 | 3.10 | **Decision-gated:** messaging — honor TTL/durable/dead-letter + real request/reply correlation + topic cursors, or document as in-memory only | mock presented as real | `messaging/impl-memory.ts:246,315` | L | Med |
-| 3.11 | Implement `incoming-handler` (Service Worker) or mark experimental/stub clearly | HTTP server stub | `http/incoming-handler.ts` | L | Med |
+| 3.11 | ✅ `createIncomingHandler(handler).dispatch(request)` runs a handler end-to-end (Fetch Request→Response) — the Service Worker integration point | HTTP server stub | `http/incoming-handler.ts` | L | Med |
 | 3.12 | OPFS `set-times` and metadata: sidecar metadata store or return `Unsupported` (stop pretending) | silent no-op returns ok | `filesystem/impl-opfs.ts:191` | M | Low |
 | 3.13 | ✅ Manifest: `verifyComponentHash` (Web Crypto) + `validateExports` put the previously-unused fields to work | unused validation fields | `wasip2/core/manifest.ts` | M | Low |
 | 3.14 | ✅ WASIP1 `poll_oneoff`: opt-in blocking (`blockingPoll`) waits for the earliest clock via `Atomics.wait`; non-blocking default documented | returns 0 events, busy-loops | `wasip1/poll.ts`, `wasip1/index.ts` | M | Med |

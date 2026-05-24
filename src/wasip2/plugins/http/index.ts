@@ -78,6 +78,7 @@ export {
   stubIncomingHandlerImplementation,
   callbackIncomingHandlerImplementation,
   incomingRequestTypesImplementation,
+  createIncomingHandler,
 } from './incoming-handler.js'
 
 // Service Worker integration
