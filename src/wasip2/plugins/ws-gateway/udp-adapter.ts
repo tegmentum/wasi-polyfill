@@ -42,6 +42,8 @@ export interface TunneledUdpSocket {
   tunnel: WsTunnelManager
   /** Stream ID in the tunnel (for connected mode) */
   streamId?: number
+  /** Per-destination tunnel streams ("host:port" -> streamId) for unconnected sends. */
+  streamsByDest?: Map<string, number>
   /** Address family */
   family: IpAddressFamily
   /** Local address (bound) */
@@ -149,13 +151,22 @@ export class TunneledUdpSocketRegistry {
     return this.sockets.get(handle)
   }
 
+  /** Close every tunnel stream a socket opened (connected + per-destination). */
+  private closeSocketStreams(socket: TunneledUdpSocket): void {
+    if (!socket.tunnel) return
+    const ids = new Set<number>()
+    if (socket.streamId !== undefined) ids.add(socket.streamId)
+    if (socket.streamsByDest) {
+      for (const id of socket.streamsByDest.values()) ids.add(id)
+    }
+    for (const id of ids) socket.tunnel.closeStream(id)
+    socket.streamsByDest?.clear()
+  }
+
   drop(handle: number): boolean {
     const socket = this.sockets.get(handle)
     if (socket) {
-      // Close the stream if connected
-      if (socket.streamId !== undefined && socket.tunnel) {
-        socket.tunnel.closeStream(socket.streamId)
-      }
+      this.closeSocketStreams(socket)
       socket.incomingQueue.close()
       return this.sockets.delete(handle)
     }
@@ -164,9 +175,7 @@ export class TunneledUdpSocketRegistry {
 
   clear(): void {
     for (const socket of this.sockets.values()) {
-      if (socket.streamId !== undefined && socket.tunnel) {
-        socket.tunnel.closeStream(socket.streamId)
-      }
+      this.closeSocketStreams(socket)
       socket.incomingQueue.close()
     }
     this.sockets.clear()
@@ -659,23 +668,26 @@ class TunneledUdpInstance implements PluginInstance {
 
       const { host, port } = ipSocketAddressToHostPort(destAddr)
 
-      // For UDP, we open a stream for each unique destination or use existing
-      // In a real implementation, we'd need to track UDP "associations"
-      // For now, we'll send each datagram through the tunnel's UDP support
-      // Note: This requires the gateway to support UDP
-
-      // Open a UDP stream if needed
-      if (socket.streamId === undefined) {
-        const streamId = await tunnel.openUdpStream?.(host, port)
-        if (streamId === null || streamId === undefined) {
+      // UDP is connectionless: each distinct destination needs its own tunnel
+      // stream, otherwise datagrams to later destinations would be misrouted to
+      // the first one. Open (and cache) a stream per "host:port".
+      const destKey = `${host}:${port}`
+      socket.streamsByDest ??= new Map()
+      let streamId = socket.streamsByDest.get(destKey)
+      if (streamId === undefined) {
+        const opened = await tunnel.openUdpStream?.(host, port)
+        if (opened === null || opened === undefined) {
           // UDP not supported or connection failed
           return { tag: 'err', val: NetworkErrorCode.NotSupported }
         }
-        socket.streamId = streamId
+        streamId = opened
+        socket.streamsByDest.set(destKey, streamId)
+        // Track the first stream as the socket's primary (connected-mode close).
+        socket.streamId ??= streamId
       }
 
       // Send the datagram
-      const success = tunnel.sendData(socket.streamId, datagram.data)
+      const success = tunnel.sendData(streamId, datagram.data)
       if (!success) {
         break
       }
