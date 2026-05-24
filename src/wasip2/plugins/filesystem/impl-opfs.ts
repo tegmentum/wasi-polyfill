@@ -11,6 +11,10 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import {
+  contextFromConfig,
+  globalResourceContext,
+} from '../../core/resource-context.js'
 import { PollableRegistry, createReadyPollable, globalPollableRegistry } from '../io/pollable.js'
 import {
   DescriptorType,
@@ -810,25 +814,21 @@ class OpfsDirectoryEntryStreamRegistry {
   }
 }
 
-// Global registries for OPFS
-const globalOpfsDescriptorRegistry = new OpfsDescriptorRegistry()
-const globalOpfsDirectoryStreamRegistry = new OpfsDirectoryEntryStreamRegistry()
-
 /**
  * OPFS Filesystem plugin instance
  */
 class OpfsFilesystemInstance implements PluginInstance {
   private rootHandle: FileSystemDirectoryHandle | null = null
-  private readonly descriptorRegistry: OpfsDescriptorRegistry
-  private readonly directoryStreamRegistry: OpfsDirectoryEntryStreamRegistry
-  private readonly pollableRegistry: PollableRegistry
+  // Per-instance descriptor handle space (isolated per polyfill via the
+  // ResourceContext). Pollables stay on the global registry (handle-unique +
+  // content-isolated, so a shared registry is cross-talk-free).
+  private readonly descriptorRegistry = new OpfsDescriptorRegistry()
+  private readonly directoryStreamRegistry = new OpfsDirectoryEntryStreamRegistry()
+  private readonly pollableRegistry: PollableRegistry = globalPollableRegistry
   private readonly rootDirName: string
   private initPromise: Promise<void> | null = null
 
   constructor(config: OpfsConfig = {}) {
-    this.descriptorRegistry = globalOpfsDescriptorRegistry
-    this.directoryStreamRegistry = globalOpfsDirectoryStreamRegistry
-    this.pollableRegistry = globalPollableRegistry
     this.rootDirName = config.rootDirName ?? 'wasi-root'
   }
 
@@ -1191,8 +1191,8 @@ class OpfsFilesystemInstance implements PluginInstance {
   }
 }
 
-// Global instance for singleton access
-let globalOpfsFilesystemInstance: OpfsFilesystemInstance | null = null
+/** ResourceContext key for the per-polyfill OPFS filesystem instance. */
+const OPFS_INSTANCE_KEY = Symbol('wasi:filesystem/opfs-instance')
 
 /**
  * OPFS filesystem implementation
@@ -1214,17 +1214,24 @@ export const opfsFilesystemImplementation: Implementation = {
       opfsConfig.rootDirName = rootDirName
     }
 
-    // Use singleton pattern so preopens can access the same filesystem
-    if (!globalOpfsFilesystemInstance) {
-      globalOpfsFilesystemInstance = new OpfsFilesystemInstance(opfsConfig)
-    }
-    return globalOpfsFilesystemInstance
+    // Per-polyfill instance (descriptor handle space isolated via the context).
+    // The underlying OPFS storage is the real browser disk and remains shared.
+    return contextFromConfig(config).get(
+      OPFS_INSTANCE_KEY,
+      () => new OpfsFilesystemInstance(opfsConfig)
+    )
   },
 }
 
 /**
- * Get the global OPFS filesystem instance (for preopens)
+ * Get the global OPFS filesystem instance (for preopens / external callers).
  */
 export function getGlobalOpfsFilesystemInstance(): OpfsFilesystemInstance | null {
-  return globalOpfsFilesystemInstance
+  if (!globalResourceContext.has(OPFS_INSTANCE_KEY)) {
+    return null
+  }
+  return globalResourceContext.get(
+    OPFS_INSTANCE_KEY,
+    () => new OpfsFilesystemInstance()
+  )
 }

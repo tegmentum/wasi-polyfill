@@ -197,14 +197,21 @@ Sixteenth batch — Phase 2.10 filesystem isolation (the linchpin):
   specific instance's node (content-isolated), so a shared registry causes no
   cross-talk. Isolating the filesystem is what actually closes the leak.
 
+Seventeenth batch — Phase 2.10 polish:
+
+- ✅ **opfs + idb backends context-scoped** — OPFS instances own their descriptor
+  registries (were module-global) and resolve per-context; IDB resolves per
+  context so fs/types + preopens share within a polyfill. Underlying browser
+  storage (OPFS disk / IndexedDB) stays shared by nature, which is correct.
+  This makes 2.10 complete for all three filesystem backends.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
-- **2.10 — essentially complete.** Isolated per-polyfill: kv/sql backing stores,
-  the io error registry, and the **filesystem** (file data + descriptors — the
-  worst leak). The opfs/idb filesystem backends still use their own singletons
-  (browser-only, lower priority) and could get the same treatment. Streams/
-  pollables intentionally remain global (shown to be cross-talk-free). The
-  sockets/http handle tables are likewise handle-unique + content-isolated, so a
-  shared registry is safe; converting them to per-context is optional polish.
+- **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
+  registry, and all three filesystem backends (memory/opfs/idb — file data +
+  descriptor handles). Streams/pollables and the sockets/http handle tables
+  intentionally remain on shared global registries: their handles are globally
+  unique and each wraps a specific instance's node, so a shared registry is
+  cross-talk-free. No further 2.10 work needed.
 - **2.7 ws-gateway UDP receive** — inbound datagrams are never delivered, and a
   faithful fix is blocked: the wire protocol carries no source address on inbound
   datagram frames and the tunnel rxQueue is a byte stream (no datagram
