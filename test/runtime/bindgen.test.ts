@@ -157,6 +157,20 @@ describe('RuntimeBindgen', () => {
       expect(asyncBindgen).toBeInstanceOf(RuntimeBindgen)
       asyncBindgen.destroy()
     })
+
+    it('should accept instrumentCore + instantiateCore hooks', () => {
+      // These let a caller instrument the emitted core module (e.g. a binaryen
+      // pass) and supply the resulting extra core imports at instantiation —
+      // custom core instantiation without a hand-rolled jco glue.
+      const hooked = createRuntimeBindgen({
+        devMode: true,
+        instrumentCore: (wasm) => wasm,
+        instantiateCore: (module, imports) => WebAssembly.instantiate(module, imports),
+      })
+
+      expect(hooked).toBeInstanceOf(RuntimeBindgen)
+      hooked.destroy()
+    })
   })
 
   // The async/JSPI mapping is the bridge that lets a transpiled component
