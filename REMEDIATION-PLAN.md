@@ -426,6 +426,20 @@ Thirty-fifth batch — Phase 2.7 ws-gateway UDP receive (connected/per-dest):
   no per-frame source address. (4 DatagramQueue tests for boundary/source
   semantics; live tunnel path is Playwright-only.)
 
+Thirty-sixth batch — Phase 1.4 Result unification:
+
+- ✅ Unified the four per-plugin Result types onto the shared `Result<T,E>`
+  (`src/shared/result.ts`). `NnResult`/`SqlResult`/`MessagingResult`/
+  `KeyValueResult<T>` are now type aliases of `Result<T, XError>`, and the
+  `xOk`/`xErr` constructors delegate to the shared `ok`/`err` (single
+  construction site). **keyvalue** carried the real divergence — its
+  `{tag:'ok',val}`/`{tag:'err',val}` shape — and was migrated to the canonical
+  `{ok,value}`/`{ok,error}`; all consumers updated (impl-memory/idb/replay +
+  4 test files). nn/sql/messaging already matched the shape, so those were a
+  no-op at runtime. The named `xOk`/`xErr` wrappers are kept (xErr bundles error
+  construction) — removing 90+ call sites would be churn for negative value; the
+  goal was eliminating the divergent *shape*, now done. Full suite green at 2943.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -471,7 +485,7 @@ These are prerequisites that make the Phase 2 leak/isolation fixes small and uni
 | 1.1 | Promote generic `HandleTable<T>` (with `FinalizationRegistry`) to a shared module | ~40 hand-rolled handle tables | new `src/shared/handle-table.ts` (from `browser/webgpu/adapter.ts`) | M | Low |
 | 1.2 | Migrate WASIP2 plugin registries to `HandleTable` (fs, io streams/pollables, sockets, http, kv, blobstore, sql, nn, messaging, ws-gateway) | dedup + missing-drop leaks | `src/wasip2/plugins/**` | L | Med |
 | 1.3 | Migrate `browser/*` hand-rolled tables (dom, canvas, media, service-worker) to `HandleTable` | leak entries until lookup | `src/browser/*.ts` | M | Med |
-| 1.4 | Standardize on shared `Result<T,E>` + ok/err helpers; remove per-plugin `kvOk/sqlOk/nnOk/msgOk` and `{ok:boolean}` vs `{tag}` divergence | Result reinvented per plugin | `src/shared/result.ts`, plugins | M | Med |
+| 1.4 | ✅ nn/sql/messaging/keyvalue Result types now alias shared `Result<T,E>`; keyvalue migrated off `{tag,val}`; constructors delegate to shared ok/err | Result reinvented per plugin | `src/shared/result.ts`, plugins | M | Med |
 | 1.5 | Add `interfaceKey(iface)` helper; replace 5+ inline `` `${pkg}/${name}` `` constructions | duplicated key formula | `src/wasip2/core/types.ts` + callers | S | Low |
 
 **Note:** 1.2/1.3 should be mechanical and test-covered; do them per-plugin in small PRs.

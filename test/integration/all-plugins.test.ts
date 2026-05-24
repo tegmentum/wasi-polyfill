@@ -386,12 +386,12 @@ describe('All Plugins Integration', () => {
 
       const open = result.imports['wasi:keyvalue/store@0.2.0']['open'] as (
         name: string
-      ) => { tag: 'ok'; val: number } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: number } | { ok: false; error: unknown }
 
       const storeResult = open('test-store')
-      expect(storeResult.tag).toBe('ok')
-      if (storeResult.tag === 'ok') {
-        expect(typeof storeResult.val).toBe('number')
+      expect(storeResult.ok).toBe(true)
+      if (storeResult.ok) {
+        expect(typeof storeResult.value).toBe('number')
       }
     })
 
@@ -403,65 +403,65 @@ describe('All Plugins Integration', () => {
       const imports = result.imports['wasi:keyvalue/store@0.2.0']
       const open = imports['open'] as (
         name: string
-      ) => { tag: 'ok'; val: number } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: number } | { ok: false; error: unknown }
 
       const storeResult = open('crud-test')
-      expect(storeResult.tag).toBe('ok')
-      if (storeResult.tag !== 'ok') return
+      expect(storeResult.ok).toBe(true)
+      if (!storeResult.ok) return
 
-      const storeId = storeResult.val
+      const storeId = storeResult.value
 
       // Get set method
       const set = imports['[method]bucket.set'] as (
         self: number,
         key: string,
         value: Uint8Array
-      ) => { tag: 'ok'; val: undefined } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: undefined } | { ok: false; error: unknown }
 
       const get = imports['[method]bucket.get'] as (
         self: number,
         key: string
-      ) => { tag: 'ok'; val: Uint8Array | undefined } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: Uint8Array | undefined } | { ok: false; error: unknown }
 
       const exists = imports['[method]bucket.exists'] as (
         self: number,
         key: string
-      ) => { tag: 'ok'; val: boolean } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: boolean } | { ok: false; error: unknown }
 
       const del = imports['[method]bucket.delete'] as (
         self: number,
         key: string
-      ) => { tag: 'ok'; val: undefined } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: undefined } | { ok: false; error: unknown }
 
       // Set a value
       const encoder = new TextEncoder()
       const decoder = new TextDecoder()
       const setResult = set(storeId, 'test-key', encoder.encode('test-value'))
-      expect(setResult.tag).toBe('ok')
+      expect(setResult.ok).toBe(true)
 
       // Check exists
       const existsResult = exists(storeId, 'test-key')
-      expect(existsResult.tag).toBe('ok')
-      if (existsResult.tag === 'ok') {
-        expect(existsResult.val).toBe(true)
+      expect(existsResult.ok).toBe(true)
+      if (existsResult.ok) {
+        expect(existsResult.value).toBe(true)
       }
 
       // Get the value
       const getResult = get(storeId, 'test-key')
-      expect(getResult.tag).toBe('ok')
-      if (getResult.tag === 'ok' && getResult.val) {
-        expect(decoder.decode(getResult.val)).toBe('test-value')
+      expect(getResult.ok).toBe(true)
+      if (getResult.ok && getResult.value) {
+        expect(decoder.decode(getResult.value)).toBe('test-value')
       }
 
       // Delete the value
       const delResult = del(storeId, 'test-key')
-      expect(delResult.tag).toBe('ok')
+      expect(delResult.ok).toBe(true)
 
       // Verify deleted
       const existsAfter = exists(storeId, 'test-key')
-      expect(existsAfter.tag).toBe('ok')
-      if (existsAfter.tag === 'ok') {
-        expect(existsAfter.val).toBe(false)
+      expect(existsAfter.ok).toBe(true)
+      if (existsAfter.ok) {
+        expect(existsAfter.value).toBe(false)
       }
     })
   })
@@ -749,7 +749,7 @@ describe('All Plugins Integration', () => {
       const imports = result.imports['wasi:keyvalue/store@0.2.0']
       const open = imports['open'] as (
         name: string
-      ) => { tag: 'ok'; val: number } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: number } | { ok: false; error: unknown }
 
       const drop = imports['[resource-drop]bucket'] as (handle: number) => void
 
@@ -757,9 +757,9 @@ describe('All Plugins Integration', () => {
       const stores: number[] = []
       for (let i = 0; i < 5; i++) {
         const storeResult = open(`store-${i}`)
-        expect(storeResult.tag).toBe('ok')
-        if (storeResult.tag === 'ok') {
-          stores.push(storeResult.val)
+        expect(storeResult.ok).toBe(true)
+        if (storeResult.ok) {
+          stores.push(storeResult.value)
         }
       }
 
@@ -785,7 +785,7 @@ describe('All Plugins Integration', () => {
       // Create some resources
       const open = result.imports['wasi:keyvalue/store@0.2.0']['open'] as (
         name: string
-      ) => { tag: 'ok'; val: number } | { tag: 'err'; val: unknown }
+      ) => { ok: true; value: number } | { ok: false; error: unknown }
 
       open('cleanup-test')
 
