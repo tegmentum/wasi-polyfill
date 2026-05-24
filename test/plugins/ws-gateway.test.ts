@@ -1035,6 +1035,7 @@ describe('TunneledUdpSocketRegistry', () => {
       const socket = createTestUdpSocket()
       socket.tunnel = {
         closeStream: (id: number) => closed.push(id),
+        removeStreamDataHandler: () => {},
       } as unknown as TunneledUdpSocket['tunnel']
       // Simulate sends to three distinct destinations + a connected primary.
       socket.streamId = 10

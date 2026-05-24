@@ -410,6 +410,22 @@ Thirty-fourth batch — Phase 4.8 OPFS set-size:
   SyncAccessHandle fast path is out of scope here (can't be validated without a
   worker harness, and the createWritable path is correct).
 
+Thirty-fifth batch — Phase 2.7 ws-gateway UDP receive (connected/per-dest):
+
+- ✅ Inbound UDP datagrams are now delivered for connected and per-destination
+  sockets. Added a per-stream inbound handler on `WsTunnelManager`
+  (`setStreamDataHandler`/`removeStreamDataHandler`, invoked once per DATA frame
+  so datagram boundaries are preserved — unlike the byte-oriented rxQueue); the
+  UDP adapter registers one when it opens a stream and routes each datagram into
+  the socket's `incomingQueue` tagged with that stream's bound remote. The
+  earlier "no source address" blocker is sidestepped because each tunnel stream
+  is bound to a specific remote (the connected peer or the send destination), so
+  that *is* the source. Handlers are removed on socket close. Remaining
+  limitation (documented): receiving from a never-contacted peer (a pure UDP
+  server with no opened stream) is still unsupported — the wire protocol carries
+  no per-frame source address. (4 DatagramQueue tests for boundary/source
+  semantics; live tunnel path is Playwright-only.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -417,11 +433,12 @@ Remaining (the hard tail — large, low-value, or externally blocked):
   intentionally remain on shared global registries: their handles are globally
   unique and each wraps a specific instance's node, so a shared registry is
   cross-talk-free. No further 2.10 work needed.
-- **2.7 ws-gateway UDP receive** — inbound datagrams are never delivered, and a
-  faithful fix is blocked: the wire protocol carries no source address on inbound
-  datagram frames and the tunnel rxQueue is a byte stream (no datagram
-  boundaries). Needs a protocol/tunnel change or a documented connected-only
-  subset. (Send — 2.8 — is fixed.)
+- **2.7 ws-gateway UDP receive — ✅ done for the connected/per-destination subset**
+  (see thirty-fifth batch). Inbound datagrams are delivered via a per-stream,
+  boundary-preserving handler, sourced from the stream's bound remote. Only
+  unsolicited receive from a never-contacted peer (a pure UDP server) remains
+  unsupported — the wire protocol carries no per-frame source address. (Send —
+  2.8 — is fixed.)
 - **3.8 NN real backend — ✅ done** (see nineteenth batch). Real ONNX Runtime
   backend wired as the opt-in `onnx` implementation; runtime is an optional
   host-provided peer dep, bridge is unit-tested with a fake `ort`. (SQL and
@@ -476,7 +493,7 @@ Highest-impact, smallest diffs. Each ships with a regression test.
 | 2.4 | Thread a capability/allow-list policy through `BrowserImportsConfig`; gate each interface + privileged method; build only granted interfaces | capabilities never enforced | `browser/index.ts:751`, `browser/runtime.ts:362`, all interface modules | L | Med |
 | 2.5 | Fix WASIP1 `path_open` to attach filesystem ref to directory entries | subdir fds return EBADF | `wasip1/path.ts:98,312` | M | Med |
 | 2.6 | Normalize `..`/absolute paths and clamp to preopen root (return `ENOTCAPABLE`/error on escape) | path-traversal escape | `wasip1/path.ts:123`, `wasip1/memory-filesystem.ts:112`, `wasip2/.../impl-memory.ts:168` | M | Med |
-| 2.7 | ws-gateway UDP: route inbound datagrams to per-socket queue; key outbound streams by destination | UDP receive/send broken | `ws-gateway/udp-adapter.ts:573,663`, `tunnel-manager.ts` | L | Med |
+| 2.7 | ✅ ws-gateway UDP: inbound datagrams routed to the per-socket queue via a per-stream boundary-preserving handler (connected/per-dest); pure-server receive still unsupported (no per-frame source addr) | UDP receive/send broken | `ws-gateway/udp-adapter.ts`, `tunnel-manager.ts` | L | Med |
 | 2.8 | WASIP3 stream: drain `pendingWrite` unconditionally on read; add `error` status variant | deadlock + errors as EOF | `wasip3/canonical-abi/stream.ts:86,296`, `adapters/p2-to-p3.ts:96` | M | Med |
 | 2.9 | Bound `payloadLen` against max frame size; cursor-based receive buffer | ws-gateway OOM DoS | `ws-gateway/tunnel-manager.ts:636`, `protocol.ts` | M | Med |
 | 2.10 | Scope WASIP2 registries per-instance (pass through `PluginConfig`) instead of module singletons | cross-instance handle collision | `wasip2/plugins/**` global registries | L | High |
