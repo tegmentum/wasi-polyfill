@@ -141,10 +141,19 @@ Tenth batch:
   instantiation); dropped the stale 2025 timeline. This also descopes **3.6**
   (expanding P3 fs methods) as inconsistent with the documented jco scope.
 
+Eleventh batch:
+
+- ✅ **Phase 1 `HandleRegistry` migration (clean cases)** — 11 plain
+  register/get/drop tables now `extend` the shared `HandleRegistry` (sockets
+  Network/Tcp/Udp/ResolveAddressStream, ws-gateway tunneled DNS, and the 7 http
+  request/response/options registries), via a small `register` override that
+  preserves the `.handle` field and any drop side effects. On inspection the
+  remaining registries are genuinely bespoke (domain methods, `size` getter,
+  handle-in-constructor, abort/close-on-drop, dual in/out tables) and are
+  intentionally left — forcing them into the base would add code/risk for
+  negative readability.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
-- **Phase 1 `HandleRegistry` migration** of ~40 hand-rolled tables to
-  `shared/registry.ts` — mechanical but large, with per-site regression risk and
-  modest functional payoff (the existing tables work). Maintainability only.
 - **2.10 full per-instance registries** — making every plugin's module-level
   global registry per-polyfill is a cross-cutting overhaul (high risk). The
   plugin *registry* is now injectable (5.10); the plugin *instance* state is not.
