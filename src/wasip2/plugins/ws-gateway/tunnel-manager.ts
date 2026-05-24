@@ -193,6 +193,12 @@ export class WsTunnelManager {
   private state: TunnelState = TunnelState.Disconnected
   private readonly config: Required<TunnelConfig>
   private readonly streams: Map<number, StreamInfo> = new Map()
+  /**
+   * Per-stream inbound data handlers, invoked once per DATA frame (preserving
+   * datagram boundaries — unlike the byte-oriented rxQueue). Used by the UDP
+   * adapter to deliver received datagrams to the owning socket.
+   */
+  private readonly streamDataHandlers: Map<number, (data: Uint8Array) => void> = new Map()
   private readonly pendingDnsQueries: Map<number, PendingDnsQuery> = new Map()
   private nextStreamId = 1
   private nextDnsQueryId = 1
@@ -565,6 +571,19 @@ export class WsTunnelManager {
   }
 
   /**
+   * Register a handler invoked once per inbound DATA frame on `streamId`
+   * (preserving message boundaries). Replaces any previous handler.
+   */
+  setStreamDataHandler(streamId: number, handler: (data: Uint8Array) => void): void {
+    this.streamDataHandlers.set(streamId, handler)
+  }
+
+  /** Remove a per-stream inbound data handler. */
+  removeStreamDataHandler(streamId: number): void {
+    this.streamDataHandlers.delete(streamId)
+  }
+
+  /**
    * Read data from a stream
    */
   readData(streamId: number, maxLength: number): Uint8Array | null {
@@ -814,6 +833,8 @@ export class WsTunnelManager {
     if (payload.length > 0) {
       stream.rxQueue.push(payload)
       this.config.onStreamData(streamId, payload)
+      // Per-stream, message-boundary-preserving delivery (UDP datagrams).
+      this.streamDataHandlers.get(streamId)?.(payload)
     }
 
     if (flags & MessageFlags.Eof) {

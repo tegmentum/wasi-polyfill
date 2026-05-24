@@ -66,7 +66,7 @@ export interface TunneledUdpSocket {
 /**
  * Datagram with address information
  */
-interface QueuedDatagram {
+export interface QueuedDatagram {
   data: Uint8Array
   remoteAddress: IpSocketAddress
 }
@@ -74,7 +74,7 @@ interface QueuedDatagram {
 /**
  * Queue for incoming datagrams
  */
-class DatagramQueue {
+export class DatagramQueue {
   private readonly datagrams: QueuedDatagram[] = []
   private readonly maxSize: number
   private closed = false
@@ -152,7 +152,10 @@ export class TunneledUdpSocketRegistry extends HandleRegistry<TunneledUdpSocket>
     if (socket.streamsByDest) {
       for (const id of socket.streamsByDest.values()) ids.add(id)
     }
-    for (const id of ids) socket.tunnel.closeStream(id)
+    for (const id of ids) {
+      socket.tunnel.removeStreamDataHandler(id)
+      socket.tunnel.closeStream(id)
+    }
     socket.streamsByDest?.clear()
   }
 
@@ -661,6 +664,15 @@ class TunneledUdpInstance implements PluginInstance {
         socket.streamsByDest.set(destKey, streamId)
         // Track the first stream as the socket's primary (connected-mode close).
         socket.streamId ??= streamId
+
+        // Deliver inbound datagrams on this stream back to the socket. The
+        // stream is bound to this destination, so that is the datagram source
+        // (the wire protocol carries no per-frame source address — receiving
+        // from a never-contacted peer is therefore still unsupported).
+        const source = destAddr
+        tunnel.setStreamDataHandler(streamId, (data) => {
+          socket.incomingQueue.push({ data, remoteAddress: source })
+        })
       }
 
       // Send the datagram
