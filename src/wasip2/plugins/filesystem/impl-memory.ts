@@ -164,12 +164,8 @@ export class MemoryFileSystem {
     const name = parts.pop()!
 
     for (const part of parts) {
-      if (part === '.') continue
-      if (part === '..') {
-        // In this simple implementation, we don't track parents
-        // Just stay at current for '..'
-        continue
-      }
+      // '.'/'..' are already resolved by normalizePath; skip defensively.
+      if (part === '.' || part === '..') continue
 
       const child = current.children.get(part)
       if (!child) {
@@ -190,10 +186,23 @@ export class MemoryFileSystem {
   }
 
   /**
-   * Normalize a path (remove double slashes, etc.)
+   * Normalize a path: collapse double slashes and resolve '.'/'..'.
+   *
+   * '..' is clamped at the root so a path can never escape the filesystem
+   * (defense-in-depth), and 'a/../b' correctly resolves to '/b' instead of
+   * leaving a stray '..' component for the traversal to ignore.
    */
   private normalizePath(path: string): string {
-    return '/' + path.split('/').filter(Boolean).join('/')
+    const stack: string[] = []
+    for (const part of path.split('/')) {
+      if (part === '' || part === '.') continue
+      if (part === '..') {
+        stack.pop()
+        continue
+      }
+      stack.push(part)
+    }
+    return '/' + stack.join('/')
   }
 
   /**
