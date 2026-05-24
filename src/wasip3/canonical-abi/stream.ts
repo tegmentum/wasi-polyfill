@@ -240,9 +240,10 @@ export function streamFromAsyncIterable<T>(
           return { status: 'end' }
         }
         return { status: 'values', values: [result.value] }
-      } catch {
+      } catch (e) {
         done = true
-        return { status: 'end' }
+        // Surface source errors instead of masking them as a clean EOF.
+        return { status: 'error', error: e instanceof Error ? e : new Error(String(e)) }
       }
     },
 
@@ -293,10 +294,11 @@ export function streamFromReadable(
           return { status: 'end' }
         }
         return { status: 'values', values: [result.value] }
-      } catch {
+      } catch (e) {
         done = true
         reader.releaseLock()
-        return { status: 'end' }
+        // Surface source errors instead of masking them as a clean EOF.
+        return { status: 'error', error: e instanceof Error ? e : new Error(String(e)) }
       }
     },
 
@@ -346,9 +348,10 @@ export function writerFromWritable(
           await writer.write(value)
         }
         return { status: 'ok', count: values.length }
-      } catch {
+      } catch (e) {
         closed = true
-        return { status: 'closed' }
+        // Surface sink errors instead of reporting a clean close.
+        return { status: 'error', error: e instanceof Error ? e : new Error(String(e)) }
       }
     },
 

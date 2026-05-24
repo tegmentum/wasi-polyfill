@@ -94,12 +94,14 @@ export function adaptInputStream(
 
         return { status: 'values', values: [data] }
       } catch (error) {
-        // Check if it's an end-of-stream error
+        // An end-of-stream signal is a clean EOF; anything else is a real error.
         if (error instanceof Error && error.message.includes('end')) {
           return { status: 'end' }
         }
-        // Treat other errors as stream end
-        return { status: 'end' }
+        return {
+          status: 'error',
+          error: error instanceof Error ? error : new Error(String(error)),
+        }
       }
     },
 

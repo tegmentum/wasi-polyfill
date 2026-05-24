@@ -18,6 +18,7 @@ export type StreamReadResult<T> =
   | { status: 'values'; values: T[] }
   | { status: 'end' }
   | { status: 'cancelled' }
+  | { status: 'error'; error: Error }
 
 /**
  * Result of writing to a stream.
@@ -26,6 +27,7 @@ export type StreamWriteResult =
   | { status: 'ok'; count: number }
   | { status: 'closed' }
   | { status: 'cancelled' }
+  | { status: 'error'; error: Error }
 
 /**
  * Built-in stream type for async sequences of values.

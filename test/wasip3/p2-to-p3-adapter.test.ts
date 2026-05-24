@@ -88,10 +88,26 @@ describe('WASIP3 P2-to-P3 Adapters', () => {
       expect(dropped).toBe(true)
     })
 
-    it('handles read errors gracefully', async () => {
+    it('surfaces read errors as an error result', async () => {
       const p2Stream: P2InputStream = {
         read: () => {
           throw new Error('Read error')
+        },
+      }
+
+      const p3Stream = adaptInputStream(p2Stream)
+      const result = await p3Stream.read()
+
+      expect(result.status).toBe('error')
+      if (result.status === 'error') {
+        expect(result.error.message).toBe('Read error')
+      }
+    })
+
+    it('treats an end-of-stream error as a clean EOF', async () => {
+      const p2Stream: P2InputStream = {
+        read: () => {
+          throw new Error('stream reached end')
         },
       }
 
