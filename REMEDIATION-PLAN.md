@@ -141,16 +141,23 @@ Tenth batch:
   instantiation); dropped the stale 2025 timeline. This also descopes **3.6**
   (expanding P3 fs methods) as inconsistent with the documented jco scope.
 
-Remaining (large / dependency-bearing, best as dedicated PRs):
-- **Phase 1 full migration** of ~40 hand-rolled tables to the existing
-  `shared/registry.ts` HandleRegistry (mechanical, large).
-- **2.4** browser capability enforcement; **2.5–2.9** (wasip1 path_open/traversal,
-  ws-gateway UDP/framing); **2.10** per-instance registries (high-risk overhaul).
-- **2.16/2.17** worker import ABI; OPFS atomicity.
-- (none — 3.3/3.7 done; 3.6 descoped under the jco-scope decision.)
-- **3.8–3.10 real backends** (NN onnx-runtime-web, SQL sql.js/SQLite-WASM,
-  messaging durability) — these add heavy external dependencies and an async
-  init model; flagged for an explicit dependency decision before adding.
+Remaining (the hard tail — large, low-value, or externally blocked):
+- **Phase 1 `HandleRegistry` migration** of ~40 hand-rolled tables to
+  `shared/registry.ts` — mechanical but large, with per-site regression risk and
+  modest functional payoff (the existing tables work). Maintainability only.
+- **2.10 full per-instance registries** — making every plugin's module-level
+  global registry per-polyfill is a cross-cutting overhaul (high risk). The
+  plugin *registry* is now injectable (5.10); the plugin *instance* state is not.
+- **2.7/2.8 ws-gateway UDP** — receive never delivers / send ignores destination.
+  A correct inbound fix is partly blocked: the wire protocol carries no source
+  address on inbound datagram frames, so unconnected-UDP receive can't be done
+  faithfully. Needs a protocol change or a documented connected-only subset.
+- **2.17 OPFS rename atomicity** — `renameAt` copies then deletes (non-atomic);
+  acceptable to document, or implement with rollback.
+- **3.8 NN real backend** — onnxruntime-web (~10 MB dep): the wasi:nn surface
+  here is the WebNN graph-builder API, which doesn't map onto onnxruntime's
+  load-a-model model; also hard to test without ONNX model fixtures. Dedicated
+  effort warranted. (SQL and messaging real backends: ✅ done.)
 
 ---
 
