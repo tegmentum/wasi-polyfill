@@ -88,8 +88,10 @@ export {
  * const { imports } = await polyfill.getImports(interfaces, { jcoCompat: true })
  * ```
  */
-export async function registerCorePlugins(): Promise<void> {
-  const { globalRegistry } = await import('./plugin-registry.js')
+export async function registerCorePlugins(
+  registry?: import('./plugin-registry.js').PluginRegistry
+): Promise<void> {
+  const target = registry ?? (await import('./plugin-registry.js')).globalRegistry
 
   // Dynamically import plugins to support tree-shaking when not used
   const [
@@ -115,6 +117,6 @@ export async function registerCorePlugins(): Promise<void> {
   ]
 
   for (const plugin of allPlugins) {
-    globalRegistry.register(plugin)
+    target.register(plugin)
   }
 }

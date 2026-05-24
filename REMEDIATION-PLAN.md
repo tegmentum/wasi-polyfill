@@ -126,6 +126,14 @@ Eighth batch:
   instead of being fully buffered. Default stays buffered (streaming makes body
   reads async → async/JSPI contexts only).
 
+Ninth batch:
+
+- ✅ **5.10 (partial 2.10)** — `Polyfill` accepts a private `PluginRegistry` via
+  `PolyfillConfig.registry`, and `registerCorePlugins(registry?)` targets it, so
+  independent polyfills/tests can avoid sharing plugin registrations. Defaults to
+  the global registry (unchanged). Full per-instance plugin-*instance* isolation
+  (module-level registries inside plugins) remains the larger 2.10 work.
+
 Remaining (large / dependency-bearing, best as dedicated PRs):
 - **Phase 1 full migration** of ~40 hand-rolled tables to the existing
   `shared/registry.ts` HandleRegistry (mechanical, large).
