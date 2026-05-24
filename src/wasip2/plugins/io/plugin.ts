@@ -22,7 +22,7 @@ import {
   StreamRegistry,
   globalStreamRegistry,
 } from './streams.js'
-import { ErrorRegistry, globalErrorRegistry } from './error.js'
+import { ErrorRegistry, resolveErrorRegistry } from './error.js'
 
 /**
  * WASI poll interface definition
@@ -393,6 +393,10 @@ export const pollPlugin: WasiPlugin = createPlugin(
       name: 'default',
       description: 'Default poll implementation using Promises',
       create(_config: PluginConfig): PluginInstance {
+        // Pollables stay on the global registry until the filesystem singleton
+        // and the deep stream/pollable users are converted together — otherwise
+        // poll() (context-scoped) wouldn't see pollables created elsewhere
+        // (global). Tracked as the remaining coupled-space work in REMEDIATION-PLAN.
         return new PollInstance(globalPollableRegistry)
       },
     },
@@ -410,6 +414,9 @@ export const streamsPlugin: WasiPlugin = createPlugin(
       name: 'default',
       description: 'Default streams implementation',
       create(_config: PluginConfig): PluginInstance {
+        // Streams and pollables stay on the global registries until the coupled
+        // space (fs singleton + deep fs/cli/http stream users) is converted
+        // together — see REMEDIATION-PLAN. errors (self-contained) is isolated.
         return new StreamsInstance(globalStreamRegistry, globalPollableRegistry)
       },
     },
@@ -426,8 +433,8 @@ export const errorPlugin: WasiPlugin = createPlugin(
     default: {
       name: 'default',
       description: 'Default error implementation',
-      create(_config: PluginConfig): PluginInstance {
-        return new ErrorInstance(globalErrorRegistry)
+      create(config: PluginConfig): PluginInstance {
+        return new ErrorInstance(resolveErrorRegistry(config))
       },
     },
   },
