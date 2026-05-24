@@ -21,12 +21,17 @@ This document outlines the planned development roadmap for `@tegmentum/wasi-poly
   - Clock, random, poll, and process control
   - Custom I/O streams support
 
-- **WASI Preview 3 (wasip3)** - Async Component Model support
+- **WASI Preview 3 (wasip3)** - Async Component Model support **(jco-scoped)**
   - Canonical ABI async primitives (`stream<T>`, `future<T>`, task, subtask)
+    modeled as JavaScript objects
   - Async executor with event loop
   - P2-to-P3 adapters for reusing existing plugins
   - Simplified P3-native interfaces (io, clocks, random, cli, filesystem, http, sockets)
-  - Component loader for P3 components and jco-transpiled modules
+  - Component loader for **jco-transpiled** modules
+  - **Scope:** targets jco-transpiled components; does not yet implement the
+    real canonical ABI (linear-memory lift/lower + handle tables), so raw P3
+    component binaries can't be instantiated directly. See
+    `src/wasip3/index.ts` for details.
 
 ---
 
