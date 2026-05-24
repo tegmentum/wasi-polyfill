@@ -250,6 +250,37 @@ describe('WASIP1 Poll', () => {
     })
   })
 
+  describe('blocking mode', () => {
+    it('waits for the earliest relative clock deadline, then signals it', () => {
+      const fns = createPollFunctions(memory, fdTable, { blocking: true })
+      // 20ms relative monotonic timeout — would never fire in non-blocking mode.
+      writeClockSubscription(0, 7n, ClockId.MONOTONIC, 20_000_000n, 0)
+
+      const start = performance.now()
+      const result = fns.poll_oneoff(0, 100, 1, 200)
+      const elapsed = performance.now() - start
+
+      expect(result).toBe(Errno.SUCCESS)
+      expect(memory.readU32(200)).toBe(1)
+      expect(readEvent(100).userdata).toBe(7n)
+      expect(elapsed).toBeGreaterThanOrEqual(15) // actually waited
+    })
+
+    it('does not block when another subscription is already ready', () => {
+      const fns = createPollFunctions(memory, fdTable, { blocking: true })
+      writeFdWriteSubscription(0, 1n, 1) // stdout: always ready
+      writeClockSubscription(SUBSCRIPTION_SIZE, 2n, ClockId.MONOTONIC, 9_999_999_999_999n, 0)
+
+      const start = performance.now()
+      const result = fns.poll_oneoff(0, 1000, 2, 2000)
+      const elapsed = performance.now() - start
+
+      expect(result).toBe(Errno.SUCCESS)
+      expect(memory.readU32(2000)).toBe(1) // just the write event
+      expect(elapsed).toBeLessThan(50) // did not wait on the far-future clock
+    })
+  })
+
   describe('error handling', () => {
     it('handles unknown event type', () => {
       const fns = createPollFunctions(memory, fdTable)

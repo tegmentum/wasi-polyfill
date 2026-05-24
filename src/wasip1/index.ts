@@ -91,6 +91,15 @@ export interface Wasip1Config {
    * Default: false
    */
   returnOnExit?: boolean
+
+  /**
+   * If true, `poll_oneoff` blocks the thread until the earliest clock deadline
+   * when no subscription is ready (so guest sleeps actually wait instead of
+   * busy-looping). Synchronous blocking via `Atomics.wait` with a busy-wait
+   * fallback. Default false. Only safe where blocking the thread is acceptable
+   * (Node, Web Workers) — avoid on the main browser thread.
+   */
+  blockingPoll?: boolean
 }
 
 /**
@@ -222,7 +231,9 @@ export class Wasip1 {
       filesystems,
     })
 
-    this.pollFns = createPollFunctions(this.memory, this.fdTable)
+    this.pollFns = createPollFunctions(this.memory, this.fdTable, {
+      blocking: config.blockingPoll ?? false,
+    })
   }
 
   /**

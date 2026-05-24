@@ -10,15 +10,52 @@ import { Errno, EventType, ClockId, Rights, SubclockFlags, EVENT_SIZE, SUBSCRIPT
 import { WasiMemory } from './memory.js'
 import { FileDescriptorTable } from './fd-table.js'
 
+/** Options for the poll functions. */
+export interface PollOptions {
+  /**
+   * When true and no subscription is ready, block until the earliest clock
+   * deadline (so a guest `nanosleep`/`poll` timeout actually waits instead of
+   * busy-looping). Default false, preserving the non-blocking behavior.
+   *
+   * Blocking is synchronous: it uses `Atomics.wait` on a private
+   * SharedArrayBuffer when available (efficient, no spinning), falling back to
+   * a busy-wait only where `Atomics.wait` is disallowed (e.g. the main browser
+   * thread). Note: FD readiness is still evaluated synchronously and is not
+   * re-checked during the wait — only clock deadlines drive blocking.
+   */
+  blocking?: boolean
+}
+
+/**
+ * Block the current thread for up to `ms` milliseconds. Prefers `Atomics.wait`
+ * (which truly suspends the thread) and falls back to a busy-wait where it is
+ * unavailable or disallowed.
+ */
+function blockFor(ms: number): void {
+  if (ms <= 0) return
+  try {
+    // No notify is ever sent, so this returns after the timeout elapses.
+    const signal = new Int32Array(new SharedArrayBuffer(4))
+    Atomics.wait(signal, 0, 0, ms)
+  } catch {
+    const end = performance.now() + ms
+    while (performance.now() < end) {
+      // busy-wait: Atomics.wait unavailable (e.g. main browser thread)
+    }
+  }
+}
+
 /**
  * Creates WASI poll functions.
  */
 export function createPollFunctions(
   memory: WasiMemory,
-  fdTable: FileDescriptorTable
+  fdTable: FileDescriptorTable,
+  options: PollOptions = {}
 ): {
   poll_oneoff: (inPtr: number, outPtr: number, nsubscriptions: number, neventsPtr: number) => number
 } {
+  const blocking = options.blocking ?? false
   // Track monotonic start for clock calculations
   const monotonicStart = performance.now()
 
@@ -48,6 +85,10 @@ export function createPollFunctions(
         nbytes?: bigint
         flags?: number
       }> = []
+
+      // Clock subscriptions whose deadline has not yet passed, recorded so we
+      // can block on the earliest of them when nothing is ready (blocking mode).
+      const pendingClocks: Array<{ userdata: bigint; targetNs: bigint; realtime: boolean }> = []
 
       // Get current time for clock comparisons
       const nowMs = performance.now() - monotonicStart
@@ -88,9 +129,14 @@ export function createPollFunctions(
                 error: Errno.SUCCESS,
                 type: EventType.CLOCK,
               })
+            } else {
+              // Not yet expired — remember it so blocking mode can wait for it.
+              pendingClocks.push({
+                userdata: sub.userdata,
+                targetNs,
+                realtime: clockId === ClockId.REALTIME,
+              })
             }
-            // Note: If clock hasn't expired, we don't add an event
-            // A true implementation would block until the clock expires
             break
           }
 
@@ -186,10 +232,26 @@ export function createPollFunctions(
         }
       }
 
-      // If no events are ready and there are clock subscriptions,
-      // we should ideally block until the earliest clock expires.
-      // Since we can't block in sync JS, we return with 0 events
-      // and let the caller retry.
+      // If nothing is ready but there are clock subscriptions, block until the
+      // earliest deadline (opt-in). Otherwise the relative-clock case never
+      // fires — its deadline is recomputed against `now` on every call — so a
+      // guest sleep would busy-loop forever. With blocking off we return 0
+      // events and let the caller retry (the documented limitation).
+      if (blocking && events.length === 0 && pendingClocks.length > 0) {
+        const earliest = pendingClocks.reduce((a, b) => (b.targetNs < a.targetNs ? b : a))
+        const currentNs = earliest.realtime ? realtimeNs : nowNs
+        blockFor(Number((earliest.targetNs - currentNs) / 1_000_000n))
+
+        // Time has advanced; emit every clock whose deadline has now passed.
+        const afterMonoNs = BigInt(Math.floor((performance.now() - monotonicStart) * 1_000_000))
+        const afterRealNs = BigInt(Date.now()) * 1_000_000n
+        for (const clock of pendingClocks) {
+          const after = clock.realtime ? afterRealNs : afterMonoNs
+          if (after >= clock.targetNs) {
+            events.push({ userdata: clock.userdata, error: Errno.SUCCESS, type: EventType.CLOCK })
+          }
+        }
+      }
 
       // Write events to output buffer
       for (let i = 0; i < events.length; i++) {

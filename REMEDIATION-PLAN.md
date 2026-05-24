@@ -332,6 +332,19 @@ Twenty-seventh batch — Phase 5.1 Wasip1.getImports generation:
   Pure refactor (covered by the 28 wasip1/index tests, which assert all 45 import
   names are present + behavior). With this, **Phase 5 is complete**.
 
+Twenty-eighth batch — Phase 3.14 blocking poll_oneoff:
+
+- ✅ Added opt-in blocking to `poll_oneoff` (`Wasip1Config.blockingPoll`, default
+  off): when nothing is ready, it blocks until the earliest clock deadline via
+  `Atomics.wait` (busy-wait fallback) then signals the expired clock(s), instead
+  of returning 0 events and letting a guest sleep busy-loop forever (the
+  relative-clock deadline was recomputed every call, so it never fired).
+  Non-expired clocks are now recorded so the earliest can be selected. Default
+  off preserves the documented non-blocking behavior (and existing tests); only
+  enable where blocking the thread is acceptable (Node/Workers, not the main
+  browser thread). (2 tests: actually waits a ~20ms deadline; doesn't block when
+  another sub is ready.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -434,7 +447,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 3.11 | Implement `incoming-handler` (Service Worker) or mark experimental/stub clearly | HTTP server stub | `http/incoming-handler.ts` | L | Med |
 | 3.12 | OPFS `set-times` and metadata: sidecar metadata store or return `Unsupported` (stop pretending) | silent no-op returns ok | `filesystem/impl-opfs.ts:191` | M | Low |
 | 3.13 | Manifest: implement `componentHash` verification + export-availability checks, or remove the dead fields | unused validation fields | `wasip2/core/manifest.ts:219` | M | Low |
-| 3.14 | WASIP1 `poll_oneoff`: pick earliest clock; flag the no-block limitation loudly (or async via JSPI) | returns 0 events, busy-loops | `wasip1/poll.ts:84` | M | Med |
+| 3.14 | ✅ WASIP1 `poll_oneoff`: opt-in blocking (`blockingPoll`) waits for the earliest clock via `Atomics.wait`; non-blocking default documented | returns 0 events, busy-loops | `wasip1/poll.ts`, `wasip1/index.ts` | M | Med |
 | 3.15 | `isWasmGcEnabled()` real detection (or document the GC tier as disabled) + implement/remove `readEventRefs` stub | GC tier unreachable | `browser/runtime.ts:81`, `browser/gc-enhanced.ts:408` | M | Low |
 
 ---
