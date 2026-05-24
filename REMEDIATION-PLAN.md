@@ -166,10 +166,27 @@ Thirteenth batch:
   (keyed by `host:port`) instead of one reused stream that misrouted later
   destinations; drop/clear close all of a socket's streams.
 
+Fourteenth batch — Phase 2.10 (per-instance isolation), foundations:
+
+- ✅ **2.10 infrastructure** — `ResourceContext`: a per-polyfill bag of plugin
+  backing state. Each `Polyfill` owns one (or accepts `PolyfillConfig.context`)
+  and injects it into every plugin `create()`; plugins resolve shared state from
+  it by key, falling back to a global context for standalone use. Isolation by
+  default between polyfills.
+- ✅ **2.10 self-contained stores** — keyvalue `BucketStore` and sql sqljs backend
+  are now context-scoped: shared across their own interfaces within a polyfill,
+  isolated between polyfills. Proven by `test/core/resource-context.test.ts`.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
-- **2.10 full per-instance registries** — making every plugin's module-level
-  global registry per-polyfill is a cross-cutting overhaul (high risk). The
-  plugin *registry* is now injectable (5.10); the plugin *instance* state is not.
+- **2.10 coupled resource space** — infrastructure done (ResourceContext) and
+  the self-contained stores (kv, sql) are isolated. The remaining work is the
+  deeply-coupled, cross-plugin space: streams/pollables/errors (used inside io,
+  filesystem, http, cli, sockets, ws-gateway — deep in instance methods, not
+  just `create()`), the filesystem instance + preopens (plus the global
+  `setGlobalFilesystem` pre-population API), and the socket/http handle tables.
+  Isolating these needs the resolved registries threaded through each plugin's
+  object graph — a large, careful, per-plugin effort, now unblocked by the
+  ResourceContext infra and best done resource-group by resource-group.
 - **2.7 ws-gateway UDP receive** — inbound datagrams are never delivered, and a
   faithful fix is blocked: the wire protocol carries no source address on inbound
   datagram frames and the tunnel rxQueue is a byte stream (no datagram
