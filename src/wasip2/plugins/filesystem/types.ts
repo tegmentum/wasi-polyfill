@@ -226,9 +226,21 @@ export interface DirectoryNode {
 }
 
 /**
+ * Internal symbolic-link node for in-memory filesystem.
+ */
+export interface SymlinkNode {
+  type: 'symlink'
+  /** The link target path (relative to the link's directory, or absolute). */
+  target: string
+  created: Datetime
+  modified: Datetime
+  accessed: Datetime
+}
+
+/**
  * Union of file system node types
  */
-export type FsNode = FileNode | DirectoryNode
+export type FsNode = FileNode | DirectoryNode | SymlinkNode
 
 /**
  * Get current timestamp

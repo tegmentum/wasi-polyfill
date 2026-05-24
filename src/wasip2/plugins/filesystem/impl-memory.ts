@@ -23,10 +23,26 @@ import {
   MetadataHashValue,
   FileNode,
   DirectoryNode,
+  SymlinkNode,
   FsNode,
   now,
 } from './types.js'
 import type { OutputStream, InputStream, StreamError } from '../io/streams.js'
+
+/** Maximum symlink chain depth before reporting a loop. */
+const MAX_SYMLINK_DEPTH = 40
+
+/** Map an internal node to its WASI descriptor type. */
+function descriptorTypeOf(node: FsNode): DescriptorType {
+  switch (node.type) {
+    case 'file':
+      return 'regular-file'
+    case 'directory':
+      return 'directory'
+    case 'symlink':
+      return 'symbolic-link'
+  }
+}
 
 /**
  * Output stream that writes directly into a FileNode's content buffer.
@@ -153,8 +169,13 @@ export class MemoryFileSystem {
    */
   private resolvePath(
     path: string,
-    from?: DirectoryNode
+    from?: DirectoryNode,
+    followFinal = false,
+    depth = 0
   ): FilesystemResult<{ parent: DirectoryNode; name: string; node?: FsNode }> {
+    if (depth > MAX_SYMLINK_DEPTH) {
+      return err(FilesystemErrorCode.Loop)
+    }
     const parts = this.normalizePath(path).split('/').filter(Boolean)
     if (parts.length === 0) {
       return ok({ parent: this.root, name: '', node: this.root })
@@ -167,9 +188,15 @@ export class MemoryFileSystem {
       // '.'/'..' are already resolved by normalizePath; skip defensively.
       if (part === '.' || part === '..') continue
 
-      const child = current.children.get(part)
+      let child = current.children.get(part)
       if (!child) {
         return err(FilesystemErrorCode.NoEntry)
+      }
+      // Intermediate symlinks are always followed (POSIX semantics).
+      if (child.type === 'symlink') {
+        const target = this.followLink(child, current, depth)
+        if (target.tag === 'err') return target
+        child = target.val
       }
       if (child.type !== 'directory') {
         return err(FilesystemErrorCode.NotDirectory)
@@ -177,12 +204,39 @@ export class MemoryFileSystem {
       current = child
     }
 
-    const node = current.children.get(name)
+    let node = current.children.get(name)
+    if (followFinal && node && node.type === 'symlink') {
+      const target = this.followLink(node, current, depth)
+      if (target.tag === 'err') return target
+      node = target.val
+    }
     const result: { parent: DirectoryNode; name: string; node?: FsNode } = { parent: current, name }
     if (node !== undefined) {
       result.node = node
     }
     return ok(result)
+  }
+
+  /**
+   * Resolve a symlink node to the node it points at, following chains and
+   * guarding against loops. Targets are resolved relative to the link's
+   * directory (or the root for absolute targets).
+   */
+  private followLink(
+    link: SymlinkNode,
+    parent: DirectoryNode,
+    depth: number
+  ): FilesystemResult<FsNode> {
+    if (depth >= MAX_SYMLINK_DEPTH) {
+      return err(FilesystemErrorCode.Loop)
+    }
+    const from = link.target.startsWith('/') ? this.root : parent
+    const resolved = this.resolvePath(link.target, from, true, depth + 1)
+    if (resolved.tag === 'err') return resolved
+    if (!resolved.val.node) {
+      return err(FilesystemErrorCode.NoEntry)
+    }
+    return ok(resolved.val.node)
   }
 
   /**
@@ -208,12 +262,16 @@ export class MemoryFileSystem {
   /**
    * Get node at path
    */
-  getNode(path: string, from?: DirectoryNode): FilesystemResult<FsNode> {
+  getNode(
+    path: string,
+    from?: DirectoryNode,
+    followFinal = false
+  ): FilesystemResult<FsNode> {
     if (path === '/' || path === '') {
       return ok(this.root)
     }
 
-    const result = this.resolvePath(path, from)
+    const result = this.resolvePath(path, from, followFinal)
     if (result.tag === 'err') return result
 
     if (!result.val.node) {
@@ -221,6 +279,78 @@ export class MemoryFileSystem {
     }
 
     return ok(result.val.node)
+  }
+
+  /**
+   * Create a symbolic link at `linkPath` pointing at `target` (stored verbatim).
+   */
+  symlink(
+    target: string,
+    linkPath: string,
+    from?: DirectoryNode
+  ): FilesystemResult<void> {
+    const result = this.resolvePath(linkPath, from)
+    if (result.tag === 'err') return result
+
+    const { parent, name, node } = result.val
+    if (node) {
+      return err(FilesystemErrorCode.Exist)
+    }
+
+    const timestamp = now()
+    const link: SymlinkNode = {
+      type: 'symlink',
+      target,
+      created: timestamp,
+      modified: timestamp,
+      accessed: timestamp,
+    }
+    parent.children.set(name, link)
+    parent.modified = now()
+    return ok(undefined)
+  }
+
+  /**
+   * Read the target of a symbolic link (does not follow it).
+   */
+  readlink(path: string, from?: DirectoryNode): FilesystemResult<string> {
+    const result = this.resolvePath(path, from)
+    if (result.tag === 'err') return result
+
+    const { node } = result.val
+    if (!node) return err(FilesystemErrorCode.NoEntry)
+    if (node.type !== 'symlink') {
+      return err(FilesystemErrorCode.Invalid)
+    }
+    return ok(node.target)
+  }
+
+  /**
+   * Create a hard link: point `newPath` at the same node as `oldPath`.
+   */
+  hardLink(
+    oldPath: string,
+    newPath: string,
+    followOld: boolean,
+    fromOld?: DirectoryNode,
+    fromNew?: DirectoryNode
+  ): FilesystemResult<void> {
+    const oldResult = this.resolvePath(oldPath, fromOld, followOld)
+    if (oldResult.tag === 'err') return oldResult
+    if (!oldResult.val.node) return err(FilesystemErrorCode.NoEntry)
+    const target = oldResult.val.node
+    if (target.type === 'directory') {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+
+    const newResult = this.resolvePath(newPath, fromNew)
+    if (newResult.tag === 'err') return newResult
+    const { parent, name, node: existing } = newResult.val
+    if (existing) return err(FilesystemErrorCode.Exist)
+
+    parent.children.set(name, target)
+    parent.modified = now()
+    return ok(undefined)
   }
 
   /**
@@ -234,7 +364,15 @@ export class MemoryFileSystem {
     const result = this.resolvePath(path, from)
     if (result.tag === 'err') return result
 
-    const { parent, name, node } = result.val
+    const { parent, name } = result.val
+    let node = result.val.node
+
+    // Opening follows a final symlink to its target (POSIX open semantics).
+    if (node && node.type === 'symlink') {
+      const followed = this.followLink(node, parent, 0)
+      if (followed.tag === 'err') return followed
+      node = followed.val
+    }
 
     if (node) {
       if (flags.exclusive) {
@@ -242,6 +380,9 @@ export class MemoryFileSystem {
       }
       if (node.type === 'directory') {
         return err(FilesystemErrorCode.IsDirectory)
+      }
+      if (node.type !== 'file') {
+        return err(FilesystemErrorCode.Invalid)
       }
       if (flags.truncate) {
         node.content = new Uint8Array(0)
@@ -485,7 +626,7 @@ export class Descriptor {
     const check = this.checkClosed()
     if (check.tag === 'err') return check
 
-    return ok(this.node.type === 'file' ? 'regular-file' : 'directory')
+    return ok(descriptorTypeOf(this.node))
   }
 
   /**
@@ -498,7 +639,7 @@ export class Descriptor {
     this.node.accessed = now()
 
     return ok({
-      type: this.node.type === 'file' ? 'regular-file' : 'directory',
+      type: descriptorTypeOf(this.node),
       linkCount: 1n,
       size: this.node.type === 'file' ? BigInt(this.node.content.length) : 0n,
       dataAccessTimestamp: this.node.accessed,
@@ -671,7 +812,7 @@ export class Descriptor {
     const entries: DirectoryEntry[] = []
     for (const [name, child] of this.node.children) {
       entries.push({
-        type: child.type === 'file' ? 'regular-file' : 'directory',
+        type: descriptorTypeOf(child),
         name,
       })
     }
@@ -705,7 +846,7 @@ export class Descriptor {
   /**
    * Get stat at path relative to this descriptor
    */
-  statAt(_pathFlags: PathFlags, path: string): FilesystemResult<DescriptorStat> {
+  statAt(pathFlags: PathFlags, path: string): FilesystemResult<DescriptorStat> {
     const check = this.checkClosed()
     if (check.tag === 'err') return check
 
@@ -713,14 +854,14 @@ export class Descriptor {
       return err(FilesystemErrorCode.NotDirectory)
     }
 
-    const nodeResult = this.fs.getNode(path, this.node)
+    const nodeResult = this.fs.getNode(path, this.node, pathFlags.symlinkFollow)
     if (nodeResult.tag === 'err') return nodeResult
 
     const node = nodeResult.val
     node.accessed = now()
 
     return ok({
-      type: node.type === 'file' ? 'regular-file' : 'directory',
+      type: descriptorTypeOf(node),
       linkCount: 1n,
       size: node.type === 'file' ? BigInt(node.content.length) : 0n,
       dataAccessTimestamp: node.accessed,
@@ -733,7 +874,7 @@ export class Descriptor {
    * Open file at path relative to this descriptor
    */
   openAt(
-    _pathFlags: PathFlags,
+    pathFlags: PathFlags,
     path: string,
     openFlags: OpenFlags,
     descriptorFlags: DescriptorFlags
@@ -747,7 +888,7 @@ export class Descriptor {
 
     // Check if opening as directory
     if (openFlags.directory) {
-      const nodeResult = this.fs.getNode(path, this.node)
+      const nodeResult = this.fs.getNode(path, this.node, pathFlags.symlinkFollow)
       if (nodeResult.tag === 'err') {
         if (openFlags.create) {
           const createResult = this.fs.createDirectory(path, this.node)
@@ -911,6 +1052,64 @@ export class Descriptor {
       lower: modified ^ size,
       upper: node.created.seconds,
     })
+  }
+
+  /**
+   * Create a symbolic link `newPath` (relative to this directory) -> `target`.
+   */
+  symlinkAt(target: string, newPath: string): FilesystemResult<void> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+    if (this.node.type !== 'directory') {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+    if (!this.flags.mutateDirectory) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+    return this.fs.symlink(target, newPath, this.node)
+  }
+
+  /**
+   * Read the target of a symbolic link relative to this directory.
+   */
+  readlinkAt(path: string): FilesystemResult<string> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+    if (this.node.type !== 'directory') {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+    return this.fs.readlink(path, this.node)
+  }
+
+  /**
+   * Create a hard link from `oldPath` (under `oldDescriptor`) to `newPath`
+   * (under this directory).
+   */
+  linkAt(
+    oldPathFlags: PathFlags,
+    oldPath: string,
+    oldDescriptor: Descriptor,
+    newPath: string
+  ): FilesystemResult<void> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+    if (this.node.type !== 'directory') {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+    if (!this.flags.mutateDirectory) {
+      return err(FilesystemErrorCode.NotPermitted)
+    }
+    const oldDir = oldDescriptor.getNode()
+    if (oldDir.type !== 'directory') {
+      return err(FilesystemErrorCode.NotDirectory)
+    }
+    return this.fs.hardLink(
+      oldPath,
+      newPath,
+      oldPathFlags.symlinkFollow ?? false,
+      oldDir,
+      this.node
+    )
   }
 
   /**
@@ -1257,14 +1456,17 @@ class FilesystemTypesInstance implements PluginInstance {
   }
 
   private linkAt(
-    _handle: number,
-    _oldPathFlags: PathFlags,
-    _oldPath: string,
-    _newDescriptor: number,
-    _newPath: string
+    handle: number,
+    oldPathFlags: PathFlags,
+    oldPath: string,
+    newDescriptor: number,
+    newPath: string
   ): FilesystemResult<void> {
-    // Hard links not supported in memory fs
-    return err(FilesystemErrorCode.Unsupported)
+    const oldDescriptor = this.descriptorRegistry.get(handle)
+    if (!oldDescriptor) return err(FilesystemErrorCode.BadDescriptor)
+    const target = this.descriptorRegistry.get(newDescriptor)
+    if (!target) return err(FilesystemErrorCode.BadDescriptor)
+    return target.linkAt(oldPathFlags, oldPath, oldDescriptor, newPath)
   }
 
   private openAt(
@@ -1284,9 +1486,10 @@ class FilesystemTypesInstance implements PluginInstance {
     return ok(newHandle)
   }
 
-  private readlinkAt(_handle: number, _path: string): FilesystemResult<string> {
-    // Symlinks not supported in memory fs
-    return err(FilesystemErrorCode.Unsupported)
+  private readlinkAt(handle: number, path: string): FilesystemResult<string> {
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.readlinkAt(path)
   }
 
   private removeDirectoryAt(handle: number, path: string): FilesystemResult<void> {
@@ -1310,9 +1513,11 @@ class FilesystemTypesInstance implements PluginInstance {
     return oldDescriptor.renameAt(oldPath, newDescriptor, newPath)
   }
 
-  private symlinkAt(_handle: number, _oldPath: string, _newPath: string): FilesystemResult<void> {
-    // Symlinks not supported in memory fs
-    return err(FilesystemErrorCode.Unsupported)
+  private symlinkAt(handle: number, oldPath: string, newPath: string): FilesystemResult<void> {
+    // WASI symlink-at(old-path, new-path): old-path is the link *target*.
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return descriptor.symlinkAt(oldPath, newPath)
   }
 
   private unlinkFileAt(handle: number, path: string): FilesystemResult<void> {
