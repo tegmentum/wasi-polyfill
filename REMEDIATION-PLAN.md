@@ -506,11 +506,11 @@ Remaining (the hard tail — large, low-value, or externally blocked):
 
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
-| 0.1 | Add ESLint v9 flat config (`eslint.config.js`); fix or ratchet violations | ESLint dead (no v9 config) | new `eslint.config.js`, `package.json` | M | Low |
-| 0.2 | Add `.prettierrc` to pin formatting | No prettier config | new `.prettierrc` | S | Low |
-| 0.3 | Flip CI `lint` job to **required** (remove `continue-on-error`) once 0.1 is green | CI silently ignores lint | `.github/workflows/ci.yml` | S | Low |
-| 0.4 | Add Vitest suites for WASIP1 (memory.ts iovec, fd table, path resolution, errno) | WASIP1 has 0 tests | new `test/wasip1/*` | M | Low |
-| 0.5 | Add Vitest suites for WASIP3 (canonical-abi stream/future, async-executor) | WASIP3 has 0 tests | new `test/wasip3/*` | M | Low |
+| 0.1 | ✅ Add ESLint v9 flat config (`eslint.config.js`); fix or ratchet violations | ESLint dead (no v9 config) | new `eslint.config.js`, `package.json` | M | Low |
+| 0.2 | ✅ Add `.prettierrc` to pin formatting | No prettier config | new `.prettierrc` | S | Low |
+| 0.3 | ✅ Flip CI `lint` job to **required** (remove `continue-on-error`) once 0.1 is green | CI silently ignores lint | `.github/workflows/ci.yml` | S | Low |
+| 0.4 | ✅ Add Vitest suites for WASIP1 (memory.ts iovec, fd table, path resolution, errno) | WASIP1 has 0 tests | new `test/wasip1/*` | M | Low |
+| 0.5 | ✅ Add Vitest suites for WASIP3 (canonical-abi stream/future, async-executor) | WASIP3 has 0 tests | new `test/wasip3/*` | M | Low |
 | 0.6 | ✅ Deleted stale completed planning docs (wasip1 COMPLETION.md, wasip3 PLAN.md/TESTING.md) whose '0 tests' claims were false | Stale docs | wasip1/wasip3 docs | S | Low |
 
 **Exit criteria:** `npm run lint`, `npm run typecheck`, `npm run test:run` all green in CI;
@@ -525,7 +525,7 @@ These are prerequisites that make the Phase 2 leak/isolation fixes small and uni
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
 | 1.1 | ✅ Shared `HandleRegistry` + `WeakHandleRegistry` (with `FinalizationRegistry`) in `src/shared/registry.ts` | ~40 hand-rolled handle tables | `src/shared/registry.ts` | M | Low |
-| 1.2 | Migrate WASIP2 plugin registries to `HandleTable` (fs, io streams/pollables, sockets, http, kv, blobstore, sql, nn, messaging, ws-gateway) | dedup + missing-drop leaks | `src/wasip2/plugins/**` | L | Med |
+| 1.2 | ✅ Migrate WASIP2 plugin registries to `HandleTable` (fs, io streams/pollables, sockets, http, kv, blobstore, sql, nn, messaging, ws-gateway) | dedup + missing-drop leaks | `src/wasip2/plugins/**` | L | Med |
 | 1.3 | ✅ Migrated browser dom/canvas/media/service-worker weak tables to a bidirectional `WeakHandleRegistry` (FinalizationRegistry prune) | leak entries until lookup | `src/browser/*.ts`, `shared/registry.ts` | M | Med |
 | 1.4 | ✅ nn/sql/messaging/keyvalue Result types now alias shared `Result<T,E>`; keyvalue migrated off `{tag,val}`; constructors delegate to shared ok/err | Result reinvented per plugin | `src/shared/result.ts`, plugins | M | Med |
 | 1.5 | ✅ Added `interfaceKey(iface)` + replaced 12 inline `` `${pkg}/${name}` `` constructions | duplicated key formula | `src/wasip2/core/types.ts` + callers | S | Low |
@@ -543,23 +543,23 @@ Highest-impact, smallest diffs. Each ships with a regression test.
 
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
-| 2.1 | Pass `globalPollableRegistry` (not `new PollableRegistry()`) to http/sockets/dns instances | HTTP/socket async broken (verified) | `http/outgoing-handler.ts:879,898`, `http/incoming-handler.ts`, `sockets/tcp.ts:570`, `sockets/udp.ts:497`, `sockets/ip-name-lookup.ts` | S | Low |
-| 2.2 | Export `increment`/`getMany`/`setMany`/`deleteMany` + add `cas.*` in keyvalue `getImports()` (memory + idb) | atomics/batch dead (verified) | `keyvalue/impl-memory.ts:233`, `impl-idb.ts` | M | Low |
-| 2.3 | URL-scheme allow-list in DOM `setAttribute` (reject `javascript:`/`data:`/`vbscript:` on url attrs) | DOM XSS (verified) | `browser/dom.ts:328`, `browser/gc-enhanced.ts:254` | M | Med |
-| 2.4 | Thread a capability/allow-list policy through `BrowserImportsConfig`; gate each interface + privileged method; build only granted interfaces | capabilities never enforced | `browser/index.ts:751`, `browser/runtime.ts:362`, all interface modules | L | Med |
-| 2.5 | Fix WASIP1 `path_open` to attach filesystem ref to directory entries | subdir fds return EBADF | `wasip1/path.ts:98,312` | M | Med |
-| 2.6 | Normalize `..`/absolute paths and clamp to preopen root (return `ENOTCAPABLE`/error on escape) | path-traversal escape | `wasip1/path.ts:123`, `wasip1/memory-filesystem.ts:112`, `wasip2/.../impl-memory.ts:168` | M | Med |
+| 2.1 | ✅ Pass `globalPollableRegistry` (not `new PollableRegistry()`) to http/sockets/dns instances | HTTP/socket async broken (verified) | `http/outgoing-handler.ts:879,898`, `http/incoming-handler.ts`, `sockets/tcp.ts:570`, `sockets/udp.ts:497`, `sockets/ip-name-lookup.ts` | S | Low |
+| 2.2 | ✅ Export `increment`/`getMany`/`setMany`/`deleteMany` + add `cas.*` in keyvalue `getImports()` (memory + idb) | atomics/batch dead (verified) | `keyvalue/impl-memory.ts:233`, `impl-idb.ts` | M | Low |
+| 2.3 | ✅ URL-scheme allow-list in DOM `setAttribute` (reject `javascript:`/`data:`/`vbscript:` on url attrs) | DOM XSS (verified) | `browser/dom.ts:328`, `browser/gc-enhanced.ts:254` | M | Med |
+| 2.4 | ✅ Thread a capability/allow-list policy through `BrowserImportsConfig`; gate each interface + privileged method; build only granted interfaces | capabilities never enforced | `browser/index.ts:751`, `browser/runtime.ts:362`, all interface modules | L | Med |
+| 2.5 | ✅ Fix WASIP1 `path_open` to attach filesystem ref to directory entries | subdir fds return EBADF | `wasip1/path.ts:98,312` | M | Med |
+| 2.6 | ✅ Normalize `..`/absolute paths and clamp to preopen root (return `ENOTCAPABLE`/error on escape) | path-traversal escape | `wasip1/path.ts:123`, `wasip1/memory-filesystem.ts:112`, `wasip2/.../impl-memory.ts:168` | M | Med |
 | 2.7 | ✅ ws-gateway UDP: inbound datagrams routed to the per-socket queue via a per-stream boundary-preserving handler (connected/per-dest); pure-server receive still unsupported (no per-frame source addr) | UDP receive/send broken | `ws-gateway/udp-adapter.ts`, `tunnel-manager.ts` | L | Med |
 | 2.8 | ✅ WASIP3 stream: pendingWrite drain (done earlier) + `error` status variant; source/sink errors no longer masked as EOF | deadlock + errors as EOF | `wasip3/canonical-abi/stream.ts`, `wasip3/types.ts`, `adapters/p2-to-p3.ts` | M | Med |
-| 2.9 | Bound `payloadLen` against max frame size; cursor-based receive buffer | ws-gateway OOM DoS | `ws-gateway/tunnel-manager.ts:636`, `protocol.ts` | M | Med |
-| 2.10 | Scope WASIP2 registries per-instance (pass through `PluginConfig`) instead of module singletons | cross-instance handle collision | `wasip2/plugins/**` global registries | L | High |
-| 2.11 | Add `wasi:cli/terminal-*` to `createCliPolicy` | jco CLI components denied | `wasip2/core/policy.ts:247` | S | Low |
-| 2.12 | Fix WASIP3 `executeSync` to surface subtask errors instead of empty values | async import errors vanish | `wasip3/runtime/async-executor.ts:127` | S | Low |
-| 2.13 | Bounds-check WASIP1 memory read/write; return `EFAULT` instead of throwing `RangeError` | host trap on bad guest ptr | `wasip1/memory.ts:122,215` | S | Low |
-| 2.14 | `set-times`/`path_filestat_set_times`: reject conflicting `*_NOW` + explicit flags (`EINVAL`) | spec conformance | `wasip1/fd.ts:371`, `wasip1/path.ts:210` | S | Low |
-| 2.15 | Browser leaks: `worker.terminate` delete `workerInfo` + null handlers; make history/fullscreen/screen managers lazy or destroyable; cap geolocation/notification queues | unbounded growth / listener leaks | `browser/worker.ts:390`, `browser/index.ts:782`, `browser/geolocation.ts`, `browser/notifications.ts` | M | Low |
-| 2.16 | Unify browser import ABI: return `Result` everywhere (fix `worker.ts` throwing) | divergent component-model ABI | `browser/worker.ts:795` | S | Med |
-| 2.17 | OPFS exclusive-create: probe with `getFileHandle({create:false})` before create; wrap `renameAt` to avoid partial-rename data loss | wrong exclusivity / data loss | `filesystem/impl-opfs.ts:411,546` | M | Med |
+| 2.9 | ✅ Bound `payloadLen` against max frame size; cursor-based receive buffer | ws-gateway OOM DoS | `ws-gateway/tunnel-manager.ts:636`, `protocol.ts` | M | Med |
+| 2.10 | ✅ Scope WASIP2 registries per-instance (pass through `PluginConfig`) instead of module singletons | cross-instance handle collision | `wasip2/plugins/**` global registries | L | High |
+| 2.11 | ✅ Add `wasi:cli/terminal-*` to `createCliPolicy` | jco CLI components denied | `wasip2/core/policy.ts:247` | S | Low |
+| 2.12 | ✅ Fix WASIP3 `executeSync` to surface subtask errors instead of empty values | async import errors vanish | `wasip3/runtime/async-executor.ts:127` | S | Low |
+| 2.13 | ✅ Bounds-check WASIP1 memory read/write; return `EFAULT` instead of throwing `RangeError` | host trap on bad guest ptr | `wasip1/memory.ts:122,215` | S | Low |
+| 2.14 | ✅ `set-times`/`path_filestat_set_times`: reject conflicting `*_NOW` + explicit flags (`EINVAL`) | spec conformance | `wasip1/fd.ts:371`, `wasip1/path.ts:210` | S | Low |
+| 2.15 | ✅ Browser leaks: `worker.terminate` delete `workerInfo` + null handlers; make history/fullscreen/screen managers lazy or destroyable; cap geolocation/notification queues | unbounded growth / listener leaks | `browser/worker.ts:390`, `browser/index.ts:782`, `browser/geolocation.ts`, `browser/notifications.ts` | M | Low |
+| 2.16 | ✅ Unify browser import ABI: return `Result` everywhere (fix `worker.ts` throwing) | divergent component-model ABI | `browser/worker.ts:795` | S | Med |
+| 2.17 | ✅ OPFS exclusive-create: probe with `getFileHandle({create:false})` before create; wrap `renameAt` to avoid partial-rename data loss | wrong exclusivity / data loss | `filesystem/impl-opfs.ts:411,546` | M | Med |
 
 **Sequencing within Phase 2:** 2.1, 2.2, 2.11, 2.12, 2.13, 2.14 first (trivial, verified).
 2.10 depends on Phase 1.1–1.2 (per-instance `HandleTable`s). 2.3/2.4 are the security pair.
@@ -572,16 +572,16 @@ Larger. Some require a product decision (see "Decisions needed").
 
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
-| 3.1 | Node/Deno `hostfs` backend implementing the `Implementation` contract via `node:fs` | no host FS backend | new `filesystem/impl-node.ts`, `filesystem/plugin.ts` | L | Med |
-| 3.2 | Symlink/hardlink support in memory FS (`SymlinkNode`), honor `symlinkFollow`; implement `link/symlink/readlink` | unimplemented everywhere | `filesystem/impl-memory.ts:1250` | L | Med |
-| 3.3 | Streaming HTTP response body (wrap `response.body` ReadableStream) + enforce size cap during stream | full buffering / OOM | `http/outgoing-handler.ts:325`, `browser/fetch.ts:184` | M | Med |
+| 3.1 | ✅ Node/Deno `hostfs` backend implementing the `Implementation` contract via `node:fs` | no host FS backend | new `filesystem/impl-node.ts`, `filesystem/plugin.ts` | L | Med |
+| 3.2 | ✅ Symlink/hardlink support in memory FS (`SymlinkNode`), honor `symlinkFollow`; implement `link/symlink/readlink` | unimplemented everywhere | `filesystem/impl-memory.ts:1250` | L | Med |
+| 3.3 | ✅ Streaming HTTP response body (wrap `response.body` ReadableStream) + enforce size cap during stream | full buffering / OOM | `http/outgoing-handler.ts:325`, `browser/fetch.ts:184` | M | Med |
 | 3.4 | ✅ Wired ws-gateway tcp/udp/dns adapters as the opt-in `tunneled` impl on the standard sockets plugins (+ docstrings); `virtual` stays default | working path hidden | `sockets/plugin.ts` | M | Low |
-| 3.5 | Add missing WebGPU `[resource-drop]` entries (texture-view, sampler, bind-group(-layout), pipeline-layout, shader-module, render/compute-pipeline, command-buffer); implement or error `create-query-set` | GPU handle leaks | `webgpu/plugin.ts:141` | M | Low |
-| 3.6 | Expand WASIP3 filesystem to full `wasi:filesystem/types@0.3.0` (`open-at`, `*-at`, set-times/size, get-flags/type, metadata-hash, advise, sync) | only ~7/22 methods | `wasip3/interfaces/filesystem.ts:432` | L | Med |
-| 3.7 | **Decision-gated:** real canonical ABI lift/lower over linear memory + handle tables, OR document P3 as jco-glue-only | P3 ABI is JS-object abstraction | `wasip3/canonical-abi/*`, `runtime/component-loader.ts` | XL | High |
+| 3.5 | ✅ Add missing WebGPU `[resource-drop]` entries (texture-view, sampler, bind-group(-layout), pipeline-layout, shader-module, render/compute-pipeline, command-buffer); implement or error `create-query-set` | GPU handle leaks | `webgpu/plugin.ts:141` | M | Low |
+| 3.6 | ✅ Expand WASIP3 filesystem to full `wasi:filesystem/types@0.3.0` (`open-at`, `*-at`, set-times/size, get-flags/type, metadata-hash, advise, sync) | only ~7/22 methods | `wasip3/interfaces/filesystem.ts:432` | L | Med |
+| 3.7 | ✅ **Decision-gated:** real canonical ABI lift/lower over linear memory + handle tables, OR document P3 as jco-glue-only | P3 ABI is JS-object abstraction | `wasip3/canonical-abi/*`, `runtime/component-loader.ts` | XL | High |
 | 3.8 | ✅ NN — added an opt-in `onnx` implementation backed by a host-provided ONNX Runtime (optional peer dep); real model load/compute, fake-`ort` unit tests | webnn default can't load models | `nn/impl-onnx.ts`, `nn/plugin.ts` | L–XL | Med |
-| 3.9 | **Decision-gated:** SQL — adopt sql.js/WASM SQLite, or scope+document the subset and escape `LIKE`; add connection isolation | regex parser, no isolation | `sql/impl-memory.ts`, `sql/plugin.ts:14` | L–XL | Med |
-| 3.10 | **Decision-gated:** messaging — honor TTL/durable/dead-letter + real request/reply correlation + topic cursors, or document as in-memory only | mock presented as real | `messaging/impl-memory.ts:246,315` | L | Med |
+| 3.9 | ✅ **Decision-gated:** SQL — adopt sql.js/WASM SQLite, or scope+document the subset and escape `LIKE`; add connection isolation | regex parser, no isolation | `sql/impl-memory.ts`, `sql/plugin.ts:14` | L–XL | Med |
+| 3.10 | ✅ **Decision-gated:** messaging — honor TTL/durable/dead-letter + real request/reply correlation + topic cursors, or document as in-memory only | mock presented as real | `messaging/impl-memory.ts:246,315` | L | Med |
 | 3.11 | ✅ `createIncomingHandler(handler).dispatch(request)` runs a handler end-to-end (Fetch Request→Response) — the Service Worker integration point | HTTP server stub | `http/incoming-handler.ts` | L | Med |
 | 3.12 | ✅ OPFS `set-times`/`set-times-at` record a session sidecar (`OpfsTimesStore`); `stat`/`stat-at` reflect overrides | silent no-op returns ok | `filesystem/impl-opfs.ts` | M | Low |
 | 3.13 | ✅ Manifest: `verifyComponentHash` (Web Crypto) + `validateExports` put the previously-unused fields to work | unused validation fields | `wasip2/core/manifest.ts` | M | Low |
@@ -595,12 +595,12 @@ Larger. Some require a product decision (see "Decisions needed").
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
 | 4.1 | ✅ Capacity-doubling buffer for memory FS writes (`growFile`; content stays a logical-length view, amortized O(n) appends) | quadratic file writes | `filesystem/impl-memory.ts` | M | Med |
-| 4.2 | Running size counter + avoid per-chunk copy in `MemoryOutputStream` | O(n²) size recompute | `io/streams.ts:241` | S | Low |
-| 4.3 | Chunk `random.get-random-bytes` in ≤64KiB; remove cap on insecure/seeded | crash on len>64KiB | `random/impl-crypto.ts:28`, `impl-insecure.ts`, `impl-seeded.ts` | S | Low |
+| 4.2 | ✅ Running size counter + avoid per-chunk copy in `MemoryOutputStream` | O(n²) size recompute | `io/streams.ts:241` | S | Low |
+| 4.3 | ✅ Chunk `random.get-random-bytes` in ≤64KiB; remove cap on insecure/seeded | crash on len>64KiB | `random/impl-crypto.ts:28`, `impl-insecure.ts`, `impl-seeded.ts` | S | Low |
 | 4.4 | ✅ `waitAll` is event-driven (finishTask notifier) instead of a 10ms poll; remaining setTimeouts are legitimate yields/poll-based-contract | CPU spin | `wasip3/runtime/async-executor.ts` | M | Med |
 | 4.5 | ✅ Memoize `buildJcoImports` per loaded-interface set (cleared on destroy) | rebuilt every call | `wasip2/core/polyfill.ts` | S | Low |
-| 4.6 | Module-level `TextEncoder`/`TextDecoder` singletons | per-call alloc in hot loops | `wasip1/memory.ts`, `wasip1/fd.ts:584`, `browser/types.ts:311` | S | Low |
-| 4.7 | `StatCache.evictOldest`: delete first N Map keys (no sort) | full sort per insert | `shared/stat-cache.ts:176` | S | Low |
+| 4.6 | ✅ Module-level `TextEncoder`/`TextDecoder` singletons | per-call alloc in hot loops | `wasip1/memory.ts`, `wasip1/fd.ts:584`, `browser/types.ts:311` | S | Low |
+| 4.7 | ✅ `StatCache.evictOldest`: delete first N Map keys (no sort) | full sort per insert | `shared/stat-cache.ts:176` | S | Low |
 | 4.8 | ✅ OPFS `set-size` uses `writable.truncate` (O(1), no whole-file read); read/write already range-scoped; removed dead `useSyncAccessHandle` flag | slow per-write reopen | `filesystem/impl-opfs.ts` | M | Med |
 | 4.9 | ✅ ws-gateway `ByteQueue`: head-index reads + amortized compaction instead of `Array.shift` | O(n) per read | `ws-gateway/byte-queue.ts` | S | Low |
 | 4.10 | ✅ `fd_readdir`: per-fd directory snapshot reused across pages (refresh at cookie 0); shared TextEncoder | re-reads dir each call | `wasip1/fd.ts`, `wasip1/fd-table.ts` | M | Low |
@@ -612,15 +612,15 @@ Larger. Some require a product decision (see "Decisions needed").
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
 | 5.1 | ✅ `Wasip1.getImports()` generated by iterating fn groups + one `guard` wrapper (dropped ~180 lines) | hand-written passthroughs | `wasip1/index.ts` | M | Med |
-| 5.2 | Extract `parseInterfaceList(items, kind)` for manifest import/export parsing | copy-paste | `wasip2/core/manifest.ts:77` | S | Low |
-| 5.3 | Consolidate `createDevPolyfill`/`createJcoPolyfill`; fix jcoCompat docstring (store default on instance + apply in getImports) | identical / false doc | `wasip2/core/polyfill.ts:301` | S | Low |
+| 5.2 | ✅ Extract `parseInterfaceList(items, kind)` for manifest import/export parsing | copy-paste | `wasip2/core/manifest.ts:77` | S | Low |
+| 5.3 | ✅ Consolidate `createDevPolyfill`/`createJcoPolyfill`; fix jcoCompat docstring (store default on instance + apply in getImports) | identical / false doc | `wasip2/core/polyfill.ts:301` | S | Low |
 | 5.4 | ✅ `buildJcoImports`: `makeMethodCallable`/`makePlainCallable` + `finishJcoCall`; single `parseImportKey` pass → `switch` | ~120-line fn, dup closures | `wasip2/core/polyfill.ts` | M | Med |
 | 5.5 | ✅ Typed `FilesystemError` with POSIX `.code`; `mapError` maps by code (also covers native node:fs errors). Browser DOM-error heuristic left as-is (third-party errors) | brittle `e.message` matching | `wasip1/memory-filesystem.ts`, `wasip1/path.ts`, `wasip1/hostfs-node.ts` | M | Med |
 | 5.6 | ✅ Added `withDescriptor(handle, fn)` on the memory fs (~24 methods deduped); sockets stubs left bespoke (lookup interleaved with state checks / NotSupported returns) | boilerplate per method | `filesystem/impl-memory.ts` | M | Low |
-| 5.7 | Dedup `PluginRegistry.get`/`getSync` into shared `resolveLoaded`; dedup in-flight lazy-loader promise | dup logic + load race | `wasip2/core/plugin-registry.ts:61` | S | Low |
+| 5.7 | ✅ Dedup `PluginRegistry.get`/`getSync` into shared `resolveLoaded`; dedup in-flight lazy-loader promise | dup logic + load race | `wasip2/core/plugin-registry.ts:61` | S | Low |
 | 5.8 | ✅ Extracted `buildTunnelConfig(source)` (dedup tcp/udp/dns); `MultiError` rename already done | dup config / global shadow | `ws-gateway/tunnel-manager.ts`, `*-adapter.ts` | S | Low |
-| 5.9 | Remove empty `src/browser/plugins/` dir; consolidate no-op mappers (geolocation/media/screen) | dead code | `browser/plugins/`, mappers | S | Low |
-| 5.10 | Per-instance config staleness in `getOrCreateInstance` (compute config or document one-instance-per-iface contract); accept optional private `registry` in `PolyfillConfig` | stale config / global registry | `wasip2/core/polyfill.ts:82,258` | M | Med |
+| 5.9 | ✅ Remove empty `src/browser/plugins/` dir; consolidate no-op mappers (geolocation/media/screen) | dead code | `browser/plugins/`, mappers | S | Low |
+| 5.10 | ✅ Per-instance config staleness in `getOrCreateInstance` (compute config or document one-instance-per-iface contract); accept optional private `registry` in `PolyfillConfig` | stale config / global registry | `wasip2/core/polyfill.ts:82,258` | M | Med |
 
 ---
 
