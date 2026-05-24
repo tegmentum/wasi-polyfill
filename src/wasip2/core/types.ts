@@ -24,6 +24,12 @@ export interface PluginConfig {
   implementation?: string
   /** Implementation-specific configuration */
   options?: Record<string, unknown>
+  /**
+   * Per-polyfill resource context (injected by the Polyfill). Plugins scope
+   * shared state (handle tables, backing stores) to this so it is isolated
+   * between polyfills. Absent for standalone plugin use (falls back to global).
+   */
+  context?: import('./resource-context.js').ResourceContext
   /** Allow additional implementation-specific properties */
   [key: string]: unknown
 }
@@ -112,6 +118,12 @@ export interface PolyfillConfig {
    * does not share plugins with other polyfills.
    */
   registry?: import('./plugin-registry.js').PluginRegistry
+  /**
+   * Resource context for per-polyfill plugin state (handle tables, backing
+   * stores). Each Polyfill creates its own by default, so plugin state is
+   * isolated between polyfills; pass an explicit context to share it.
+   */
+  context?: import('./resource-context.js').ResourceContext
 }
 
 /**

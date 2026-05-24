@@ -14,6 +14,7 @@ import type {
 } from './types.js'
 import { formatInterfaceString, parseInterfaceString } from './types.js'
 import { PluginRegistry, globalRegistry } from './plugin-registry.js'
+import { ResourceContext } from './resource-context.js'
 import { AllowAllPolicy, createSafePolicy } from './policy.js'
 import type { ComponentManifest } from './manifest.js'
 import { loadManifestForComponent } from './manifest.js'
@@ -77,6 +78,7 @@ export class Polyfill {
   private readonly policy: Policy
   private readonly instances: Map<string, PluginInstance> = new Map()
   private readonly defaultJcoCompat: boolean
+  private readonly context: ResourceContext
   private destroyed = false
 
   constructor(config?: PolyfillConfig) {
@@ -85,6 +87,9 @@ export class Polyfill {
     this.registry = config?.registry ?? globalRegistry
     this.policy = config?.policy ?? createSafePolicy()
     this.defaultJcoCompat = config?.jcoCompat ?? false
+    // Each polyfill owns its resource context by default, so per-context plugin
+    // state (keyvalue/sql backing stores, …) is isolated between polyfills.
+    this.context = config?.context ?? new ResourceContext()
 
     // Plugin overrides are handled by the policy
     // The policy.configure() method returns per-interface configuration
@@ -266,8 +271,9 @@ export class Polyfill {
       return instance
     }
 
-    // Get configuration from policy
-    const config = this.policy.configure(iface)
+    // Get configuration from policy, and inject this polyfill's resource
+    // context so per-context plugin state is isolated to this polyfill.
+    const config = { ...this.policy.configure(iface), context: this.context }
 
     // Create instance
     instance = plugin.create(config)

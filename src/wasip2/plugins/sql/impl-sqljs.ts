@@ -26,6 +26,7 @@ import type {
   PluginConfig,
   PluginInstance,
 } from '../../core/types.js'
+import { contextFromConfig } from '../../core/resource-context.js'
 import type {
   Database,
   SqlJsStatic,
@@ -531,11 +532,11 @@ class SqlJsInstance implements PluginInstance {
 }
 
 /**
- * Process-global backend shared by the five wasi:sql interface instances so a
- * connection opened via one interface resolves on the others. (Per-polyfill
- * isolation is REMEDIATION-PLAN Phase 2.10.)
+ * Resource-context key for the backend shared by the five wasi:sql interfaces
+ * (so a connection opened via one resolves on the others). Scoped to the
+ * polyfill's ResourceContext: shared within a polyfill, isolated between them.
  */
-let sharedBackend: SqlJsBackend | undefined
+const SQLJS_BACKEND = Symbol('wasi:sql/sqljs-backend')
 
 /**
  * Real SQLite implementation of wasi:sql, backed by sql.js.
@@ -547,12 +548,15 @@ export const sqljsSqlImplementation: Implementation = {
   description: 'SQLite database via sql.js (real SQL engine)',
   create(config: PluginConfig): PluginInstance {
     const sqlJs = (config as SqlJsConfig).sqlJs
-    if (!sharedBackend) {
-      sharedBackend = new SqlJsBackend(sqlJs)
-    } else if (sqlJs && !sharedBackend.sqlJs) {
-      sharedBackend.sqlJs = sqlJs
+    const backend = contextFromConfig(config).get(
+      SQLJS_BACKEND,
+      () => new SqlJsBackend(sqlJs)
+    )
+    // A later interface may be the one that supplies the module.
+    if (sqlJs && !backend.sqlJs) {
+      backend.sqlJs = sqlJs
     }
-    return new SqlJsInstance(sharedBackend, false)
+    return new SqlJsInstance(backend, false)
   },
 }
 
