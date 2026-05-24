@@ -91,6 +91,19 @@ Fourth autonomous batch — real backends (heavy deps greenlit):
   load-a-model model doesn't map onto, plus a ~10 MB dep and tensor marshalling.
   Scoped as its own PR.
 
+Fifth autonomous batch:
+
+- ✅ **2.4** — `getBrowserImports` enforces an optional capability allow-list:
+  only granted interfaces are wired (browser:types/runtime stay as pure
+  utilities); omitting it preserves the previous behavior. Also avoids eagerly
+  building ungranted heavy interfaces (e.g. WebGPU).
+- ✅ **build** — added the missing tsup entries for the sql/nn/messaging/webgpu/
+  frame-buffer/graphics-context/surface/wasi-gfx plugins; their package.json
+  exports previously resolved to files that were never built.
+- ℹ️ WASIP1 symlinks already work end-to-end (`MemoryFilesystem` implements
+  symlink/readlink/link and the syscalls delegate to them) — the symlink gap is
+  WASIP2-only (still deferred, needs full path-following).
+
 Remaining (large / dependency-bearing, best as dedicated PRs):
 - **Phase 1 full migration** of ~40 hand-rolled tables to the existing
   `shared/registry.ts` HandleRegistry (mechanical, large).
