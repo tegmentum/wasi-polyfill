@@ -21,7 +21,7 @@ import {
   loopbackAddress,
 } from '../sockets/types.js'
 import { globalNetworkRegistry } from '../sockets/network.js'
-import { WsTunnelManager, globalTunnelRegistry, type TunnelConfig } from './tunnel-manager.js'
+import { WsTunnelManager, globalTunnelRegistry, buildTunnelConfig } from './tunnel-manager.js'
 import { DnsError } from './protocol.js'
 
 /**
@@ -370,11 +370,7 @@ export const tunneledDnsLookupImplementation: Implementation = {
     }
 
     // Get or create tunnel
-    const tunnelConfig: TunnelConfig = { gatewayUrl }
-    if (authToken !== undefined) {
-      tunnelConfig.authToken = authToken
-    }
-    const tunnel = globalTunnelRegistry.getOrCreate(tunnelConfig)
+    const tunnel = globalTunnelRegistry.getOrCreate(buildTunnelConfig({ gatewayUrl, authToken }))
 
     const dnsConfig: TunneledDnsConfig = { gatewayUrl }
     if (authToken !== undefined) {

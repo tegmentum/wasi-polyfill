@@ -28,7 +28,7 @@ import {
   WsTunnelManager,
   TunnelRegistry,
   globalTunnelRegistry,
-  type TunnelConfig,
+  buildTunnelConfig,
 } from './tunnel-manager.js'
 
 /**
@@ -343,22 +343,7 @@ class TunneledUdpInstance implements PluginInstance {
    */
   private async getTunnel(): Promise<WsTunnelManager | null> {
     if (!this.tunnel) {
-      const tunnelConfig: TunnelConfig = {
-        gatewayUrl: this.config.gatewayUrl,
-      }
-      if (this.config.authToken !== undefined) {
-        tunnelConfig.authToken = this.config.authToken
-      }
-      if (this.config.maxStreams !== undefined) {
-        tunnelConfig.maxStreams = this.config.maxStreams
-      }
-      if (this.config.connectTimeoutMs !== undefined) {
-        tunnelConfig.connectTimeoutMs = this.config.connectTimeoutMs
-      }
-      if (this.config.flowControl !== undefined) {
-        tunnelConfig.flowControl = this.config.flowControl
-      }
-      this.tunnel = this.tunnelRegistry.getOrCreate(tunnelConfig)
+      this.tunnel = this.tunnelRegistry.getOrCreate(buildTunnelConfig(this.config))
     }
 
     if (!this.tunnel.isConnected) {
@@ -733,22 +718,7 @@ class TunneledUdpCreateSocketInstance implements PluginInstance {
     }
 
     // Create a placeholder tunnel (will be connected on first use)
-    const tunnelConfig: TunnelConfig = {
-      gatewayUrl: this.config.gatewayUrl,
-    }
-    if (this.config.authToken !== undefined) {
-      tunnelConfig.authToken = this.config.authToken
-    }
-    if (this.config.maxStreams !== undefined) {
-      tunnelConfig.maxStreams = this.config.maxStreams
-    }
-    if (this.config.connectTimeoutMs !== undefined) {
-      tunnelConfig.connectTimeoutMs = this.config.connectTimeoutMs
-    }
-    if (this.config.flowControl !== undefined) {
-      tunnelConfig.flowControl = this.config.flowControl
-    }
-    const tunnel = this.tunnelRegistry.getOrCreate(tunnelConfig)
+    const tunnel = this.tunnelRegistry.getOrCreate(buildTunnelConfig(this.config))
 
     const socket: TunneledUdpSocket = {
       handle: 0,
