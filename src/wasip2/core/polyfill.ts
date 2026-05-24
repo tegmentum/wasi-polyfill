@@ -544,6 +544,86 @@ function wrapReturn(
   }
 }
 
+/** A jco import key parsed once into its kind + parts (avoids re-matching). */
+type ParsedImportKey =
+  | { kind: 'resource-drop'; resource: string }
+  | { kind: 'method'; resource: string; member: string }
+  | { kind: 'static'; resource: string; member: string }
+  | { kind: 'constructor' }
+  | { kind: 'plain' }
+
+const IMPORT_KEY_RE = /^\[(method|static|resource-drop|constructor)\](.+)$/
+
+/** Classify a flat WIT import key (`[method]res.name`, `foo-bar`, …) in one pass. */
+function parseImportKey(key: string): ParsedImportKey {
+  const m = IMPORT_KEY_RE.exec(key)
+  if (!m) return { kind: 'plain' }
+  const tag = m[1]!
+  const rest = m[2]!
+  if (tag === 'resource-drop') return { kind: 'resource-drop', resource: rest }
+  if (tag === 'constructor') return { kind: 'constructor' }
+  const dot = rest.indexOf('.') // resource names contain no dots
+  if (dot < 0) return { kind: 'plain' }
+  return {
+    kind: tag === 'method' ? 'method' : 'static',
+    resource: rest.slice(0, dot),
+    member: rest.slice(dot + 1),
+  }
+}
+
+/**
+ * Finish a wrapped call: optionally re-wrap the (already result-unwrapped)
+ * value into a resource instance, then guard against an unexpected Promise.
+ * Shared by the method and plain-function callables below.
+ */
+function finishJcoCall(
+  raw: unknown,
+  wrapDesc: WrapDescriptor | undefined,
+  ifaceKey: string,
+  key: string,
+  classRegistry: Map<string, { prototype: object }>
+): unknown {
+  const value = wrapDesc ? wrapReturn(raw, wrapDesc, classRegistry) : raw
+  return guardSyncReturn(value, ifaceKey, key)
+}
+
+/** Build the camelCase plain-function export wrapping a flat WIT function. */
+function makePlainCallable(
+  flatFn: (...a: unknown[]) => unknown,
+  wrapDesc: WrapDescriptor | undefined,
+  ifaceKey: string,
+  key: string,
+  classRegistry: Map<string, { prototype: object }>
+): (...args: unknown[]) => unknown {
+  return (...args: unknown[]) =>
+    finishJcoCall(
+      unwrapResult(flatFn(...args.map(unwrapArg))),
+      wrapDesc,
+      ifaceKey,
+      key,
+      classRegistry
+    )
+}
+
+/** Build a prototype method whose first argument is the resource rep from `this`. */
+function makeMethodCallable(
+  flatFn: (...a: unknown[]) => unknown,
+  wrapDesc: WrapDescriptor | undefined,
+  ifaceKey: string,
+  key: string,
+  classRegistry: Map<string, { prototype: object }>
+): (this: Record<symbol, unknown>, ...args: unknown[]) => unknown {
+  return function (this: Record<symbol, unknown>, ...args: unknown[]) {
+    return finishJcoCall(
+      unwrapResult(flatFn(this[symbolCabiRep], ...args.map(unwrapArg))),
+      wrapDesc,
+      ifaceKey,
+      key,
+      classRegistry
+    )
+  }
+}
+
 /**
  * Build jco-compatible imports from raw plugin imports.
  *
@@ -592,78 +672,61 @@ function buildJcoImports(
     const out: Record<string, unknown> = {}
 
     for (const [key, fn] of Object.entries(fns)) {
-      // [resource-drop]resource-name  →  add class to interface exports
-      const dropMatch = key.match(/^\[resource-drop\](.+)$/)
-      if (dropMatch) {
-        const cn = kebabToPascal(dropMatch[1]!)
-        out[cn] = classRegistry.get(`${ifaceKey}:${cn}`)
-        continue
-      }
-
-      // [method]resource-name.method-name  →  prototype method
-      const methodMatch = key.match(/^\[method\]([^.]+)\.(.+)$/)
-      if (methodMatch) {
-        const cn = kebabToPascal(methodMatch[1]!)
-        const cls = classRegistry.get(`${ifaceKey}:${cn}`)
-        if (!cls) continue
-        const methodName = kebabToCamel(methodMatch[2]!)
-        const flatFn = fn as (...a: unknown[]) => unknown
-        const wrapDesc = WASI_RETURN_WRAPS[`${ifaceKey}:${key}`]
-
-        ;(cls.prototype as Record<string, unknown>)[methodName] = wrapDesc
-          ? function (this: Record<symbol, unknown>, ...args: unknown[]) {
-              return guardSyncReturn(
-                wrapReturn(
-                  unwrapResult(flatFn(this[symbolCabiRep], ...args.map(unwrapArg))),
-                  wrapDesc,
-                  classRegistry
-                ),
-                ifaceKey, key
-              )
-            }
-          : function (this: Record<symbol, unknown>, ...args: unknown[]) {
-              return guardSyncReturn(
-                unwrapResult(flatFn(this[symbolCabiRep], ...args.map(unwrapArg))),
-                ifaceKey, key
-              )
-            }
-
-        out[cn] = cls
-        continue
-      }
-
-      // [static]resource-name.method-name  →  static method
-      const staticMatch = key.match(/^\[static\]([^.]+)\.(.+)$/)
-      if (staticMatch) {
-        const cn = kebabToPascal(staticMatch[1]!)
-        const cls = classRegistry.get(`${ifaceKey}:${cn}`)
-        if (!cls) continue
-        const methodName = kebabToCamel(staticMatch[2]!)
-        const flatFn = fn as (...a: unknown[]) => unknown
-        cls[methodName] = (...args: unknown[]) => unwrapResult(flatFn(...args.map(unwrapArg)))
-        out[cn] = cls
-        continue
-      }
-
-      // [constructor]resource-name  →  skip (handled by class creation)
-      if (key.startsWith('[constructor]')) continue
-
-      // Plain function  →  camelCase export
-      const fnName = kebabToCamel(key)
       const flatFn = fn as (...a: unknown[]) => unknown
-      const wrapDesc = WASI_RETURN_WRAPS[`${ifaceKey}:${key}`]
+      const parsed = parseImportKey(key)
 
-      out[fnName] = wrapDesc
-        ? (...args: unknown[]) =>
-            guardSyncReturn(
-              wrapReturn(unwrapResult(flatFn(...args.map(unwrapArg))), wrapDesc, classRegistry),
-              ifaceKey, key
-            )
-        : (...args: unknown[]) =>
-            guardSyncReturn(
-              unwrapResult(flatFn(...args.map(unwrapArg))),
-              ifaceKey, key
-            )
+      switch (parsed.kind) {
+        // [resource-drop]resource-name  →  expose the class on the interface
+        case 'resource-drop': {
+          const cn = kebabToPascal(parsed.resource)
+          out[cn] = classRegistry.get(`${ifaceKey}:${cn}`)
+          break
+        }
+
+        // [method]resource-name.method-name  →  prototype method
+        case 'method': {
+          const cn = kebabToPascal(parsed.resource)
+          const cls = classRegistry.get(`${ifaceKey}:${cn}`)
+          if (!cls) break
+          const proto = cls.prototype as Record<string, unknown>
+          proto[kebabToCamel(parsed.member)] = makeMethodCallable(
+            flatFn,
+            WASI_RETURN_WRAPS[`${ifaceKey}:${key}`],
+            ifaceKey,
+            key,
+            classRegistry
+          )
+          out[cn] = cls
+          break
+        }
+
+        // [static]resource-name.method-name  →  static method
+        case 'static': {
+          const cn = kebabToPascal(parsed.resource)
+          const cls = classRegistry.get(`${ifaceKey}:${cn}`)
+          if (!cls) break
+          cls[kebabToCamel(parsed.member)] = (...args: unknown[]) =>
+            unwrapResult(flatFn(...args.map(unwrapArg)))
+          out[cn] = cls
+          break
+        }
+
+        // [constructor]resource-name  →  handled by class creation in phase 1
+        case 'constructor':
+          break
+
+        // Plain function  →  camelCase export
+        case 'plain': {
+          out[kebabToCamel(key)] = makePlainCallable(
+            flatFn,
+            WASI_RETURN_WRAPS[`${ifaceKey}:${key}`],
+            ifaceKey,
+            key,
+            classRegistry
+          )
+          break
+        }
+      }
     }
 
     result[ifaceKey] = out
