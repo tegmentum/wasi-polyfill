@@ -993,6 +993,29 @@ describe('TunneledUdpSocketRegistry', () => {
       expect(registry.get(h2)).toBeUndefined()
     })
   })
+
+  describe('per-destination stream cleanup (Phase 2.8)', () => {
+    it('drop closes every per-destination tunnel stream', () => {
+      const closed: number[] = []
+      const socket = createTestUdpSocket()
+      socket.tunnel = {
+        closeStream: (id: number) => closed.push(id),
+      } as unknown as TunneledUdpSocket['tunnel']
+      // Simulate sends to three distinct destinations + a connected primary.
+      socket.streamId = 10
+      socket.streamsByDest = new Map([
+        ['1.1.1.1:53', 10],
+        ['8.8.8.8:53', 11],
+        ['9.9.9.9:53', 12],
+      ])
+
+      const handle = registry.register(socket)
+      registry.drop(handle)
+
+      // Every distinct stream id is closed exactly once (10 deduped).
+      expect(closed.sort((a, b) => a - b)).toEqual([10, 11, 12])
+    })
+  })
 })
 
 describe('TunneledDatagramStreamRegistry', () => {
