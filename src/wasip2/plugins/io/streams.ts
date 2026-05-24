@@ -204,6 +204,127 @@ export class MemoryInputStream implements InputStream {
 }
 
 /**
+ * Input stream backed by a WHATWG `ReadableStream<Uint8Array>` (e.g. a fetch
+ * `Response.body`). A background pump drains the reader into an internal buffer,
+ * so the body is consumed incrementally instead of being fully materialized.
+ *
+ * `read` is non-blocking (returns whatever is buffered, possibly empty);
+ * `blockingRead` is genuinely async (it awaits the next chunk), so this is for
+ * async/JSPI execution contexts — synchronous jco trampolines should use the
+ * buffered {@link MemoryInputStream} instead.
+ */
+export class ReadableStreamInputStream implements InputStream {
+  handle = 0
+  private readonly reader: ReadableStreamDefaultReader<Uint8Array>
+  private readonly chunks: Uint8Array[] = []
+  private offset = 0
+  private ended = false
+  private closed = false
+  private failure: Error | null = null
+  private waiters: Array<() => void> = []
+
+  constructor(stream: ReadableStream<Uint8Array>) {
+    this.reader = stream.getReader()
+    void this.pump()
+  }
+
+  private async pump(): Promise<void> {
+    try {
+      for (;;) {
+        const { done, value } = await this.reader.read()
+        if (done) break
+        if (value && value.length > 0) {
+          this.chunks.push(value)
+          this.wake()
+        }
+      }
+    } catch (e) {
+      this.failure = e instanceof Error ? e : new Error(String(e))
+    } finally {
+      this.ended = true
+      this.wake()
+    }
+  }
+
+  private wake(): void {
+    const waiters = this.waiters
+    this.waiters = []
+    for (const resolve of waiters) resolve()
+  }
+
+  private bufferedBytes(): number {
+    let total = -this.offset
+    for (const c of this.chunks) total += c.length
+    return total
+  }
+
+  private drain(maxLen: number): Uint8Array {
+    const take = Math.min(maxLen, this.bufferedBytes())
+    const result = new Uint8Array(Math.max(0, take))
+    let written = 0
+    while (written < take && this.chunks.length > 0) {
+      const chunk = this.chunks[0]!
+      const n = Math.min(take - written, chunk.length - this.offset)
+      result.set(chunk.subarray(this.offset, this.offset + n), written)
+      written += n
+      this.offset += n
+      if (this.offset >= chunk.length) {
+        this.chunks.shift()
+        this.offset = 0
+      }
+    }
+    return result
+  }
+
+  isClosed(): boolean {
+    return this.closed
+  }
+
+  close(): void {
+    if (this.closed) return
+    this.closed = true
+    void this.reader.cancel().catch(() => {})
+    this.wake()
+  }
+
+  read(len: bigint): Uint8Array | StreamError {
+    if (this.closed) return { tag: 'closed' }
+    if (this.bufferedBytes() > 0) return this.drain(Number(len))
+    if (this.failure) return { tag: 'last-operation-failed', val: this.failure }
+    if (this.ended) return { tag: 'closed' }
+    return new Uint8Array(0) // open, but no data ready yet
+  }
+
+  async blockingRead(len: bigint): Promise<Uint8Array | StreamError> {
+    for (;;) {
+      if (this.closed) return { tag: 'closed' }
+      if (this.bufferedBytes() > 0) return this.drain(Number(len))
+      if (this.failure) return { tag: 'last-operation-failed', val: this.failure }
+      if (this.ended) return { tag: 'closed' }
+      await new Promise<void>((resolve) => this.waiters.push(resolve))
+    }
+  }
+
+  skip(len: bigint): bigint | StreamError {
+    if (this.closed) return { tag: 'closed' }
+    if (this.bufferedBytes() === 0) {
+      return this.ended ? { tag: 'closed' } : 0n
+    }
+    const before = this.bufferedBytes()
+    this.drain(Number(len))
+    return BigInt(before - this.bufferedBytes())
+  }
+
+  subscribe(registry: PollableRegistry): number {
+    if (this.bufferedBytes() > 0 || this.ended || this.closed) {
+      return createReadyPollable(registry)
+    }
+    const promise = new Promise<void>((resolve) => this.waiters.push(resolve))
+    return registry.create(promise)
+  }
+}
+
+/**
  * Memory-backed output stream (growable buffer)
  */
 export class MemoryOutputStream implements OutputStream {

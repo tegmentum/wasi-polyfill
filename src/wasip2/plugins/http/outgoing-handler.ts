@@ -14,6 +14,8 @@ import {
   globalStreamRegistry,
   MemoryInputStream,
   MemoryOutputStream,
+  ReadableStreamInputStream,
+  type InputStream,
   type StreamError,
 } from '../io/streams.js'
 import { Fields, FieldsRegistry, globalFieldsRegistry } from './fields.js'
@@ -46,6 +48,14 @@ export interface OutgoingHandlerConfig {
    * User-Agent header to use for requests
    */
   userAgent?: string
+
+  /**
+   * Stream the response body incrementally instead of buffering it fully
+   * (default: false). Streaming avoids holding large downloads in memory, but
+   * makes body reads asynchronous, so it requires an async/JSPI execution
+   * context — synchronous jco trampolines should keep the default (buffered).
+   */
+  streamResponseBody?: boolean
 }
 
 /**
@@ -325,9 +335,15 @@ class OutgoingHandlerInstance implements PluginInstance {
         const responseFields = Fields.fromHeaders(response.headers)
         const headersHandle = this.fieldsRegistry.register(responseFields)
 
-        // Read response body
-        const bodyData = await response.arrayBuffer()
-        const bodyStream = new MemoryInputStream(new Uint8Array(bodyData))
+        // Response body: stream incrementally when enabled (and a body exists),
+        // otherwise buffer it fully (keeps reads synchronous for jco).
+        let bodyStream: InputStream
+        if (this.config.streamResponseBody && response.body) {
+          bodyStream = new ReadableStreamInputStream(response.body)
+        } else {
+          const bodyData = await response.arrayBuffer()
+          bodyStream = new MemoryInputStream(new Uint8Array(bodyData))
+        }
         const bodyHandle = globalStreamRegistry.register(bodyStream)
 
         const incomingResponse: IncomingResponse = {

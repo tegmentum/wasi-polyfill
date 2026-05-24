@@ -36,6 +36,7 @@ export {
   StreamRegistry,
   MemoryInputStream,
   MemoryOutputStream,
+  ReadableStreamInputStream,
   globalStreamRegistry,
 } from './streams.js'
 
