@@ -9,7 +9,7 @@ import {
   createDirectoryEntry,
   createFileEntry,
 } from '../../src/wasip1/fd-table.js'
-import { Errno, FileType, Whence, FdFlags, FstFlags, Rights } from '../../src/wasip1/types.js'
+import { Errno, FileType, Whence, FdFlags, FstFlags, Rights, DIRENT_SIZE } from '../../src/wasip1/types.js'
 
 /**
  * Creates a mock file resource for testing.
@@ -596,6 +596,76 @@ describe('WASIP1 FD Functions', () => {
       const fd = fdTable.allocate(entry)
       const result = fdFunctions.fd_readdir(fd, 100, 256, 0n, 400)
       expect(result).toBe(Errno.ENOTDIR)
+    })
+
+    it('caches the listing across pages and refreshes at cookie 0', () => {
+      const entries = [
+        { name: 'a', ino: 1n, type: FileType.REGULAR_FILE },
+        { name: 'b', ino: 2n, type: FileType.REGULAR_FILE },
+        { name: 'c', ino: 3n, type: FileType.REGULAR_FILE },
+      ]
+      let calls = 0
+      const resource: DirectoryResource = {
+        readdir() {
+          calls++
+          return entries
+        },
+        stat: () => createMockDirectoryResource(entries).stat(),
+      }
+      const fd = fdTable.allocate(createDirectoryEntry('/d', undefined, resource))
+      const bufPtr = 100
+      const bufUsedPtr = 1000
+
+      fdFunctions.fd_readdir(fd, bufPtr, 256, 0n, bufUsedPtr)
+      expect(calls).toBe(1)
+      // Continue paging from cookie 1: reuse the snapshot (no new readdir()).
+      fdFunctions.fd_readdir(fd, bufPtr, 256, 1n, bufUsedPtr)
+      expect(calls).toBe(1)
+      expect(wasiMemory.readU64(bufPtr + 8)).toBe(2n) // second entry first
+      // A fresh enumeration (cookie 0) refreshes the snapshot.
+      fdFunctions.fd_readdir(fd, bufPtr, 256, 0n, bufUsedPtr)
+      expect(calls).toBe(2)
+    })
+
+    it('returns every entry across multiple small pages (one readdir total)', () => {
+      const entries = Array.from({ length: 10 }, (_, i) => ({
+        name: `f${i}`,
+        ino: BigInt(i + 1),
+        type: FileType.REGULAR_FILE,
+      }))
+      let calls = 0
+      const resource: DirectoryResource = {
+        readdir() {
+          calls++
+          return entries
+        },
+        stat: () => createMockDirectoryResource(entries).stat(),
+      }
+      const fd = fdTable.allocate(createDirectoryEntry('/d', undefined, resource))
+      const bufPtr = 100
+      const bufUsedPtr = 2000
+      const pageLen = DIRENT_SIZE + 4 // room for ~one entry per page
+
+      const seen: bigint[] = []
+      let cookie = 0n
+      for (let guard = 0; guard < 100; guard++) {
+        const r = fdFunctions.fd_readdir(fd, bufPtr, pageLen, cookie, bufUsedPtr)
+        expect(r).toBe(Errno.SUCCESS)
+        const used = wasiMemory.readU32(bufUsedPtr)
+        if (used === 0) break
+        let o = 0
+        while (o < used) {
+          const next = wasiMemory.readU64(bufPtr + o)
+          const ino = wasiMemory.readU64(bufPtr + o + 8)
+          const namelen = wasiMemory.readU32(bufPtr + o + 16)
+          seen.push(ino)
+          cookie = next
+          o += DIRENT_SIZE + namelen
+        }
+      }
+
+      expect(seen).toEqual(entries.map((e) => e.ino))
+      expect(calls).toBe(1)
     })
   })
 

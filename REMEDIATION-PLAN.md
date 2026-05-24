@@ -271,6 +271,25 @@ Twenty-second batch — Phase 3.4 sockets ↔ ws-gateway:
   the tunnel and the known UDP-receive limitation (2.7). (Tests assert the
   `tunneled` impl is present on all four socket plugins + DNS.)
 
+Twenty-third batch — Phase 4 perf cluster (4.9 / 4.10 / 4.5):
+
+- ✅ **4.9 ByteQueue** — reads/skips advance a `head` index instead of
+  `Array.shift`-ing each drained chunk (shift is O(n) per call → draining many
+  small chunks was O(n²)); the consumed prefix is spliced only occasionally so
+  the backing array can't grow unbounded. `available` is now a running counter.
+  (2 tests: interleaved push/read stress + peek non-disturbance.)
+- ✅ **4.10 fd_readdir** — directory listings are snapshotted per fd (names
+  pre-encoded) and reused across pages; a fresh enumeration (cookie 0) refreshes
+  the snapshot. Paging a directory is O(N) instead of O(N²) (was re-reading +
+  re-encoding + skipping `cookie` entries every call). Also switched the
+  per-entry/per-call `new TextEncoder()` sites to a module-level singleton.
+  (2 tests: cache reuse/refresh + multi-page enumeration with one readdir.)
+- ✅ **4.5 jco imports memoization** — `Polyfill` memoizes `buildJcoImports`
+  keyed by the sorted set of loaded interface strings (instances are cached for
+  the polyfill's lifetime, so the same set always yields the same resource
+  classes); cleared in `destroy()`. Resolves the long-deferred 4.5. (1 test:
+  same set → same object, order-independent; different set → fresh build.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -386,12 +405,12 @@ Larger. Some require a product decision (see "Decisions needed").
 | 4.2 | Running size counter + avoid per-chunk copy in `MemoryOutputStream` | O(n²) size recompute | `io/streams.ts:241` | S | Low |
 | 4.3 | Chunk `random.get-random-bytes` in ≤64KiB; remove cap on insecure/seeded | crash on len>64KiB | `random/impl-crypto.ts:28`, `impl-insecure.ts`, `impl-seeded.ts` | S | Low |
 | 4.4 | Replace `setTimeout(0)` busy-polls with `SubtaskManager.onStateChange` callbacks | CPU spin | `wasip3/runtime/async-executor.ts:234`, `adapters/p2-to-p3.ts:228` | M | Med |
-| 4.5 | Memoize `buildJcoImports` per interface set (per Polyfill instance) | rebuilt every call | `wasip2/core/polyfill.ts:528` | S | Low |
+| 4.5 | ✅ Memoize `buildJcoImports` per loaded-interface set (cleared on destroy) | rebuilt every call | `wasip2/core/polyfill.ts` | S | Low |
 | 4.6 | Module-level `TextEncoder`/`TextDecoder` singletons | per-call alloc in hot loops | `wasip1/memory.ts`, `wasip1/fd.ts:584`, `browser/types.ts:311` | S | Low |
 | 4.7 | `StatCache.evictOldest`: delete first N Map keys (no sort) | full sort per insert | `shared/stat-cache.ts:176` | S | Low |
 | 4.8 | OPFS: use `FileSystemSyncAccessHandle` (worker) for random access; stop reading whole file for `set-size` | slow per-write reopen | `filesystem/impl-opfs.ts:236` | M | Med |
-| 4.9 | ws-gateway `ByteQueue`: index-based read instead of `Array.shift`; avoid defensive `slice` when caller owns buffer | O(n) per read | `ws-gateway/byte-queue.ts:83` | S | Low |
-| 4.10 | `fd_readdir`: cache directory snapshot per-fd/cookie (kill O(n²) paging) | re-reads dir each call | `wasip1/fd.ts:573` | M | Low |
+| 4.9 | ✅ ws-gateway `ByteQueue`: head-index reads + amortized compaction instead of `Array.shift` | O(n) per read | `ws-gateway/byte-queue.ts` | S | Low |
+| 4.10 | ✅ `fd_readdir`: per-fd directory snapshot reused across pages (refresh at cookie 0); shared TextEncoder | re-reads dir each call | `wasip1/fd.ts`, `wasip1/fd-table.ts` | M | Low |
 
 ---
 

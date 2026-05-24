@@ -25,6 +25,16 @@ export type FdType = 'stdin' | 'stdout' | 'stderr' | 'file' | 'directory' | 'soc
 /**
  * A file descriptor table entry.
  */
+/**
+ * A directory listing snapshot cached on a directory fd so paged `fd_readdir`
+ * calls don't re-read (and re-encode) the whole directory on every page.
+ * Names are pre-encoded to bytes. Refreshed when enumeration restarts at
+ * cookie 0.
+ */
+export interface ReaddirSnapshot {
+  entries: Array<{ ino: bigint; type: FileType; nameBytes: Uint8Array }>
+}
+
 export interface FdEntry {
   /** Type of this file descriptor */
   type: FdType
@@ -45,6 +55,8 @@ export interface FdEntry {
   position: bigint
   /** Underlying resource (varies by type) */
   resource?: unknown
+  /** Cached directory snapshot for paged fd_readdir (directories only). */
+  readdirCache?: ReaddirSnapshot
 }
 
 /**
