@@ -345,6 +345,15 @@ Twenty-eighth batch — Phase 3.14 blocking poll_oneoff:
   browser thread). (2 tests: actually waits a ~20ms deadline; doesn't block when
   another sub is ready.)
 
+Twenty-ninth batch — Phase 3.13 manifest verification:
+
+- ✅ Put the previously-dead manifest fields to work: `verifyComponentHash`
+  (Web Crypto digest of the component bytes vs the manifest's
+  `[algo:]<hex>` hash — sha256/384/512, default sha256, case-insensitive; true
+  when none declared) and `validateExports` (mirror of `validateManifest` on the
+  export side, so a host can refuse a component that doesn't provide the
+  interfaces it intends to call). Both exported from core. (9 tests.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -446,7 +455,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 3.10 | **Decision-gated:** messaging — honor TTL/durable/dead-letter + real request/reply correlation + topic cursors, or document as in-memory only | mock presented as real | `messaging/impl-memory.ts:246,315` | L | Med |
 | 3.11 | Implement `incoming-handler` (Service Worker) or mark experimental/stub clearly | HTTP server stub | `http/incoming-handler.ts` | L | Med |
 | 3.12 | OPFS `set-times` and metadata: sidecar metadata store or return `Unsupported` (stop pretending) | silent no-op returns ok | `filesystem/impl-opfs.ts:191` | M | Low |
-| 3.13 | Manifest: implement `componentHash` verification + export-availability checks, or remove the dead fields | unused validation fields | `wasip2/core/manifest.ts:219` | M | Low |
+| 3.13 | ✅ Manifest: `verifyComponentHash` (Web Crypto) + `validateExports` put the previously-unused fields to work | unused validation fields | `wasip2/core/manifest.ts` | M | Low |
 | 3.14 | ✅ WASIP1 `poll_oneoff`: opt-in blocking (`blockingPoll`) waits for the earliest clock via `Atomics.wait`; non-blocking default documented | returns 0 events, busy-loops | `wasip1/poll.ts`, `wasip1/index.ts` | M | Med |
 | 3.15 | `isWasmGcEnabled()` real detection (or document the GC tier as disabled) + implement/remove `readEventRefs` stub | GC tier unreachable | `browser/runtime.ts:81`, `browser/gc-enhanced.ts:408` | M | Low |
 
