@@ -239,3 +239,78 @@ export function validateManifest(
     missing,
   }
 }
+
+/**
+ * Validate that a manifest's component provides every export a host expects.
+ * Mirrors {@link validateManifest} but on the export side, so a host can refuse
+ * a component that doesn't supply the interfaces it intends to call.
+ */
+export function validateExports(
+  manifest: ComponentManifest,
+  requiredExports: WasiInterface[]
+): { valid: boolean; missing: WasiInterface[] } {
+  const provided = new Set(manifest.exports.map((i) => `${i.package}/${i.name}`))
+
+  const missing: WasiInterface[] = []
+  for (const required of requiredExports) {
+    if (!provided.has(`${required.package}/${required.name}`)) {
+      missing.push(required)
+    }
+  }
+
+  return { valid: missing.length === 0, missing }
+}
+
+/** Lower-case hex encoding of a byte buffer. */
+function toHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let hex = ''
+  for (const b of bytes) hex += b.toString(16).padStart(2, '0')
+  return hex
+}
+
+/**
+ * Verify a component binary against the manifest's `componentHash`.
+ *
+ * The hash is `[algorithm:]<hex>`; the algorithm prefix is optional and
+ * defaults to `sha256` (also accepts `sha-256`, `sha384`, `sha512`). Returns
+ * `true` when the manifest declares no hash (nothing to verify). Comparison is
+ * case-insensitive on the hex digest.
+ *
+ * Requires Web Crypto (`globalThis.crypto.subtle`), available in browsers and
+ * Node 18+.
+ */
+export async function verifyComponentHash(
+  manifest: ComponentManifest,
+  componentBytes: Uint8Array
+): Promise<boolean> {
+  const declared = manifest.componentHash
+  if (declared === undefined) return true
+
+  const sep = declared.indexOf(':')
+  const algoLabel = (sep >= 0 ? declared.slice(0, sep) : 'sha256').toLowerCase()
+  const expectedHex = (sep >= 0 ? declared.slice(sep + 1) : declared).toLowerCase()
+
+  const algorithms: Record<string, string> = {
+    sha256: 'SHA-256',
+    'sha-256': 'SHA-256',
+    sha384: 'SHA-384',
+    'sha-384': 'SHA-384',
+    sha512: 'SHA-512',
+    'sha-512': 'SHA-512',
+  }
+  const subtleName = algorithms[algoLabel]
+  if (!subtleName) {
+    throw new Error(`Unsupported component hash algorithm: ${algoLabel}`)
+  }
+
+  const subtle = globalThis.crypto?.subtle
+  if (!subtle) {
+    throw new Error('Web Crypto (crypto.subtle) is required to verify componentHash')
+  }
+
+  // Copy into a fresh ArrayBuffer so a SharedArrayBuffer-backed view is accepted.
+  const data = componentBytes.slice()
+  const digest = await subtle.digest(subtleName, data)
+  return toHex(digest) === expectedHex
+}

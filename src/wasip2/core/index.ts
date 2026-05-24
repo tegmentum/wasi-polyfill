@@ -62,6 +62,8 @@ export {
   createManifest,
   serializeManifest,
   validateManifest,
+  validateExports,
+  verifyComponentHash,
 } from './manifest.js'
 
 // Polyfill
