@@ -80,5 +80,13 @@ export {
 // WebNN implementation
 export { webnnImplementation } from './impl-webnn.js'
 
+// Real ONNX Runtime implementation (host provides onnxruntime-web/node)
+export {
+  onnxNnImplementation,
+  OnnxNnBackend,
+  createOnnxNn,
+  type OnnxNnConfig,
+} from './impl-onnx.js'
+
 // Mock implementation (for testing)
 export { mockNnImplementation } from './impl-mock.js'
