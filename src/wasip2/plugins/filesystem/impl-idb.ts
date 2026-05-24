@@ -9,6 +9,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { contextFromConfig } from '../../core/resource-context.js'
 import { globalPollableRegistry } from '../io/pollable.js'
 import type {
   DescriptorType,
@@ -910,6 +911,9 @@ class IdbFilesystemInstance implements PluginInstance {
   }
 }
 
+/** ResourceContext key for the per-polyfill IDB filesystem instance. */
+const IDB_INSTANCE_KEY = Symbol('wasi:filesystem/idb-instance')
+
 /**
  * IndexedDB filesystem implementation
  */
@@ -917,7 +921,12 @@ export const idbFilesystemImplementation: Implementation = {
   name: 'idb',
   description: 'IndexedDB-based persistent filesystem',
   create(config: PluginConfig): PluginInstance {
-    return new IdbFilesystemInstance(config as IdbConfig)
+    // Per-polyfill instance so fs/types and preopens share it within a polyfill;
+    // the underlying IndexedDB storage remains shared by database name.
+    return contextFromConfig(config).get(
+      IDB_INSTANCE_KEY,
+      () => new IdbFilesystemInstance(config as IdbConfig)
+    )
   },
 }
 
