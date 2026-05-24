@@ -80,7 +80,9 @@ export class Polyfill {
   private destroyed = false
 
   constructor(config?: PolyfillConfig) {
-    this.registry = globalRegistry
+    // Default to the shared global registry; an explicit registry enables
+    // isolated setups (e.g. tests, multi-tenant) that don't share plugins.
+    this.registry = config?.registry ?? globalRegistry
     this.policy = config?.policy ?? createSafePolicy()
     this.defaultJcoCompat = config?.jcoCompat ?? false
 

@@ -106,6 +106,12 @@ export interface PolyfillConfig {
    * Per-call `GetImportsOptions.jcoCompat` overrides this.
    */
   jcoCompat?: boolean
+  /**
+   * Plugin registry to use. Defaults to the shared global registry; pass a
+   * private `PluginRegistry` for an isolated setup (tests, multi-tenant) that
+   * does not share plugins with other polyfills.
+   */
+  registry?: import('./plugin-registry.js').PluginRegistry
 }
 
 /**
