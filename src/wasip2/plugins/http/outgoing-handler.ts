@@ -5,6 +5,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import {
   PollableRegistry,
   globalPollableRegistry,
@@ -102,54 +103,22 @@ export interface RequestOptionsResource {
 /**
  * Registry for outgoing requests
  */
-export class OutgoingRequestRegistry {
-  private nextHandle = 1
-  private readonly requests: Map<number, OutgoingRequest> = new Map()
-
-  register(request: OutgoingRequest): number {
-    const handle = this.nextHandle++
+export class OutgoingRequestRegistry extends HandleRegistry<OutgoingRequest> {
+  override register(request: OutgoingRequest): number {
+    const handle = super.register(request)
     request.handle = handle
-    this.requests.set(handle, request)
     return handle
-  }
-
-  get(handle: number): OutgoingRequest | undefined {
-    return this.requests.get(handle)
-  }
-
-  drop(handle: number): boolean {
-    return this.requests.delete(handle)
-  }
-
-  clear(): void {
-    this.requests.clear()
   }
 }
 
 /**
  * Registry for incoming responses
  */
-export class IncomingResponseRegistry {
-  private nextHandle = 1
-  private readonly responses: Map<number, IncomingResponse> = new Map()
-
-  register(response: IncomingResponse): number {
-    const handle = this.nextHandle++
+export class IncomingResponseRegistry extends HandleRegistry<IncomingResponse> {
+  override register(response: IncomingResponse): number {
+    const handle = super.register(response)
     response.handle = handle
-    this.responses.set(handle, response)
     return handle
-  }
-
-  get(handle: number): IncomingResponse | undefined {
-    return this.responses.get(handle)
-  }
-
-  drop(handle: number): boolean {
-    return this.responses.delete(handle)
-  }
-
-  clear(): void {
-    this.responses.clear()
   }
 }
 
@@ -192,27 +161,11 @@ export class FutureIncomingResponseRegistry {
 /**
  * Registry for request options
  */
-export class RequestOptionsRegistry {
-  private nextHandle = 1
-  private readonly options: Map<number, RequestOptionsResource> = new Map()
-
-  register(opts: RequestOptionsResource): number {
-    const handle = this.nextHandle++
+export class RequestOptionsRegistry extends HandleRegistry<RequestOptionsResource> {
+  override register(opts: RequestOptionsResource): number {
+    const handle = super.register(opts)
     opts.handle = handle
-    this.options.set(handle, opts)
     return handle
-  }
-
-  get(handle: number): RequestOptionsResource | undefined {
-    return this.options.get(handle)
-  }
-
-  drop(handle: number): boolean {
-    return this.options.delete(handle)
-  }
-
-  clear(): void {
-    this.options.clear()
   }
 }
 

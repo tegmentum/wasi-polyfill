@@ -10,6 +10,7 @@
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
 import type { Network } from './types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 
 /**
  * Configuration for network plugins
@@ -34,26 +35,12 @@ export interface NetworkConfig {
 }
 
 /**
- * Registry for network resources
+ * Registry for network resources.
+ *
+ * A plain handle table — see the shared {@link HandleRegistry} for the
+ * register/get/drop/clear surface.
  */
-export class NetworkRegistry {
-  private nextHandle = 1
-  private networks = new Map<number, NetworkInstance>()
-
-  register(network: NetworkInstance): number {
-    const handle = this.nextHandle++
-    this.networks.set(handle, network)
-    return handle
-  }
-
-  get(handle: number): NetworkInstance | undefined {
-    return this.networks.get(handle)
-  }
-
-  drop(handle: number): void {
-    this.networks.delete(handle)
-  }
-}
+export class NetworkRegistry extends HandleRegistry<NetworkInstance> {}
 
 /**
  * Global network registry

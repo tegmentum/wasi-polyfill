@@ -7,6 +7,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import {
   PollableRegistry,
   globalPollableRegistry,
@@ -41,27 +42,19 @@ export interface TcpSocket {
 /**
  * Registry for TCP sockets
  */
-export class TcpSocketRegistry {
-  private nextHandle = 1
-  private sockets = new Map<number, TcpSocket>()
-
-  register(socket: TcpSocket): number {
-    const handle = this.nextHandle++
+export class TcpSocketRegistry extends HandleRegistry<TcpSocket> {
+  override register(socket: TcpSocket): number {
+    const handle = super.register(socket)
     socket.handle = handle
-    this.sockets.set(handle, socket)
     return handle
   }
 
-  get(handle: number): TcpSocket | undefined {
-    return this.sockets.get(handle)
-  }
-
-  drop(handle: number): void {
-    const socket = this.sockets.get(handle)
+  override drop(handle: number): boolean {
+    const socket = this.get(handle)
     if (socket) {
       socket.state = TcpState.Closed
-      this.sockets.delete(handle)
     }
+    return super.drop(handle)
   }
 }
 
