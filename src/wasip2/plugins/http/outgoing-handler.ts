@@ -125,36 +125,21 @@ export class IncomingResponseRegistry extends HandleRegistry<IncomingResponse> {
 /**
  * Registry for future incoming responses
  */
-export class FutureIncomingResponseRegistry {
-  private nextHandle = 1
-  private readonly futures: Map<number, FutureIncomingResponse> = new Map()
-
-  register(future: FutureIncomingResponse): number {
-    const handle = this.nextHandle++
+export class FutureIncomingResponseRegistry extends HandleRegistry<FutureIncomingResponse> {
+  override register(future: FutureIncomingResponse): number {
+    const handle = super.register(future)
     future.handle = handle
-    this.futures.set(handle, future)
     return handle
   }
 
-  get(handle: number): FutureIncomingResponse | undefined {
-    return this.futures.get(handle)
+  override drop(handle: number): boolean {
+    this.get(handle)?.abortController?.abort()
+    return super.drop(handle)
   }
 
-  drop(handle: number): boolean {
-    const future = this.futures.get(handle)
-    if (future?.abortController) {
-      future.abortController.abort()
-    }
-    return this.futures.delete(handle)
-  }
-
-  clear(): void {
-    for (const future of this.futures.values()) {
-      if (future.abortController) {
-        future.abortController.abort()
-      }
-    }
-    this.futures.clear()
+  override clear(): void {
+    this.forEach((future) => future.abortController?.abort())
+    super.clear()
   }
 }
 

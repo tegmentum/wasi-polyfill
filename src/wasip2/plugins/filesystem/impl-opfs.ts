@@ -15,6 +15,7 @@ import {
   contextFromConfig,
   globalResourceContext,
 } from '../../core/resource-context.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import { PollableRegistry, createReadyPollable, globalPollableRegistry } from '../io/pollable.js'
 import {
   DescriptorType,
@@ -794,23 +795,11 @@ class OpfsDirectoryEntryStream {
 /**
  * OPFS directory entry stream registry
  */
-class OpfsDirectoryEntryStreamRegistry {
-  private nextHandle = 1
-  private readonly streams: Map<number, OpfsDirectoryEntryStream> = new Map()
-
-  register(stream: OpfsDirectoryEntryStream): number {
-    const handle = this.nextHandle++
+class OpfsDirectoryEntryStreamRegistry extends HandleRegistry<OpfsDirectoryEntryStream> {
+  override register(stream: OpfsDirectoryEntryStream): number {
+    const handle = super.register(stream)
     stream.handle = handle
-    this.streams.set(handle, stream)
     return handle
-  }
-
-  get(handle: number): OpfsDirectoryEntryStream | undefined {
-    return this.streams.get(handle)
-  }
-
-  drop(handle: number): void {
-    this.streams.delete(handle)
   }
 }
 
