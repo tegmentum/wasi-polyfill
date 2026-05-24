@@ -23,6 +23,7 @@
 import * as fs from 'node:fs'
 import * as nodePath from 'node:path'
 import { FileType } from './types.js'
+import { FilesystemError } from './memory-filesystem.js'
 import type { Filesystem } from './path.js'
 import type { FileResource, DirectoryResource } from './fd.js'
 
@@ -73,7 +74,7 @@ export function createNodeFilesystem(rootDir: string): Filesystem {
   /** Reject any host path that escapes the sandbox root. */
   function assertContained(hostPath: string): void {
     if (hostPath !== root && !hostPath.startsWith(root + sep)) {
-      throw new Error(`ENOTCAPABLE: path escapes sandbox root: ${hostPath}`)
+      throw new FilesystemError('ENOTCAPABLE', `path escapes sandbox root: ${hostPath}`)
     }
     // Defend against symlink escapes: realpath the deepest existing ancestor.
     let probe = hostPath
@@ -85,7 +86,7 @@ export function createNodeFilesystem(rootDir: string): Filesystem {
     if (fs.existsSync(probe)) {
       const real = fs.realpathSync(probe)
       if (real !== root && !real.startsWith(root + sep)) {
-        throw new Error(`ENOTCAPABLE: path escapes sandbox via symlink: ${hostPath}`)
+        throw new FilesystemError('ENOTCAPABLE', `path escapes sandbox via symlink: ${hostPath}`)
       }
     }
   }
@@ -147,7 +148,7 @@ export function createNodeFilesystem(rootDir: string): Filesystem {
   function openDirectory(hostPath: string): DirectoryResource {
     const st = fs.statSync(hostPath)
     if (!st.isDirectory()) {
-      throw new Error(`ENOTDIR: not a directory: ${hostPath}`)
+      throw new FilesystemError('ENOTDIR', `not a directory: ${hostPath}`)
     }
     return {
       readdir() {

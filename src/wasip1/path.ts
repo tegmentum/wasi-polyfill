@@ -511,25 +511,41 @@ export function createPathFunctions(
 }
 
 /**
- * Map JavaScript errors to WASI errno.
+ * POSIX error code -> WASI errno. Both our `FilesystemError` and native
+ * `node:fs` errors expose a string `.code`, so this is the authoritative map.
+ */
+const ERRNO_BY_CODE: Readonly<Record<string, Errno>> = {
+  ENOENT: Errno.ENOENT,
+  EEXIST: Errno.EEXIST,
+  ENOTDIR: Errno.ENOTDIR,
+  EISDIR: Errno.EISDIR,
+  ENOTEMPTY: Errno.ENOTEMPTY,
+  EACCES: Errno.EACCES,
+  EPERM: Errno.EPERM,
+  EROFS: Errno.EROFS,
+  EINVAL: Errno.EINVAL,
+  ENAMETOOLONG: Errno.ENAMETOOLONG,
+  EBUSY: Errno.EBUSY,
+  EXDEV: Errno.EXDEV,
+  ENOTCAPABLE: Errno.ENOTCAPABLE,
+  ENOSYS: Errno.ENOSYS,
+}
+
+/**
+ * Map a thrown error to a WASI errno. Reads the typed POSIX `.code` carried by
+ * our `FilesystemError` and by native `node:fs` errors. As a last-resort guard
+ * for any plain `Error` whose message is `CODE: ...`, the leading token is
+ * looked up too; everything else is EIO.
  */
 function mapError(e: unknown): Errno {
+  const code = (e as { code?: unknown })?.code
+  if (typeof code === 'string') {
+    const mapped = ERRNO_BY_CODE[code]
+    if (mapped !== undefined) return mapped
+  }
   if (e instanceof Error) {
-    const msg = e.message.toLowerCase()
-    if (msg.includes('not found') || msg.includes('enoent')) return Errno.ENOENT
-    if (msg.includes('exists') || msg.includes('eexist')) return Errno.EEXIST
-    if (msg.includes('not a directory') || msg.includes('enotdir')) return Errno.ENOTDIR
-    if (msg.includes('is a directory') || msg.includes('eisdir')) return Errno.EISDIR
-    if (msg.includes('not empty') || msg.includes('enotempty')) return Errno.ENOTEMPTY
-    if (msg.includes('permission') || msg.includes('eacces')) return Errno.EACCES
-    if (msg.includes('read-only') || msg.includes('erofs')) return Errno.EROFS
-    if (msg.includes('invalid') || msg.includes('einval')) return Errno.EINVAL
-    if (msg.includes('too long') || msg.includes('enametoolong')) return Errno.ENAMETOOLONG
-    if (msg.includes('busy') || msg.includes('ebusy')) return Errno.EBUSY
-    if (msg.includes('cross-device') || msg.includes('exdev')) return Errno.EXDEV
-    if (msg.includes('enotcapable') || msg.includes('escapes sandbox')) {
-      return Errno.ENOTCAPABLE
-    }
+    const prefix = /^([A-Z]+):/.exec(e.message)?.[1]
+    if (prefix && ERRNO_BY_CODE[prefix] !== undefined) return ERRNO_BY_CODE[prefix]!
   }
   return Errno.EIO
 }
