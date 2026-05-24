@@ -43,12 +43,6 @@ export interface OpfsConfig {
    * Root directory name within OPFS (default: 'wasi-root')
    */
   rootDirName?: string
-
-  /**
-   * Whether to use synchronous access handles when available (Web Worker only)
-   * Default: false (always use async API for broader compatibility)
-   */
-  useSyncAccessHandle?: boolean
 }
 
 /**
@@ -308,6 +302,30 @@ export class OpfsDescriptor {
       await writable.close()
 
       return ok(BigInt(buffer.length))
+    } catch {
+      return err(FilesystemErrorCode.Io)
+    }
+  }
+
+  /**
+   * Truncate or extend the file to `size` bytes.
+   *
+   * Uses `FileSystemWritableFileStream.truncate`, which resizes in place
+   * (zero-filling on growth) without reading the file — O(1) in the file size,
+   * unlike the previous read-all-then-rewrite approach.
+   */
+  async setSize(size: bigint): Promise<FilesystemResult<void>> {
+    const check = this.checkClosed()
+    if (check.tag === 'err') return check
+
+    if (this.isDirectory) return err(FilesystemErrorCode.IsDirectory)
+    if (!this.flags.write) return err(FilesystemErrorCode.NotPermitted)
+
+    try {
+      const writable = await this.fileHandle!.createWritable({ keepExistingData: true })
+      await writable.truncate(Number(size))
+      await writable.close()
+      return ok(undefined)
     } catch {
       return err(FilesystemErrorCode.Io)
     }
@@ -1025,21 +1043,7 @@ class OpfsFilesystemInstance implements PluginInstance {
   private async setSize(handle: number, size: bigint): Promise<FilesystemResult<void>> {
     const descriptor = this.descriptorRegistry.get(handle)
     if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-
-    if (descriptor.getIsDirectory()) return err(FilesystemErrorCode.IsDirectory)
-    if (!descriptor.isWritable()) return err(FilesystemErrorCode.NotPermitted)
-
-    // Read current content, truncate/expand, write back
-    const readResult = await descriptor.read(BigInt(Number.MAX_SAFE_INTEGER), 0n)
-    if (readResult.tag === 'err') return readResult
-
-    const currentData = readResult.val[0]
-    const newSize = Number(size)
-    const newData = new Uint8Array(newSize)
-    newData.set(currentData.slice(0, Math.min(currentData.length, newSize)))
-
-    // Create new writable and write
-    return descriptor.write(newData, 0n).then((r) => (r.tag === 'err' ? r : ok(undefined)))
+    return descriptor.setSize(size)
   }
 
   private setTimes(
