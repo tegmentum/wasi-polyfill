@@ -2,8 +2,10 @@
  * Incoming HTTP handler for wasi:http/incoming-handler
  *
  * Implements incoming HTTP request handling for server-side use cases.
- * In browsers, this would integrate with Service Workers.
- * This is a stub implementation that demonstrates the interface.
+ * `createIncomingHandler(handler).dispatch(request)` runs a handler end-to-end
+ * (Fetch `Request` -> `Response`), which is the integration point for a Service
+ * Worker `fetch` event. The `stub` plugin implementation (501) and the
+ * `callback` implementation remain for the plugin/registry path.
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
@@ -299,6 +301,55 @@ class IncomingHandlerInstance implements PluginInstance {
     return this.outparamRegistry.register(outparam)
   }
 
+  /**
+   * Run the configured handler for a Fetch API `Request` and produce a
+   * Fetch API `Response`. This is the end-to-end Service Worker integration
+   * point: `self.addEventListener('fetch', e => e.respondWith(instance.dispatch(e.request)))`.
+   *
+   * Returns 501 when no handler is configured, and 500 if the handler throws or
+   * never sets a response. Request/outparam handles are cleaned up afterwards.
+   */
+  async dispatch(fetchRequest: Request): Promise<Response> {
+    const requestHandle = this.createFromFetchRequest(fetchRequest)
+    if (fetchRequest.body || fetchRequest.method !== 'GET') {
+      // Attach the request body (if any) as an input stream.
+      const buf = new Uint8Array(await fetchRequest.arrayBuffer())
+      if (buf.length > 0) {
+        const req = this.requestRegistry.get(requestHandle)
+        if (req) req.body = globalStreamRegistry.register(new MemoryInputStream(buf))
+      }
+    }
+    const outparamHandle = this.createResponseOutparam()
+
+    try {
+      await this.handle(requestHandle, outparamHandle)
+      const outparam = this.outparamRegistry.get(outparamHandle)
+      const response = outparam?.response
+
+      if (!response || !('status' in response)) {
+        // setError() or nothing set → 500.
+        return new Response(null, { status: 500, statusText: 'Internal Server Error' })
+      }
+
+      const headers = this.fieldsRegistry.get(response.headers)?.toHeaders() ?? new Headers()
+      let body: BodyInit | null = null
+      if (response.body !== undefined) {
+        const stream = globalStreamRegistry.getOutput(response.body)
+        if (stream && 'getBuffer' in stream) {
+          // Uint8Array is a valid BodyInit at runtime; the cast sidesteps the
+          // ArrayBufferLike/ArrayBuffer generic mismatch in lib.dom.
+          body = (stream as { getBuffer(): Uint8Array }).getBuffer() as unknown as BodyInit
+        }
+      }
+      return new Response(body, { status: response.status, headers })
+    } catch {
+      return new Response(null, { status: 500, statusText: 'Internal Server Error' })
+    } finally {
+      this.requestRegistry.drop(requestHandle)
+      this.outparamRegistry.drop(outparamHandle)
+    }
+  }
+
   private parseMethod(method: string): Method {
     const upper = method.toUpperCase()
     switch (upper) {
@@ -335,6 +386,40 @@ class IncomingHandlerInstance implements PluginInstance {
       default:
         return { tag: 'other', val: scheme }
     }
+  }
+}
+
+/**
+ * A host-side incoming-handler server: turns Fetch `Request`s into `Response`s
+ * by running `handler`. The intended use is a Service Worker `fetch` event:
+ *
+ * ```ts
+ * const server = createIncomingHandler(async (req, out) => {
+ *   out.set({ status: 200, body: new TextEncoder().encode('hi') })
+ * })
+ * self.addEventListener('fetch', (e) => e.respondWith(server.dispatch(e.request)))
+ * ```
+ *
+ * Uses isolated request/response/fields registries so it doesn't share handle
+ * space with the globally-registered plugin instances.
+ */
+export function createIncomingHandler(handler?: IncomingRequestHandler): {
+  dispatch(request: Request): Promise<Response>
+  destroy(): void
+} {
+  const config: IncomingHandlerConfig = {}
+  if (handler) config.handler = handler
+  const instance = new IncomingHandlerInstance(
+    new IncomingRequestRegistry(),
+    new OutgoingResponseRegistry(),
+    new ResponseOutparamRegistry(),
+    new FieldsRegistry(),
+    new PollableRegistry(),
+    config
+  )
+  return {
+    dispatch: (request: Request) => instance.dispatch(request),
+    destroy: () => instance.destroy(),
   }
 }
 
