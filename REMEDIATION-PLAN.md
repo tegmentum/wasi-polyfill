@@ -177,16 +177,26 @@ Fourteenth batch — Phase 2.10 (per-instance isolation), foundations:
   are now context-scoped: shared across their own interfaces within a polyfill,
   isolated between polyfills. Proven by `test/core/resource-context.test.ts`.
 
+Fifteenth batch — Phase 2.10 coupled space (started):
+
+- ✅ **io error registry** context-scoped (self-contained → safe to isolate now).
+  Added resolve+pre-seed helpers for the pollable and stream registries too,
+  but kept poll/streams on the global registries: they're entangled with the
+  filesystem *singleton* (still global) and deep fs/cli/http usage, so partial
+  isolation would break cross-plugin poll/stream resolution in a fresh-context
+  polyfill. Pollables/streams convert together with the filesystem.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
-- **2.10 coupled resource space** — infrastructure done (ResourceContext) and
-  the self-contained stores (kv, sql) are isolated. The remaining work is the
-  deeply-coupled, cross-plugin space: streams/pollables/errors (used inside io,
-  filesystem, http, cli, sockets, ws-gateway — deep in instance methods, not
-  just `create()`), the filesystem instance + preopens (plus the global
-  `setGlobalFilesystem` pre-population API), and the socket/http handle tables.
-  Isolating these needs the resolved registries threaded through each plugin's
-  object graph — a large, careful, per-plugin effort, now unblocked by the
-  ResourceContext infra and best done resource-group by resource-group.
+- **2.10 coupled resource space** — done: ResourceContext infra, kv/sql stores,
+  and the io **error** registry. The remaining, tightly-coupled piece must be
+  converted as one unit: the **filesystem singleton** (`globalFilesystemInstance`
+  + preopens + the global `setGlobalFilesystem` pre-population API) together with
+  the **pollable** and **stream** registries (used deep in fs/cli/http/sockets
+  methods). Because fs is a singleton on the global pollable/stream registries,
+  those registries can't be isolated until fs is — so this is a single large
+  increment: thread the resolved registries (resolve helpers already exist) +
+  a per-context filesystem instance through every fs/cli/http/socket object
+  graph, preserving the pre-population API. High-risk; its own focused PR.
 - **2.7 ws-gateway UDP receive** — inbound datagrams are never delivered, and a
   faithful fix is blocked: the wire protocol carries no source address on inbound
   datagram frames and the tunnel rxQueue is a byte stream (no datagram
