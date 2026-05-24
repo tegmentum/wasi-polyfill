@@ -30,6 +30,19 @@ import {
   virtualUdpImplementation,
   virtualUdpCreateSocketImplementation,
 } from './udp.js'
+// ws-gateway tunnel adapters, registered here as the opt-in `tunneled`
+// implementation so the real TCP/UDP/DNS path is selectable on the standard
+// sockets plugins (it relays through a WebSocket gateway; see ws-gateway). The
+// adapters import only sockets/types, so this does not create an import cycle.
+import {
+  tunneledTcpImplementation,
+  tunneledTcpCreateSocketImplementation,
+} from '../ws-gateway/tcp-adapter.js'
+import {
+  tunneledUdpImplementation,
+  tunneledUdpCreateSocketImplementation,
+} from '../ws-gateway/udp-adapter.js'
+import { tunneledDnsLookupImplementation } from '../ws-gateway/dns-adapter.js'
 
 /**
  * WASI network interface definition
@@ -131,6 +144,7 @@ export const ipNameLookupPlugin: WasiPlugin = createPlugin(
     virtual: virtualIpNameLookupImplementation,
     doh: dohIpNameLookupImplementation,
     stub: stubIpNameLookupImplementation,
+    tunneled: tunneledDnsLookupImplementation,
   },
   'virtual'
 )
@@ -139,11 +153,16 @@ export const ipNameLookupPlugin: WasiPlugin = createPlugin(
  * wasi:sockets/tcp plugin
  *
  * Provides TCP socket operations.
+ *
+ * Implementations:
+ * - virtual: in-process loopback (default; no real network egress)
+ * - tunneled: real TCP relayed through a WebSocket gateway (ws-gateway)
  */
 export const tcpPlugin: WasiPlugin = createPlugin(
   TCP_INTERFACE,
   {
     virtual: virtualTcpImplementation,
+    tunneled: tunneledTcpImplementation,
   },
   'virtual'
 )
@@ -152,11 +171,14 @@ export const tcpPlugin: WasiPlugin = createPlugin(
  * wasi:sockets/tcp-create-socket plugin
  *
  * Provides TCP socket creation.
+ *
+ * Implementations: `virtual` (default) and `tunneled` (ws-gateway).
  */
 export const tcpCreateSocketPlugin: WasiPlugin = createPlugin(
   TCP_CREATE_SOCKET_INTERFACE,
   {
     virtual: virtualTcpCreateSocketImplementation,
+    tunneled: tunneledTcpCreateSocketImplementation,
   },
   'virtual'
 )
@@ -165,11 +187,18 @@ export const tcpCreateSocketPlugin: WasiPlugin = createPlugin(
  * wasi:sockets/udp plugin
  *
  * Provides UDP socket operations.
+ *
+ * Implementations:
+ * - virtual: in-process loopback (default; no real network egress)
+ * - tunneled: real UDP send relayed through a WebSocket gateway (ws-gateway).
+ *   Note: inbound datagram *receive* over the tunnel is not yet delivered
+ *   (protocol limitation — see REMEDIATION-PLAN 2.7); send works.
  */
 export const udpPlugin: WasiPlugin = createPlugin(
   UDP_INTERFACE,
   {
     virtual: virtualUdpImplementation,
+    tunneled: tunneledUdpImplementation,
   },
   'virtual'
 )
@@ -178,11 +207,14 @@ export const udpPlugin: WasiPlugin = createPlugin(
  * wasi:sockets/udp-create-socket plugin
  *
  * Provides UDP socket creation.
+ *
+ * Implementations: `virtual` (default) and `tunneled` (ws-gateway).
  */
 export const udpCreateSocketPlugin: WasiPlugin = createPlugin(
   UDP_CREATE_SOCKET_INTERFACE,
   {
     virtual: virtualUdpCreateSocketImplementation,
+    tunneled: tunneledUdpCreateSocketImplementation,
   },
   'virtual'
 )
