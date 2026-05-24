@@ -6,7 +6,7 @@
  */
 
 import type { WasiInterface } from './types.js'
-import { parseInterfaceString } from './types.js'
+import { parseInterfaceString, interfaceKey } from './types.js'
 import { ManifestError } from '../../shared/errors.js'
 
 /**
@@ -223,12 +223,12 @@ export function validateManifest(
   availableInterfaces: WasiInterface[]
 ): { valid: boolean; missing: WasiInterface[] } {
   const available = new Set(
-    availableInterfaces.map((i) => `${i.package}/${i.name}`)
+    availableInterfaces.map((i) => interfaceKey(i))
   )
 
   const missing: WasiInterface[] = []
   for (const required of manifest.imports) {
-    const key = `${required.package}/${required.name}`
+    const key = interfaceKey(required)
     if (!available.has(key)) {
       missing.push(required)
     }
@@ -249,11 +249,11 @@ export function validateExports(
   manifest: ComponentManifest,
   requiredExports: WasiInterface[]
 ): { valid: boolean; missing: WasiInterface[] } {
-  const provided = new Set(manifest.exports.map((i) => `${i.package}/${i.name}`))
+  const provided = new Set(manifest.exports.map((i) => interfaceKey(i)))
 
   const missing: WasiInterface[] = []
   for (const required of requiredExports) {
-    if (!provided.has(`${required.package}/${required.name}`)) {
+    if (!provided.has(interfaceKey(required))) {
       missing.push(required)
     }
   }

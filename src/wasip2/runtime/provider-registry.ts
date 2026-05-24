@@ -7,7 +7,7 @@
  */
 
 import type { WasiInterface, PluginConfig } from '../core/types.js'
-import { formatInterfaceString } from '../core/types.js'
+import { formatInterfaceString, interfaceKey } from '../core/types.js'
 import type {
   Provider,
   ProviderDefinition,
@@ -364,7 +364,7 @@ export class ProviderRegistry {
    * Create interface key for lookups
    */
   private makeInterfaceKey(iface: WasiInterface): string {
-    return `${iface.package}/${iface.name}`
+    return interfaceKey(iface)
   }
 }
 

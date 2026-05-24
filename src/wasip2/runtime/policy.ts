@@ -9,7 +9,7 @@
  */
 
 import type { WasiInterface, Policy, PluginConfig } from '../core/types.js'
-import { parseInterfaceString } from '../core/types.js'
+import { parseInterfaceString, interfaceKey } from '../core/types.js'
 
 /**
  * Quota configuration for rate limiting
@@ -657,7 +657,7 @@ export class EnhancedPolicy implements Policy {
   }
 
   private makeKey(iface: WasiInterface): string {
-    return `${iface.package}/${iface.name}`
+    return interfaceKey(iface)
   }
 }
 

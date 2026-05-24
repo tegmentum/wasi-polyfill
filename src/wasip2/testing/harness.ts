@@ -9,6 +9,7 @@ import { Polyfill, createPolyfill } from '../core/polyfill.js'
 import { AllowAllPolicy } from '../core/policy.js'
 import { PluginRegistry } from '../core/plugin-registry.js'
 import type { PluginConfig, WasiInterface, PluginInstance, WasiPlugin } from '../core/types.js'
+import { interfaceKey } from '../core/types.js'
 import { VirtualClock, SeededRandom } from '../runtime/provider.js'
 import { type BundlePreset, deterministicBundle, getBundlePreset } from './bundles.js'
 import { type LogEntry, loggingPlugin, isBufferLoggerInstance, type BufferLoggerBuffer } from '../plugins/logging/index.js'
@@ -203,7 +204,7 @@ export class TestHarness {
     const imports: Record<string, Record<string, unknown>> = {}
 
     for (const iface of required) {
-      const key = `${iface.package}/${iface.name}`
+      const key = interfaceKey(iface)
       const importKey = `${iface.package}/${iface.name}@${iface.version}`
 
       // Get plugin from our private registry
