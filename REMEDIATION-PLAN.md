@@ -231,6 +231,18 @@ Nineteenth batch — Phase 3.8 NN real backend:
   graph-builder API; in fact the interface already exposes the model-load flow,
   which maps cleanly. (14 tests.)
 
+Twentieth batch — Phase 4.1 memory-FS capacity doubling:
+
+- ✅ Memory-FS file growth no longer reallocates to the exact size on every
+  write (which made N streaming appends O(N²)). A `growFile` helper
+  capacity-doubles the backing ArrayBuffer; `node.content` stays a view whose
+  `.length` equals the logical file size, so every reader (stat/read/slice and
+  the tests that touch `.content` directly) is unchanged. Newly exposed bytes
+  are zero-filled to preserve POSIX hole/extend semantics; explicit `set-size`
+  shrink still copies so the oversized buffer is freed. (5 tests covering
+  streaming append, sparse zero-fill, reused-capacity re-grow, logical-size
+  stat.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -342,7 +354,7 @@ Larger. Some require a product decision (see "Decisions needed").
 
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
-| 4.1 | Capacity-doubling / chunked buffer for memory FS writes (kill O(n²)) | quadratic file writes | `filesystem/impl-memory.ts:55` | M | Med |
+| 4.1 | ✅ Capacity-doubling buffer for memory FS writes (`growFile`; content stays a logical-length view, amortized O(n) appends) | quadratic file writes | `filesystem/impl-memory.ts` | M | Med |
 | 4.2 | Running size counter + avoid per-chunk copy in `MemoryOutputStream` | O(n²) size recompute | `io/streams.ts:241` | S | Low |
 | 4.3 | Chunk `random.get-random-bytes` in ≤64KiB; remove cap on insecure/seeded | crash on len>64KiB | `random/impl-crypto.ts:28`, `impl-insecure.ts`, `impl-seeded.ts` | S | Low |
 | 4.4 | Replace `setTimeout(0)` busy-polls with `SubtaskManager.onStateChange` callbacks | CPU spin | `wasip3/runtime/async-executor.ts:234`, `adapters/p2-to-p3.ts:228` | M | Med |
