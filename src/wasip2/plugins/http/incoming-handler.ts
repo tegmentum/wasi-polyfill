@@ -7,6 +7,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import { PollableRegistry, globalPollableRegistry } from '../io/pollable.js'
 import { globalStreamRegistry, MemoryInputStream, MemoryOutputStream } from '../io/streams.js'
 import { Fields, FieldsRegistry, globalFieldsRegistry } from './fields.js'
@@ -94,81 +95,33 @@ export interface ResponseOutparamResource {
 /**
  * Registry for incoming requests
  */
-export class IncomingRequestRegistry {
-  private nextHandle = 1
-  private readonly requests: Map<number, IncomingRequest> = new Map()
-
-  register(request: IncomingRequest): number {
-    const handle = this.nextHandle++
+export class IncomingRequestRegistry extends HandleRegistry<IncomingRequest> {
+  override register(request: IncomingRequest): number {
+    const handle = super.register(request)
     request.handle = handle
-    this.requests.set(handle, request)
     return handle
-  }
-
-  get(handle: number): IncomingRequest | undefined {
-    return this.requests.get(handle)
-  }
-
-  drop(handle: number): boolean {
-    return this.requests.delete(handle)
-  }
-
-  clear(): void {
-    this.requests.clear()
   }
 }
 
 /**
  * Registry for outgoing responses
  */
-export class OutgoingResponseRegistry {
-  private nextHandle = 1
-  private readonly responses: Map<number, OutgoingResponse> = new Map()
-
-  register(response: OutgoingResponse): number {
-    const handle = this.nextHandle++
+export class OutgoingResponseRegistry extends HandleRegistry<OutgoingResponse> {
+  override register(response: OutgoingResponse): number {
+    const handle = super.register(response)
     response.handle = handle
-    this.responses.set(handle, response)
     return handle
-  }
-
-  get(handle: number): OutgoingResponse | undefined {
-    return this.responses.get(handle)
-  }
-
-  drop(handle: number): boolean {
-    return this.responses.delete(handle)
-  }
-
-  clear(): void {
-    this.responses.clear()
   }
 }
 
 /**
  * Registry for response outparams
  */
-export class ResponseOutparamRegistry {
-  private nextHandle = 1
-  private readonly outparams: Map<number, ResponseOutparamResource> = new Map()
-
-  register(outparam: ResponseOutparamResource): number {
-    const handle = this.nextHandle++
+export class ResponseOutparamRegistry extends HandleRegistry<ResponseOutparamResource> {
+  override register(outparam: ResponseOutparamResource): number {
+    const handle = super.register(outparam)
     outparam.handle = handle
-    this.outparams.set(handle, outparam)
     return handle
-  }
-
-  get(handle: number): ResponseOutparamResource | undefined {
-    return this.outparams.get(handle)
-  }
-
-  drop(handle: number): boolean {
-    return this.outparams.delete(handle)
-  }
-
-  clear(): void {
-    this.outparams.clear()
   }
 }
 

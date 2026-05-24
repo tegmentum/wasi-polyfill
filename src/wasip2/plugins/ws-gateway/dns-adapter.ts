@@ -6,6 +6,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import {
   PollableRegistry,
   globalPollableRegistry,
@@ -57,23 +58,11 @@ export interface TunneledResolveAddressStream {
 /**
  * Registry for tunneled resolve address streams
  */
-export class TunneledResolveAddressStreamRegistry {
-  private nextHandle = 1
-  private streams = new Map<number, TunneledResolveAddressStream>()
-
-  register(stream: TunneledResolveAddressStream): number {
-    const handle = this.nextHandle++
+export class TunneledResolveAddressStreamRegistry extends HandleRegistry<TunneledResolveAddressStream> {
+  override register(stream: TunneledResolveAddressStream): number {
+    const handle = super.register(stream)
     stream.handle = handle
-    this.streams.set(handle, stream)
     return handle
-  }
-
-  get(handle: number): TunneledResolveAddressStream | undefined {
-    return this.streams.get(handle)
-  }
-
-  drop(handle: number): void {
-    this.streams.delete(handle)
   }
 }
 

@@ -6,6 +6,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import {
   PollableRegistry,
   globalPollableRegistry,
@@ -54,27 +55,19 @@ export interface OutgoingDatagramStream {
 /**
  * Registry for UDP sockets
  */
-export class UdpSocketRegistry {
-  private nextHandle = 1
-  private sockets = new Map<number, UdpSocket>()
-
-  register(socket: UdpSocket): number {
-    const handle = this.nextHandle++
+export class UdpSocketRegistry extends HandleRegistry<UdpSocket> {
+  override register(socket: UdpSocket): number {
+    const handle = super.register(socket)
     socket.handle = handle
-    this.sockets.set(handle, socket)
     return handle
   }
 
-  get(handle: number): UdpSocket | undefined {
-    return this.sockets.get(handle)
-  }
-
-  drop(handle: number): void {
-    const socket = this.sockets.get(handle)
+  override drop(handle: number): boolean {
+    const socket = this.get(handle)
     if (socket) {
       socket.state = UdpState.Closed
-      this.sockets.delete(handle)
     }
+    return super.drop(handle)
   }
 }
 
