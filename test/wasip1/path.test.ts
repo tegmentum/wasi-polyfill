@@ -510,4 +510,68 @@ describe('WASIP1 Path', () => {
       expect(result).toBe(Errno.ENOSYS)
     })
   })
+
+  describe('path normalization and subdirectory fds (Phase 2.5/2.6)', () => {
+    it('resolves "." and ".." components', () => {
+      const fns = createPathFunctions(memory, fdTable, {
+        filesystems: new Map([['/', mockFs]]),
+      })
+
+      // Create /data.txt
+      const created = writePath('data.txt')
+      expect(
+        fns.path_open(3, 0, created.ptr, created.len, OFlags.CREAT, 0n, 0n, 0, 2000)
+      ).toBe(Errno.SUCCESS)
+
+      // Stat via a path that needs '..' normalization: sub/../data.txt -> /data.txt
+      const viaDotDot = writePath('sub/../data.txt')
+      const result = fns.path_filestat_get(3, 0, viaDotDot.ptr, viaDotDot.len, 2100)
+      expect(result).toBe(Errno.SUCCESS)
+    })
+
+    it('clamps ".." at the preopen root (no escape)', () => {
+      const fns = createPathFunctions(memory, fdTable, {
+        filesystems: new Map([['/', mockFs]]),
+      })
+
+      const created = writePath('data.txt')
+      fns.path_open(3, 0, created.ptr, created.len, OFlags.CREAT, 0n, 0n, 0, 2000)
+
+      // ../../data.txt must clamp to /data.txt rather than escaping above root.
+      const escape = writePath('../../data.txt')
+      expect(
+        fns.path_filestat_get(3, 0, escape.ptr, escape.len, 2100)
+      ).toBe(Errno.SUCCESS)
+    })
+
+    it('allows path_* operations on a directory opened via path_open', () => {
+      const fns = createPathFunctions(memory, fdTable, {
+        filesystems: new Map([['/', mockFs]]),
+      })
+
+      // Create and open /mydir as a directory fd.
+      const dir = writePath('/mydir')
+      expect(fns.path_create_directory(3, dir.ptr, dir.len)).toBe(Errno.SUCCESS)
+      expect(
+        fns.path_open(
+          3,
+          0,
+          dir.ptr,
+          dir.len,
+          OFlags.DIRECTORY,
+          DIRECTORY_RIGHTS,
+          DIRECTORY_RIGHTS,
+          0,
+          2000
+        )
+      ).toBe(Errno.SUCCESS)
+      const newFd = memory.readU32(2000)
+
+      // A path_* call against the new dir fd must resolve (was EBADF before the
+      // fix because the filesystem ref was not attached).
+      const child = writePath('child')
+      const result = fns.path_create_directory(newFd, child.ptr, child.len)
+      expect(result).toBe(Errno.SUCCESS)
+    })
+  })
 })
