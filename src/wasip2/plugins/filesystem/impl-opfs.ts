@@ -106,6 +106,45 @@ function fileTimeToDatetime(time: number): Datetime {
   return { seconds, nanoseconds }
 }
 
+/** Canonical root-relative key for the times store (`/a//b/` -> `a/b`). */
+function timesKey(...parts: string[]): string {
+  return parts
+    .join('/')
+    .split('/')
+    .filter(Boolean)
+    .join('/')
+}
+
+/** Resolve a NewTimestamp to a Datetime, or undefined for `no-change`. */
+function resolveNewTimestamp(ts: NewTimestamp): Datetime | undefined {
+  if (ts.tag === 'timestamp') return ts.val
+  if (ts.tag === 'now') return now()
+  return undefined
+}
+
+/**
+ * In-memory access/modification time overrides for OPFS, which has no native
+ * set-times API (file `lastModified` is read-only and only bumped by writes).
+ * Without this, `set-times` would silently no-op while pretending to succeed;
+ * here it is recorded and reflected by `stat`/`stat-at` for the session. Scoped
+ * to one OPFS filesystem instance, keyed by root-relative path.
+ */
+export class OpfsTimesStore {
+  private readonly times = new Map<string, { atim?: Datetime; mtim?: Datetime }>()
+
+  set(key: string, atim: Datetime | undefined, mtim: Datetime | undefined): void {
+    if (atim === undefined && mtim === undefined) return
+    const entry = this.times.get(key) ?? {}
+    if (atim !== undefined) entry.atim = atim
+    if (mtim !== undefined) entry.mtim = mtim
+    this.times.set(key, entry)
+  }
+
+  get(key: string): { atim?: Datetime; mtim?: Datetime } | undefined {
+    return this.times.get(key)
+  }
+}
+
 /**
  * OPFS-backed descriptor
  */
@@ -121,7 +160,8 @@ export class OpfsDescriptor {
     readonly descriptorPath: string,
     private readonly flags: DescriptorFlags,
     private readonly pollableRegistry: PollableRegistry,
-    private readonly isDirectory: boolean
+    private readonly isDirectory: boolean,
+    private readonly timesStore: OpfsTimesStore = new OpfsTimesStore()
   ) {
     if (isDirectory) {
       this.dirHandle = nodeHandle as FileSystemDirectoryHandle
@@ -176,14 +216,15 @@ export class OpfsDescriptor {
 
       const file = await this.fileHandle!.getFile()
       const timestamp = fileTimeToDatetime(file.lastModified)
+      const override = this.timesStore.get(timesKey(this.descriptorPath))
 
       return ok({
         type: 'regular-file',
         linkCount: 1n,
         size: BigInt(file.size),
-        dataAccessTimestamp: timestamp,
-        dataModificationTimestamp: timestamp,
-        statusChangeTimestamp: timestamp,
+        dataAccessTimestamp: override?.atim ?? timestamp,
+        dataModificationTimestamp: override?.mtim ?? timestamp,
+        statusChangeTimestamp: override?.mtim ?? timestamp,
       })
     } catch {
       return err(FilesystemErrorCode.Io)
@@ -194,14 +235,19 @@ export class OpfsDescriptor {
    * Set file times (limited support in OPFS)
    */
   setTimes(
-    _dataAccessTimestamp: NewTimestamp,
-    _dataModificationTimestamp: NewTimestamp
+    dataAccessTimestamp: NewTimestamp,
+    dataModificationTimestamp: NewTimestamp
   ): FilesystemResult<void> {
     const check = this.checkClosed()
     if (check.tag === 'err') return check
 
-    // OPFS doesn't support setting times directly
-    // This is a no-op but returns success
+    // OPFS has no native set-times; record an in-memory override so stat()
+    // reflects it for this session (instead of silently ignoring the call).
+    this.timesStore.set(
+      timesKey(this.descriptorPath),
+      resolveNewTimestamp(dataAccessTimestamp),
+      resolveNewTimestamp(dataModificationTimestamp)
+    )
     return ok(undefined)
   }
 
@@ -348,14 +394,15 @@ export class OpfsDescriptor {
 
       const file = await (handle as FileSystemFileHandle).getFile()
       const fileTime = fileTimeToDatetime(file.lastModified)
+      const override = this.timesStore.get(timesKey(this.descriptorPath, path))
 
       return ok({
         type: 'regular-file',
         linkCount: 1n,
         size: BigInt(file.size),
-        dataAccessTimestamp: fileTime,
-        dataModificationTimestamp: fileTime,
-        statusChangeTimestamp: fileTime,
+        dataAccessTimestamp: override?.atim ?? fileTime,
+        dataModificationTimestamp: override?.mtim ?? fileTime,
+        statusChangeTimestamp: override?.mtim ?? fileTime,
       })
     } catch (e) {
       if ((e as Error).name === 'NotFoundError') {
@@ -388,10 +435,11 @@ export class OpfsDescriptor {
           new OpfsDescriptor(
             this.rootHandle,
             dirHandle,
-            path,
+            timesKey(this.descriptorPath, path),
             descriptorFlags,
             this.pollableRegistry,
-            true
+            true,
+            this.timesStore
           )
         )
       }
@@ -445,10 +493,11 @@ export class OpfsDescriptor {
         new OpfsDescriptor(
           this.rootHandle,
           fileHandle,
-          path,
+          timesKey(this.descriptorPath, path),
           descriptorFlags,
           this.pollableRegistry,
-          false
+          false,
+          this.timesStore
         )
       )
     } catch (e) {
@@ -814,6 +863,8 @@ class OpfsFilesystemInstance implements PluginInstance {
   private readonly descriptorRegistry = new OpfsDescriptorRegistry()
   private readonly directoryStreamRegistry = new OpfsDirectoryEntryStreamRegistry()
   private readonly pollableRegistry: PollableRegistry = globalPollableRegistry
+  /** Session-scoped set-times overrides (OPFS has no native set-times). */
+  private readonly timesStore = new OpfsTimesStore()
   private readonly rootDirName: string
   private initPromise: Promise<void> | null = null
 
@@ -905,10 +956,11 @@ class OpfsFilesystemInstance implements PluginInstance {
     const descriptor = new OpfsDescriptor(
       this.rootHandle!,
       handle,
-      path,
+      timesKey(path),
       flags,
       this.pollableRegistry,
-      true
+      true,
+      this.timesStore
     )
     this.descriptorRegistry.register(descriptor)
     return descriptor
@@ -1062,13 +1114,21 @@ class OpfsFilesystemInstance implements PluginInstance {
   }
 
   private setTimesAt(
-    _handle: number,
+    handle: number,
     _pathFlags: PathFlags,
-    _path: string,
-    _dataAccessTimestamp: NewTimestamp,
-    _dataModificationTimestamp: NewTimestamp
+    path: string,
+    dataAccessTimestamp: NewTimestamp,
+    dataModificationTimestamp: NewTimestamp
   ): FilesystemResult<void> {
-    // OPFS doesn't support setting times
+    const descriptor = this.descriptorRegistry.get(handle)
+    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+
+    // OPFS has no native set-times; record a session override (stat-at reflects it).
+    this.timesStore.set(
+      timesKey(descriptor.descriptorPath, path),
+      resolveNewTimestamp(dataAccessTimestamp),
+      resolveNewTimestamp(dataModificationTimestamp)
+    )
     return ok(undefined)
   }
 

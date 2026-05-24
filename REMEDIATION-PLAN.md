@@ -388,6 +388,16 @@ Thirty-second batch — Phase 3.15 wasm-GC detection + readEventRefs:
   use the per-`EventRef` query methods with an `Event` from a direct listener.
   (3 tests for the detector.)
 
+Thirty-third batch — Phase 3.12 OPFS set-times sidecar:
+
+- ✅ OPFS `set-times`/`set-times-at` no longer silently no-op while returning
+  ok. A per-instance `OpfsTimesStore` (keyed by root-relative path) records
+  access/modification overrides, and `stat`/`stat-at` reflect them for the
+  session (OPFS has no native set-times — `lastModified` is read-only). Child
+  descriptor paths are normalized root-relative so keys are consistent. Browser
+  e2e covers the descriptor flow; 5 unit tests cover the store's merge
+  semantics.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -488,7 +498,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 3.9 | **Decision-gated:** SQL — adopt sql.js/WASM SQLite, or scope+document the subset and escape `LIKE`; add connection isolation | regex parser, no isolation | `sql/impl-memory.ts`, `sql/plugin.ts:14` | L–XL | Med |
 | 3.10 | **Decision-gated:** messaging — honor TTL/durable/dead-letter + real request/reply correlation + topic cursors, or document as in-memory only | mock presented as real | `messaging/impl-memory.ts:246,315` | L | Med |
 | 3.11 | ✅ `createIncomingHandler(handler).dispatch(request)` runs a handler end-to-end (Fetch Request→Response) — the Service Worker integration point | HTTP server stub | `http/incoming-handler.ts` | L | Med |
-| 3.12 | OPFS `set-times` and metadata: sidecar metadata store or return `Unsupported` (stop pretending) | silent no-op returns ok | `filesystem/impl-opfs.ts:191` | M | Low |
+| 3.12 | ✅ OPFS `set-times`/`set-times-at` record a session sidecar (`OpfsTimesStore`); `stat`/`stat-at` reflect overrides | silent no-op returns ok | `filesystem/impl-opfs.ts` | M | Low |
 | 3.13 | ✅ Manifest: `verifyComponentHash` (Web Crypto) + `validateExports` put the previously-unused fields to work | unused validation fields | `wasip2/core/manifest.ts` | M | Low |
 | 3.14 | ✅ WASIP1 `poll_oneoff`: opt-in blocking (`blockingPoll`) waits for the earliest clock via `Atomics.wait`; non-blocking default documented | returns 0 events, busy-loops | `wasip1/poll.ts`, `wasip1/index.ts` | M | Med |
 | 3.15 | ✅ `isWasmGcEnabled()` validates a GC struct module (real detection, memoized); `readEventRefs` returns honest NOT_SUPPORTED instead of empty success | GC tier unreachable | `browser/runtime.ts`, `browser/gc-enhanced.ts` | M | Low |
