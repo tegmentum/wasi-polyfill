@@ -55,12 +55,38 @@ interface SymlinkInode extends BaseInode {
 type Inode = FileInode | DirectoryInode | SymlinkInode
 
 /**
- * Filesystem error with POSIX-like messages.
+ * POSIX-style error codes carried by {@link FilesystemError}. These mirror
+ * Node's `err.code` convention, so the WASI errno mapper can read `.code`
+ * uniformly from both our errors and native `node:fs` errors.
+ */
+export type FsErrorCode =
+  | 'ENOENT'
+  | 'ENOTDIR'
+  | 'EEXIST'
+  | 'EINVAL'
+  | 'ENOTEMPTY'
+  | 'EISDIR'
+  | 'EPERM'
+  | 'EACCES'
+  | 'EROFS'
+  | 'ENAMETOOLONG'
+  | 'EBUSY'
+  | 'EXDEV'
+  | 'ENOTCAPABLE'
+  | 'ENOSYS'
+
+/**
+ * Filesystem error carrying a typed POSIX `code`. The message is composed as
+ * `${code}: ${detail}` so existing message-prefix expectations still hold, but
+ * consumers should branch on `.code` rather than parsing the message.
  */
 export class FilesystemError extends Error {
-  constructor(message: string) {
-    super(message)
+  readonly code: FsErrorCode
+
+  constructor(code: FsErrorCode, detail: string) {
+    super(`${code}: ${detail}`)
     this.name = 'FilesystemError'
+    this.code = code
   }
 }
 
@@ -129,7 +155,7 @@ export class MemoryFilesystem implements Filesystem {
       const inode = this.inodes.get(currentIno)
 
       if (!inode) {
-        throw new FilesystemError(`ENOENT: no such file or directory: ${path}`)
+        throw new FilesystemError('ENOENT', `no such file or directory: ${path}`)
       }
 
       // Handle symlinks
@@ -140,12 +166,12 @@ export class MemoryFilesystem implements Filesystem {
       }
 
       if (inode.type !== 'directory') {
-        throw new FilesystemError(`ENOTDIR: not a directory: ${path}`)
+        throw new FilesystemError('ENOTDIR', `not a directory: ${path}`)
       }
 
       const childIno = inode.entries.get(component)
       if (childIno === undefined) {
-        throw new FilesystemError(`ENOENT: no such file or directory: ${path}`)
+        throw new FilesystemError('ENOENT', `no such file or directory: ${path}`)
       }
 
       currentIno = childIno
@@ -153,7 +179,7 @@ export class MemoryFilesystem implements Filesystem {
 
     const finalInode = this.inodes.get(currentIno)
     if (!finalInode) {
-      throw new FilesystemError(`ENOENT: no such file or directory: ${path}`)
+      throw new FilesystemError('ENOENT', `no such file or directory: ${path}`)
     }
 
     // Follow final symlink if requested
@@ -200,7 +226,7 @@ export class MemoryFilesystem implements Filesystem {
     const parent = this.parentPath(path)
     const inode = this.lookupInode(parent)
     if (inode.type !== 'directory') {
-      throw new FilesystemError(`ENOTDIR: not a directory: ${parent}`)
+      throw new FilesystemError('ENOTDIR', `not a directory: ${parent}`)
     }
     return inode
   }
@@ -226,10 +252,10 @@ export class MemoryFilesystem implements Filesystem {
       inode = this.lookupInode(path)
 
       if (exclusive && create) {
-        throw new FilesystemError(`EEXIST: file already exists: ${path}`)
+        throw new FilesystemError('EEXIST', `file already exists: ${path}`)
       }
     } catch (e) {
-      if (e instanceof FilesystemError && e.message.includes('ENOENT')) {
+      if (e instanceof FilesystemError && e.code === 'ENOENT') {
         if (!create) {
           throw e
         }
@@ -277,7 +303,7 @@ export class MemoryFilesystem implements Filesystem {
 
     // Check directory flag
     if (directory && inode.type !== 'directory') {
-      throw new FilesystemError(`ENOTDIR: not a directory: ${path}`)
+      throw new FilesystemError('ENOTDIR', `not a directory: ${path}`)
     }
 
     // Truncate if requested
@@ -295,7 +321,7 @@ export class MemoryFilesystem implements Filesystem {
     } else if (inode.type === 'file') {
       return this.createFileResource(inode)
     } else {
-      throw new FilesystemError(`EINVAL: invalid file type: ${path}`)
+      throw new FilesystemError('EINVAL', `invalid file type: ${path}`)
     }
   }
 
@@ -305,9 +331,9 @@ export class MemoryFilesystem implements Filesystem {
   createDirectory(path: string): void {
     try {
       this.lookupInode(path, false)
-      throw new FilesystemError(`EEXIST: file already exists: ${path}`)
+      throw new FilesystemError('EEXIST', `file already exists: ${path}`)
     } catch (e) {
-      if (!(e instanceof FilesystemError && e.message.includes('ENOENT'))) {
+      if (!(e instanceof FilesystemError && e.code === 'ENOENT')) {
         throw e
       }
     }
@@ -316,7 +342,7 @@ export class MemoryFilesystem implements Filesystem {
     const name = this.basename(path)
 
     if (!name) {
-      throw new FilesystemError(`EINVAL: invalid path: ${path}`)
+      throw new FilesystemError('EINVAL', `invalid path: ${path}`)
     }
 
     const now = this.now()
@@ -343,11 +369,11 @@ export class MemoryFilesystem implements Filesystem {
     const inode = this.lookupInode(path, false)
 
     if (inode.type !== 'directory') {
-      throw new FilesystemError(`ENOTDIR: not a directory: ${path}`)
+      throw new FilesystemError('ENOTDIR', `not a directory: ${path}`)
     }
 
     if (inode.entries.size > 0) {
-      throw new FilesystemError(`ENOTEMPTY: directory not empty: ${path}`)
+      throw new FilesystemError('ENOTEMPTY', `directory not empty: ${path}`)
     }
 
     const parentInode = this.lookupParent(path)
@@ -366,7 +392,7 @@ export class MemoryFilesystem implements Filesystem {
     const inode = this.lookupInode(path, false)
 
     if (inode.type === 'directory') {
-      throw new FilesystemError(`EISDIR: is a directory: ${path}`)
+      throw new FilesystemError('EISDIR', `is a directory: ${path}`)
     }
 
     const parentInode = this.lookupParent(path)
@@ -398,17 +424,17 @@ export class MemoryFilesystem implements Filesystem {
 
       // If target is a directory and source is a file, error
       if (targetInode.type === 'directory' && inode.type !== 'directory') {
-        throw new FilesystemError(`EISDIR: is a directory: ${newPath}`)
+        throw new FilesystemError('EISDIR', `is a directory: ${newPath}`)
       }
 
       // If target is a file and source is a directory, error
       if (targetInode.type !== 'directory' && inode.type === 'directory') {
-        throw new FilesystemError(`ENOTDIR: not a directory: ${newPath}`)
+        throw new FilesystemError('ENOTDIR', `not a directory: ${newPath}`)
       }
 
       // If target is non-empty directory, error
       if (targetInode.type === 'directory' && targetInode.entries.size > 0) {
-        throw new FilesystemError(`ENOTEMPTY: directory not empty: ${newPath}`)
+        throw new FilesystemError('ENOTEMPTY', `directory not empty: ${newPath}`)
       }
 
       // Remove target
@@ -416,7 +442,7 @@ export class MemoryFilesystem implements Filesystem {
       newName = this.basename(newPath)
       this.inodes.delete(targetInode.ino)
     } catch (e) {
-      if (!(e instanceof FilesystemError && e.message.includes('ENOENT'))) {
+      if (!(e instanceof FilesystemError && e.code === 'ENOENT')) {
         throw e
       }
       newParent = this.lookupParent(newPath)
@@ -505,9 +531,9 @@ export class MemoryFilesystem implements Filesystem {
   symlink(target: string, path: string): void {
     try {
       this.lookupInode(path, false)
-      throw new FilesystemError(`EEXIST: file already exists: ${path}`)
+      throw new FilesystemError('EEXIST', `file already exists: ${path}`)
     } catch (e) {
-      if (!(e instanceof FilesystemError && e.message.includes('ENOENT'))) {
+      if (!(e instanceof FilesystemError && e.code === 'ENOENT')) {
         throw e
       }
     }
@@ -538,7 +564,7 @@ export class MemoryFilesystem implements Filesystem {
     const inode = this.lookupInode(path, false)
 
     if (inode.type !== 'symlink') {
-      throw new FilesystemError(`EINVAL: not a symbolic link: ${path}`)
+      throw new FilesystemError('EINVAL', `not a symbolic link: ${path}`)
     }
 
     return inode.target
@@ -551,14 +577,14 @@ export class MemoryFilesystem implements Filesystem {
     const inode = this.lookupInode(oldPath)
 
     if (inode.type === 'directory') {
-      throw new FilesystemError(`EPERM: operation not permitted (hard links to directories): ${oldPath}`)
+      throw new FilesystemError('EPERM', `operation not permitted (hard links to directories): ${oldPath}`)
     }
 
     try {
       this.lookupInode(newPath, false)
-      throw new FilesystemError(`EEXIST: file already exists: ${newPath}`)
+      throw new FilesystemError('EEXIST', `file already exists: ${newPath}`)
     } catch (e) {
-      if (!(e instanceof FilesystemError && e.message.includes('ENOENT'))) {
+      if (!(e instanceof FilesystemError && e.code === 'ENOENT')) {
         throw e
       }
     }
@@ -701,7 +727,7 @@ export class MemoryFilesystem implements Filesystem {
   readFileSync(path: string): string {
     const inode = this.lookupInode(path)
     if (inode.type !== 'file') {
-      throw new FilesystemError(`EISDIR: is a directory: ${path}`)
+      throw new FilesystemError('EISDIR', `is a directory: ${path}`)
     }
     return new TextDecoder().decode(inode.data)
   }
@@ -715,11 +741,11 @@ export class MemoryFilesystem implements Filesystem {
     try {
       const existingInode = this.lookupInode(path)
       if (existingInode.type !== 'file') {
-        throw new FilesystemError(`EISDIR: is a directory: ${path}`)
+        throw new FilesystemError('EISDIR', `is a directory: ${path}`)
       }
       inode = existingInode
     } catch (e) {
-      if (!(e instanceof FilesystemError && e.message.includes('ENOENT'))) {
+      if (!(e instanceof FilesystemError && e.code === 'ENOENT')) {
         throw e
       }
 
@@ -753,7 +779,7 @@ export class MemoryFilesystem implements Filesystem {
   readdirSync(path: string): string[] {
     const inode = this.lookupInode(path)
     if (inode.type !== 'directory') {
-      throw new FilesystemError(`ENOTDIR: not a directory: ${path}`)
+      throw new FilesystemError('ENOTDIR', `not a directory: ${path}`)
     }
     return Array.from(inode.entries.keys())
   }

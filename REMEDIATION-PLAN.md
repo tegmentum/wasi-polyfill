@@ -243,6 +243,22 @@ Twentieth batch — Phase 4.1 memory-FS capacity doubling:
   streaming append, sparse zero-fill, reused-capacity re-grow, logical-size
   stat.)
 
+Twenty-first batch — Phase 5.5 typed FilesystemError:
+
+- ✅ `FilesystemError` (wasip1) now carries a typed POSIX `code` (`FsErrorCode`),
+  set at all 23 throw sites; the message is composed as `${code}: ${detail}` so
+  existing message-prefix expectations still hold. The internal `removeDirectory`
+  / `open` etc. checks branch on `.code` instead of `e.message.includes('ENOENT')`,
+  hostfs-node's plain code-prefixed `Error`s became typed, and `path.ts` `mapError`
+  now maps by `.code` (a `Record<code, Errno>`) — which also covers native
+  `node:fs` errors (they carry `.code` too), with a precise leading-token
+  fallback and EIO otherwise. Replaces the brittle 12-pattern substring ladder;
+  as a bonus EPERM now maps correctly (the old ladder silently returned EIO).
+  (3 new mapping tests; mock fs updated to throw typed errors.)
+  Scope note: the browser `mapErrorToBrowserError` substring heuristic is left
+  as-is — it classifies third-party DOM/`TypeError` objects we don't throw, so
+  there's no typed code to read.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -375,7 +391,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 5.2 | Extract `parseInterfaceList(items, kind)` for manifest import/export parsing | copy-paste | `wasip2/core/manifest.ts:77` | S | Low |
 | 5.3 | Consolidate `createDevPolyfill`/`createJcoPolyfill`; fix jcoCompat docstring (store default on instance + apply in getImports) | identical / false doc | `wasip2/core/polyfill.ts:301` | S | Low |
 | 5.4 | Refactor `buildJcoImports` into one `makeWrappedCallable` helper; single regex parse per key | ~120-line fn, dup closures | `wasip2/core/polyfill.ts:528` | M | Med |
-| 5.5 | Typed `FilesystemError` with numeric `code`; remove substring-based errno mapping | brittle `e.message` matching | `wasip1/path.ts:488`, `wasip1/io.ts:95`, `browser/types.ts:114` | M | Med |
+| 5.5 | ✅ Typed `FilesystemError` with POSIX `.code`; `mapError` maps by code (also covers native node:fs errors). Browser DOM-error heuristic left as-is (third-party errors) | brittle `e.message` matching | `wasip1/memory-filesystem.ts`, `wasip1/path.ts`, `wasip1/hostfs-node.ts` | M | Med |
 | 5.6 | Extract `withDescriptor`/`withSocket`/`withObject(table,handle,fn)` guard helpers (remove ~30 repeated null-checks) | boilerplate per method | fs/sockets/browser plugins | M | Low |
 | 5.7 | Dedup `PluginRegistry.get`/`getSync` into shared `resolveLoaded`; dedup in-flight lazy-loader promise | dup logic + load race | `wasip2/core/plugin-registry.ts:61` | S | Low |
 | 5.8 | Extract `buildTunnelConfig(options)`; rename custom `AggregateError`→`MultiError` | dup config / global shadow | `ws-gateway/*-adapter.ts`, `shared/error-utils.ts:399` | S | Low |

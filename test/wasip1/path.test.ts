@@ -2,8 +2,9 @@
  * WASI Preview 1 Path Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { createPathFunctions, type Filesystem } from '../../src/wasip1/path.js'
+import { FilesystemError } from '../../src/wasip1/memory-filesystem.js'
 import { WasiMemory } from '../../src/wasip1/memory.js'
 import {
   FileDescriptorTable,
@@ -28,7 +29,7 @@ function createMockFilesystem(): Filesystem {
     open(path, options) {
       if (options.directory) {
         if (!dirs.has(path)) {
-          throw new Error('Not found: ' + path)
+          throw new FilesystemError('ENOENT', 'no such file or directory: ' + path)
         }
         return {
           readdir: () => {
@@ -55,11 +56,11 @@ function createMockFilesystem(): Filesystem {
       }
 
       if (options.exclusive && files.has(path)) {
-        throw new Error('File exists: ' + path)
+        throw new FilesystemError('EEXIST', 'file already exists: ' + path)
       }
 
       if (!options.create && !files.has(path)) {
-        throw new Error('Not found: ' + path)
+        throw new FilesystemError('ENOENT', 'no such file or directory: ' + path)
       }
 
       if (options.create && !files.has(path)) {
@@ -105,24 +106,24 @@ function createMockFilesystem(): Filesystem {
 
     createDirectory(path) {
       if (dirs.has(path)) {
-        throw new Error('File exists: ' + path)
+        throw new FilesystemError('EEXIST', 'file already exists: ' + path)
       }
       dirs.add(path)
     },
 
     removeDirectory(path) {
       if (!dirs.has(path)) {
-        throw new Error('Not found: ' + path)
+        throw new FilesystemError('ENOENT', 'no such file or directory: ' + path)
       }
       // Check if empty
       for (const f of files.keys()) {
         if (f.startsWith(path + '/')) {
-          throw new Error('Directory not empty: ' + path)
+          throw new FilesystemError('ENOTEMPTY', 'directory not empty: ' + path)
         }
       }
       for (const d of dirs) {
         if (d.startsWith(path + '/')) {
-          throw new Error('Directory not empty: ' + path)
+          throw new FilesystemError('ENOTEMPTY', 'directory not empty: ' + path)
         }
       }
       dirs.delete(path)
@@ -130,7 +131,7 @@ function createMockFilesystem(): Filesystem {
 
     unlink(path) {
       if (!files.has(path)) {
-        throw new Error('Not found: ' + path)
+        throw new FilesystemError('ENOENT', 'no such file or directory: ' + path)
       }
       files.delete(path)
     },
@@ -144,7 +145,7 @@ function createMockFilesystem(): Filesystem {
         dirs.delete(oldPath)
         dirs.add(newPath)
       } else {
-        throw new Error('Not found: ' + oldPath)
+        throw new FilesystemError('ENOENT', 'no such file or directory: ' + oldPath)
       }
     },
 
@@ -175,7 +176,7 @@ function createMockFilesystem(): Filesystem {
           ctim: now,
         }
       }
-      throw new Error('Not found: ' + path)
+      throw new FilesystemError('ENOENT', 'no such file or directory: ' + path)
     },
 
     setTimes(path, atim, mtim) {
@@ -186,7 +187,7 @@ function createMockFilesystem(): Filesystem {
       } else if (dirs.has(path)) {
         // No-op for directories in this mock
       } else {
-        throw new Error('Not found: ' + path)
+        throw new FilesystemError('ENOENT', 'no such file or directory: ' + path)
       }
     },
 
@@ -252,6 +253,45 @@ describe('WASIP1 Path', () => {
       const result = fns.path_create_directory(999, ptr, len)
 
       expect(result).toBe(Errno.ENOTCAPABLE)
+    })
+  })
+
+  describe('errno mapping (typed code)', () => {
+    it('maps EPERM via .code (the old message ladder dropped this to EIO)', () => {
+      const fs: Filesystem = {
+        ...createMockFilesystem(),
+        unlink() {
+          throw new FilesystemError('EPERM', 'operation not permitted')
+        },
+      }
+      const fns = createPathFunctions(memory, fdTable, { filesystems: new Map([['/', fs]]) })
+      const { ptr, len } = writePath('/whatever')
+      expect(fns.path_unlink_file(3, ptr, len)).toBe(Errno.EPERM)
+    })
+
+    it('prefers .code over the message (native node-style fs error)', () => {
+      const fs: Filesystem = {
+        ...createMockFilesystem(),
+        stat() {
+          // Native fs errors carry .code; the wording need not match.
+          throw Object.assign(new Error('totally unrelated wording'), { code: 'ENOENT' })
+        },
+      }
+      const fns = createPathFunctions(memory, fdTable, { filesystems: new Map([['/', fs]]) })
+      const { ptr, len } = writePath('/whatever')
+      expect(fns.path_filestat_get(3, 0, ptr, len, 2000)).toBe(Errno.ENOENT)
+    })
+
+    it('falls back to EIO for an untyped error', () => {
+      const fs: Filesystem = {
+        ...createMockFilesystem(),
+        unlink() {
+          throw new Error('mysterious failure')
+        },
+      }
+      const fns = createPathFunctions(memory, fdTable, { filesystems: new Map([['/', fs]]) })
+      const { ptr, len } = writePath('/whatever')
+      expect(fns.path_unlink_file(3, ptr, len)).toBe(Errno.EIO)
     })
   })
 
