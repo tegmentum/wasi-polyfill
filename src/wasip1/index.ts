@@ -243,215 +243,46 @@ export class Wasip1 {
    * Pass this to WebAssembly.instantiate as { wasi_snapshot_preview1: wasi.getImports() }
    */
   getImports(): WebAssembly.ModuleImports {
-    const self = this
-
-    // Helper to ensure initialized
+    // Helper to ensure initialized (arrow keeps `this` bound to the instance).
     const ensureInitialized = () => {
-      if (!self.initialized) {
+      if (!this.initialized) {
         throw new Error('WASI not initialized. Call wasi.initialize(instance) after WebAssembly.instantiate')
       }
     }
 
-    const imports: Record<string, (...args: never[]) => unknown> = {
-      // Process functions
-      proc_exit: (code: number) => {
+    // Each WASI import is a thin guard that checks initialization then forwards
+    // to the matching function group. Generated from the groups instead of being
+    // hand-written per function (was ~180 lines of identical passthroughs).
+    const guard =
+      <F extends (...args: never[]) => unknown>(fn: F) =>
+      (...args: never[]): unknown => {
         ensureInitialized()
-        return self.procFns.proc_exit(code)
-      },
-      proc_raise: (sig: number) => {
-        ensureInitialized()
-        return self.procFns.proc_raise(sig)
-      },
-      sched_yield: () => {
-        ensureInitialized()
-        return self.procFns.sched_yield()
-      },
+        return fn(...args)
+      }
 
-      // Args and environ functions
-      args_get: (argvPtr: number, argvBufPtr: number) => {
-        ensureInitialized()
-        return self.argsEnvironFns.args_get(argvPtr, argvBufPtr)
-      },
-      args_sizes_get: (argcPtr: number, argvBufSizePtr: number) => {
-        ensureInitialized()
-        return self.argsEnvironFns.args_sizes_get(argcPtr, argvBufSizePtr)
-      },
-      environ_get: (environPtr: number, environBufPtr: number) => {
-        ensureInitialized()
-        return self.argsEnvironFns.environ_get(environPtr, environBufPtr)
-      },
-      environ_sizes_get: (environcPtr: number, environBufSizePtr: number) => {
-        ensureInitialized()
-        return self.argsEnvironFns.environ_sizes_get(environcPtr, environBufSizePtr)
-      },
+    // procFns also exposes getExitCode(), which is not a guest import.
+    const { getExitCode: _getExitCode, ...procImports } = this.procFns
 
-      // Clock functions
-      clock_res_get: (clockId: number, resolutionPtr: number) => {
-        ensureInitialized()
-        return self.clockFns.clock_res_get(clockId, resolutionPtr)
-      },
-      clock_time_get: (clockId: number, precision: bigint, timePtr: number) => {
-        ensureInitialized()
-        return self.clockFns.clock_time_get(clockId, precision, timePtr)
-      },
+    const groups: Array<Record<string, (...args: never[]) => unknown>> = [
+      procImports,
+      this.argsEnvironFns,
+      this.clockFns,
+      this.randomFns,
+      this.fdFns,
+      this.pathFns,
+      this.pollFns,
+    ]
 
-      // Random functions
-      random_get: (bufPtr: number, bufLen: number) => {
-        ensureInitialized()
-        return self.randomFns.random_get(bufPtr, bufLen)
-      },
+    const imports: Record<string, (...args: never[]) => unknown> = {}
+    for (const group of groups) {
+      for (const [name, fn] of Object.entries(group)) {
+        imports[name] = guard(fn)
+      }
+    }
 
-      // FD functions
-      fd_advise: (fd: number, offset: bigint, len: bigint, advice: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_advise(fd, offset, len, advice)
-      },
-      fd_allocate: (fd: number, offset: bigint, len: bigint) => {
-        ensureInitialized()
-        return self.fdFns.fd_allocate(fd, offset, len)
-      },
-      fd_close: (fd: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_close(fd)
-      },
-      fd_datasync: (fd: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_datasync(fd)
-      },
-      fd_fdstat_get: (fd: number, statPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_fdstat_get(fd, statPtr)
-      },
-      fd_fdstat_set_flags: (fd: number, flags: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_fdstat_set_flags(fd, flags)
-      },
-      fd_fdstat_set_rights: (fd: number, rightsBase: bigint, rightsInheriting: bigint) => {
-        ensureInitialized()
-        return self.fdFns.fd_fdstat_set_rights(fd, rightsBase, rightsInheriting)
-      },
-      fd_filestat_get: (fd: number, bufPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_filestat_get(fd, bufPtr)
-      },
-      fd_filestat_set_size: (fd: number, size: bigint) => {
-        ensureInitialized()
-        return self.fdFns.fd_filestat_set_size(fd, size)
-      },
-      fd_filestat_set_times: (fd: number, atim: bigint, mtim: bigint, fstFlags: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_filestat_set_times(fd, atim, mtim, fstFlags)
-      },
-      fd_pread: (fd: number, iovsPtr: number, iovsLen: number, offset: bigint, nreadPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_pread(fd, iovsPtr, iovsLen, offset, nreadPtr)
-      },
-      fd_prestat_get: (fd: number, prestatPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_prestat_get(fd, prestatPtr)
-      },
-      fd_prestat_dir_name: (fd: number, pathPtr: number, pathLen: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_prestat_dir_name(fd, pathPtr, pathLen)
-      },
-      fd_pwrite: (fd: number, ciovsPtr: number, ciovsLen: number, offset: bigint, nwrittenPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_pwrite(fd, ciovsPtr, ciovsLen, offset, nwrittenPtr)
-      },
-      fd_read: (fd: number, iovsPtr: number, iovsLen: number, nreadPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_read(fd, iovsPtr, iovsLen, nreadPtr)
-      },
-      fd_readdir: (fd: number, bufPtr: number, bufLen: number, cookie: bigint, bufUsedPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_readdir(fd, bufPtr, bufLen, cookie, bufUsedPtr)
-      },
-      fd_renumber: (from: number, to: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_renumber(from, to)
-      },
-      fd_seek: (fd: number, offset: bigint, whence: number, newOffsetPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_seek(fd, offset, whence, newOffsetPtr)
-      },
-      fd_sync: (fd: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_sync(fd)
-      },
-      fd_tell: (fd: number, offsetPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_tell(fd, offsetPtr)
-      },
-      fd_write: (fd: number, ciovsPtr: number, ciovsLen: number, nwrittenPtr: number) => {
-        ensureInitialized()
-        return self.fdFns.fd_write(fd, ciovsPtr, ciovsLen, nwrittenPtr)
-      },
-
-      // Path functions
-      path_create_directory: (fd: number, pathPtr: number, pathLen: number) => {
-        ensureInitialized()
-        return self.pathFns.path_create_directory(fd, pathPtr, pathLen)
-      },
-      path_filestat_get: (fd: number, flags: number, pathPtr: number, pathLen: number, bufPtr: number) => {
-        ensureInitialized()
-        return self.pathFns.path_filestat_get(fd, flags, pathPtr, pathLen, bufPtr)
-      },
-      path_filestat_set_times: (fd: number, flags: number, pathPtr: number, pathLen: number, atim: bigint, mtim: bigint, fstFlags: number) => {
-        ensureInitialized()
-        return self.pathFns.path_filestat_set_times(fd, flags, pathPtr, pathLen, atim, mtim, fstFlags)
-      },
-      path_link: (oldFd: number, oldFlags: number, oldPathPtr: number, oldPathLen: number, newFd: number, newPathPtr: number, newPathLen: number) => {
-        ensureInitialized()
-        return self.pathFns.path_link(oldFd, oldFlags, oldPathPtr, oldPathLen, newFd, newPathPtr, newPathLen)
-      },
-      path_open: (fd: number, dirflags: number, pathPtr: number, pathLen: number, oflags: number, rightsBase: bigint, rightsInheriting: bigint, fdflags: number, fdPtr: number) => {
-        ensureInitialized()
-        return self.pathFns.path_open(fd, dirflags, pathPtr, pathLen, oflags, rightsBase, rightsInheriting, fdflags, fdPtr)
-      },
-      path_readlink: (fd: number, pathPtr: number, pathLen: number, bufPtr: number, bufLen: number, bufUsedPtr: number) => {
-        ensureInitialized()
-        return self.pathFns.path_readlink(fd, pathPtr, pathLen, bufPtr, bufLen, bufUsedPtr)
-      },
-      path_remove_directory: (fd: number, pathPtr: number, pathLen: number) => {
-        ensureInitialized()
-        return self.pathFns.path_remove_directory(fd, pathPtr, pathLen)
-      },
-      path_rename: (oldFd: number, oldPathPtr: number, oldPathLen: number, newFd: number, newPathPtr: number, newPathLen: number) => {
-        ensureInitialized()
-        return self.pathFns.path_rename(oldFd, oldPathPtr, oldPathLen, newFd, newPathPtr, newPathLen)
-      },
-      path_symlink: (oldPathPtr: number, oldPathLen: number, fd: number, newPathPtr: number, newPathLen: number) => {
-        ensureInitialized()
-        return self.pathFns.path_symlink(oldPathPtr, oldPathLen, fd, newPathPtr, newPathLen)
-      },
-      path_unlink_file: (fd: number, pathPtr: number, pathLen: number) => {
-        ensureInitialized()
-        return self.pathFns.path_unlink_file(fd, pathPtr, pathLen)
-      },
-
-      // Poll functions
-      poll_oneoff: (inPtr: number, outPtr: number, nsubscriptions: number, neventsPtr: number) => {
-        ensureInitialized()
-        return self.pollFns.poll_oneoff(inPtr, outPtr, nsubscriptions, neventsPtr)
-      },
-
-      // Socket functions (stubs - return ENOSYS)
-      sock_accept: (_fd: number, _flags: number, _fdPtr: number) => {
-        ensureInitialized()
-        return Errno.ENOSYS
-      },
-      sock_recv: (_fd: number, _riDataPtr: number, _riDataLen: number, _riFlags: number, _roDatalenPtr: number, _roFlagsPtr: number) => {
-        ensureInitialized()
-        return Errno.ENOSYS
-      },
-      sock_send: (_fd: number, _siDataPtr: number, _siDataLen: number, _siFlags: number, _soDatalenPtr: number) => {
-        ensureInitialized()
-        return Errno.ENOSYS
-      },
-      sock_shutdown: (_fd: number, _how: number) => {
-        ensureInitialized()
-        return Errno.ENOSYS
-      },
+    // Socket operations are unsupported in this environment (no backing group).
+    for (const name of ['sock_accept', 'sock_recv', 'sock_send', 'sock_shutdown']) {
+      imports[name] = guard(() => Errno.ENOSYS)
     }
 
     // Translate guest memory faults (out-of-range pointers) into EFAULT instead
