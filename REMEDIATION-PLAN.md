@@ -67,6 +67,16 @@ Second autonomous batch (same branch):
 Decisions captured: continue autonomously; **P3 → scope to jco + document (3.7)**;
 **mock backends → implement real**.
 
+Third autonomous batch (same branch):
+
+- ✅ **2.5/2.6** — WASIP1 `resolvePath` normalizes `.`/`..` (clamped at root);
+  `path_open` attaches the filesystem ref so subdirectory fds are usable.
+- ✅ **2.6b** — WASIP2 memory FS `normalizePath` resolves `.`/`..`.
+- ✅ **2.9** — ws-gateway bounds frame payload size (`maxFrameSize`, default 16 MiB)
+  to prevent an unbounded-buffering memory DoS.
+- ✅ **2.16** — `browser:worker` imports return a `result<>` instead of throwing,
+  matching every other browser interface.
+
 Remaining (large / dependency-bearing, best as dedicated PRs):
 - **Phase 1 full migration** of ~40 hand-rolled tables to the existing
   `shared/registry.ts` HandleRegistry (mechanical, large).
