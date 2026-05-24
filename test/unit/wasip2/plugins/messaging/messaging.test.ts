@@ -2,7 +2,7 @@
  * wasi:messaging plugin tests
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   memoryMessagingImplementation,
   ChannelType,
@@ -393,6 +393,63 @@ describe('wasi:messaging', () => {
         expect(result.value!.correlationId).toBeDefined()
         expect(result.value!.replyChannel).toContain('reply-')
       })
+    })
+  })
+
+  describe('message TTL expiry (Phase 3.10)', () => {
+    type Res<T> = { ok: boolean; value?: T; error?: { code: string } }
+    let instance: ReturnType<typeof memoryMessagingImplementation.create>
+    let imports: Record<string, unknown>
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+      instance = memoryMessagingImplementation.create({} as MessagingPluginConfig)
+      imports = instance.getImports()
+      ;(imports['create-channel'] as (n: string, o: ChannelOptions) => void)(
+        'ttl-q',
+        { type: ChannelType.QUEUE }
+      )
+    })
+
+    afterEach(() => {
+      instance.destroy()
+      vi.useRealTimers()
+    })
+
+    it('does not deliver a message past its TTL', () => {
+      const send = imports['send'] as (c: string, m: Message) => Res<string>
+      const subscribe = imports['subscribe'] as (c: string, o: SubscribeOptions) => Res<number>
+      const receive = imports['receive'] as (h: number, t: number) => Res<ReceivedMessage>
+
+      send('ttl-q', {
+        payload: new TextEncoder().encode('soon-gone'),
+        metadata: { ttl: 1000 },
+      })
+
+      // Advance past the TTL before anyone consumes it.
+      vi.advanceTimersByTime(2000)
+
+      const sub = subscribe('ttl-q', { autoAck: true })
+      const recv = receive(sub.value!, 0)
+      expect(recv.ok).toBe(false)
+      expect(recv.error?.code).toBe(MessagingErrorCode.TIMEOUT)
+    })
+
+    it('still delivers a message within its TTL', () => {
+      const send = imports['send'] as (c: string, m: Message) => Res<string>
+      const subscribe = imports['subscribe'] as (c: string, o: SubscribeOptions) => Res<number>
+      const receive = imports['receive'] as (h: number, t: number) => Res<ReceivedMessage>
+
+      send('ttl-q', {
+        payload: new TextEncoder().encode('still-here'),
+        metadata: { ttl: 10000 },
+      })
+      vi.advanceTimersByTime(1000) // well within TTL
+
+      const sub = subscribe('ttl-q', { autoAck: true })
+      const recv = receive(sub.value!, 0)
+      expect(recv.ok).toBe(true)
+      expect(new TextDecoder().decode(recv.value!.message.payload)).toBe('still-here')
     })
   })
 })
