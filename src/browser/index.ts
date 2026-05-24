@@ -697,9 +697,45 @@ import { getBrowserFullscreenImports as _getFullscreenImports } from './fullscre
 import { getBrowserVibrationImports as _getVibrationImports } from './vibration.js'
 
 /**
+ * A capability-scoped browser interface that a component may be granted.
+ * `browser:types` and `browser:runtime` are pure host-side utilities (error
+ * mapping, feature detection) and are always available.
+ */
+export type BrowserCapability =
+  | 'console'
+  | 'fetch'
+  | 'storage'
+  | 'performance'
+  | 'dom'
+  | 'events'
+  | 'canvas'
+  | 'clipboard'
+  | 'geolocation'
+  | 'notifications'
+  | 'media'
+  | 'service-worker'
+  | 'worker'
+  | 'gc-enhanced'
+  | 'webgpu'
+  | 'websocket'
+  | 'broadcast-channel'
+  | 'animation'
+  | 'history'
+  | 'screen'
+  | 'fullscreen'
+  | 'vibration'
+
+/**
  * Configuration for browser imports.
  */
 export interface BrowserImportsConfig {
+  /**
+   * Capability allow-list. When omitted, every interface is provided (the
+   * historical default). When set, only the listed interfaces are wired up —
+   * a component cannot reach DOM, clipboard, media, network, etc. unless that
+   * capability is explicitly granted.
+   */
+  capabilities?: readonly BrowserCapability[]
   /** Console logger configuration */
   console?: import('./console.js').ConsoleLoggerConfig
   /** Storage database name */
@@ -749,41 +785,41 @@ export interface BrowserImportsConfig {
  * a single object suitable for WebAssembly instantiation.
  */
 export function getBrowserImports(config: BrowserImportsConfig = {}): Record<string, unknown> {
+  const caps = config.capabilities
+  // No allow-list => everything granted (backward compatible). Otherwise only
+  // the listed capabilities are wired.
+  const granted = (cap: BrowserCapability): boolean =>
+    caps === undefined || caps.includes(cap)
+  const when = (cap: BrowserCapability, imports: Record<string, unknown>) =>
+    granted(cap) ? imports : {}
+
   return {
-    // Phase 0
+    // Pure host-side utilities — always available.
     ..._getTypesImports(),
     ..._getRuntimeImports(),
-    ..._getConsoleImports(config.console),
-    // Phase 1
-    ..._getFetchImports(config.fetch),
-    ..._getStorageImports(config.storageDatabaseName),
-    ..._getPerformanceImports(),
-    // Phase 2
-    ..._getDomImports(config.dom),
-    ..._getEventsImports(config.events),
-    // Phase 3
-    ..._getCanvasImports(config.canvas),
-    // Phase 4
-    ..._getClipboardImports(config.clipboard),
-    ..._getGeolocationImports(config.geolocation),
-    ..._getNotificationsImports(config.notifications),
-    ..._getMediaImports(config.media),
-    // Phase 5
-    ..._getServiceWorkerImports(config.serviceWorker),
-    // Phase 6
-    ..._getWorkerImports(config.worker),
-    // wasmGC-enhanced tier
-    ..._getGcEnhancedImports(config.gcEnhanced),
-    // WebGPU
-    ..._getWebGPUImports(),
-    // New Browser APIs
-    ..._getWebSocketImports(config.websocket),
-    ..._getBroadcastChannelImports(config.broadcastChannel),
-    ..._getAnimationImports(config.animation),
-    ..._getHistoryImports(config.history),
-    ..._getScreenImports(config.screen),
-    ..._getFullscreenImports(config.fullscreen),
-    ..._getVibrationImports(config.vibration),
+    // Capability-gated interfaces.
+    ...when('console', _getConsoleImports(config.console)),
+    ...when('fetch', _getFetchImports(config.fetch)),
+    ...when('storage', _getStorageImports(config.storageDatabaseName)),
+    ...when('performance', _getPerformanceImports()),
+    ...when('dom', _getDomImports(config.dom)),
+    ...when('events', _getEventsImports(config.events)),
+    ...when('canvas', _getCanvasImports(config.canvas)),
+    ...when('clipboard', _getClipboardImports(config.clipboard)),
+    ...when('geolocation', _getGeolocationImports(config.geolocation)),
+    ...when('notifications', _getNotificationsImports(config.notifications)),
+    ...when('media', _getMediaImports(config.media)),
+    ...when('service-worker', _getServiceWorkerImports(config.serviceWorker)),
+    ...when('worker', _getWorkerImports(config.worker)),
+    ...when('gc-enhanced', _getGcEnhancedImports(config.gcEnhanced)),
+    ...when('webgpu', _getWebGPUImports()),
+    ...when('websocket', _getWebSocketImports(config.websocket)),
+    ...when('broadcast-channel', _getBroadcastChannelImports(config.broadcastChannel)),
+    ...when('animation', _getAnimationImports(config.animation)),
+    ...when('history', _getHistoryImports(config.history)),
+    ...when('screen', _getScreenImports(config.screen)),
+    ...when('fullscreen', _getFullscreenImports(config.fullscreen)),
+    ...when('vibration', _getVibrationImports(config.vibration)),
   }
 }
 
