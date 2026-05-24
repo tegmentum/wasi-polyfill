@@ -153,6 +153,13 @@ Eleventh batch:
   intentionally left — forcing them into the base would add code/risk for
   negative readability.
 
+Twelfth batch:
+
+- ✅ **2.17 OPFS** — fixed exclusive-create (probe with `getFileHandle({create:false})`
+  instead of the bogus `file.size > 0` proxy) and made `renameAt` roll back the
+  copy if deleting the source fails (no more duplicate on partial failure).
+  Browser-only (Playwright e2e), not node unit tests.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 full per-instance registries** — making every plugin's module-level
   global registry per-polyfill is a cross-cutting overhaul (high risk). The
@@ -161,8 +168,6 @@ Remaining (the hard tail — large, low-value, or externally blocked):
   A correct inbound fix is partly blocked: the wire protocol carries no source
   address on inbound datagram frames, so unconnected-UDP receive can't be done
   faithfully. Needs a protocol change or a documented connected-only subset.
-- **2.17 OPFS rename atomicity** — `renameAt` copies then deletes (non-atomic);
-  acceptable to document, or implement with rollback.
 - **3.8 NN real backend** — onnxruntime-web (~10 MB dep): the wasi:nn surface
   here is the WebNN graph-builder API, which doesn't map onto onnxruntime's
   load-a-model model; also hard to test without ONNX model fixtures. Dedicated
