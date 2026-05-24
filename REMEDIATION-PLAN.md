@@ -160,14 +160,21 @@ Twelfth batch:
   copy if deleting the source fails (no more duplicate on partial failure).
   Browser-only (Playwright e2e), not node unit tests.
 
+Thirteenth batch:
+
+- ✅ **2.8 UDP send** — datagrams are now sent on a per-destination tunnel stream
+  (keyed by `host:port`) instead of one reused stream that misrouted later
+  destinations; drop/clear close all of a socket's streams.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 full per-instance registries** — making every plugin's module-level
   global registry per-polyfill is a cross-cutting overhaul (high risk). The
   plugin *registry* is now injectable (5.10); the plugin *instance* state is not.
-- **2.7/2.8 ws-gateway UDP** — receive never delivers / send ignores destination.
-  A correct inbound fix is partly blocked: the wire protocol carries no source
-  address on inbound datagram frames, so unconnected-UDP receive can't be done
-  faithfully. Needs a protocol change or a documented connected-only subset.
+- **2.7 ws-gateway UDP receive** — inbound datagrams are never delivered, and a
+  faithful fix is blocked: the wire protocol carries no source address on inbound
+  datagram frames and the tunnel rxQueue is a byte stream (no datagram
+  boundaries). Needs a protocol/tunnel change or a documented connected-only
+  subset. (Send — 2.8 — is fixed.)
 - **3.8 NN real backend** — onnxruntime-web (~10 MB dep): the wasi:nn surface
   here is the WebNN graph-builder API, which doesn't map onto onnxruntime's
   load-a-model model; also hard to test without ONNX model fixtures. Dedicated
