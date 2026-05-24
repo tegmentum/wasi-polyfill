@@ -115,6 +115,14 @@ export interface TunnelConfig {
   /** Receive buffer size per stream */
   rxBufferSize?: number
 
+  /**
+   * Maximum accepted frame payload size in bytes (default: 16 MiB).
+   * A frame advertising a larger payload is rejected and the tunnel is
+   * disconnected, preventing a malicious/buggy gateway from forcing unbounded
+   * buffering (the payload length field is a 32-bit value, up to ~4 GiB).
+   */
+  maxFrameSize?: number
+
   /** Initial TX credit (flow control) */
   initialTxCredit?: number
 
@@ -171,6 +179,7 @@ export class WsTunnelManager {
       authToken: config.authToken ?? '',
       maxStreams: config.maxStreams ?? 64,
       rxBufferSize: config.rxBufferSize ?? 8 * 1024 * 1024,
+      maxFrameSize: config.maxFrameSize ?? 16 * 1024 * 1024,
       initialTxCredit: config.initialTxCredit ?? 1024 * 1024,
       connectTimeoutMs: config.connectTimeoutMs ?? 30000,
       flowControl: config.flowControl ?? false,
@@ -645,6 +654,17 @@ export class WsTunnelManager {
       if (!header) {
         // Invalid frame - disconnect
         this.disconnect(new Error('Invalid frame header'))
+        return
+      }
+
+      // Reject oversized frames before buffering the payload, so a hostile
+      // gateway can't force unbounded memory growth with a huge payloadLen.
+      if (header.payloadLen > this.config.maxFrameSize) {
+        this.disconnect(
+          new Error(
+            `Frame payload ${header.payloadLen} exceeds maxFrameSize ${this.config.maxFrameSize}`
+          )
+        )
         return
       }
 
