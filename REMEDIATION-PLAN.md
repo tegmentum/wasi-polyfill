@@ -354,6 +354,17 @@ Twenty-ninth batch — Phase 3.13 manifest verification:
   export side, so a host can refuse a component that doesn't provide the
   interfaces it intends to call). Both exported from core. (9 tests.)
 
+Thirtieth batch — Phase 4.4 async-executor waitAll:
+
+- ✅ `AsyncExecutor.waitAll` no longer polls `activeTasks.size` every 10ms; a
+  `finishTask` notifier wakes registered waiters the moment the last task drains
+  (timeout still enforced via a single `setTimeout`; `cancelAll` also wakes
+  waiters). The other `setTimeout` sites are legitimate, not busy-spins:
+  `callAsync` already awaits `task.wait()` (event-driven), `eventLoop` yields in
+  a generic poll over arbitrary operations, and `adaptPollable` polls because
+  P2 pollables are poll-based by contract (no onReady to subscribe to). (1 test:
+  multiple concurrent waiters wake on drain.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -468,7 +479,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 4.1 | ✅ Capacity-doubling buffer for memory FS writes (`growFile`; content stays a logical-length view, amortized O(n) appends) | quadratic file writes | `filesystem/impl-memory.ts` | M | Med |
 | 4.2 | Running size counter + avoid per-chunk copy in `MemoryOutputStream` | O(n²) size recompute | `io/streams.ts:241` | S | Low |
 | 4.3 | Chunk `random.get-random-bytes` in ≤64KiB; remove cap on insecure/seeded | crash on len>64KiB | `random/impl-crypto.ts:28`, `impl-insecure.ts`, `impl-seeded.ts` | S | Low |
-| 4.4 | Replace `setTimeout(0)` busy-polls with `SubtaskManager.onStateChange` callbacks | CPU spin | `wasip3/runtime/async-executor.ts:234`, `adapters/p2-to-p3.ts:228` | M | Med |
+| 4.4 | ✅ `waitAll` is event-driven (finishTask notifier) instead of a 10ms poll; remaining setTimeouts are legitimate yields/poll-based-contract | CPU spin | `wasip3/runtime/async-executor.ts` | M | Med |
 | 4.5 | ✅ Memoize `buildJcoImports` per loaded-interface set (cleared on destroy) | rebuilt every call | `wasip2/core/polyfill.ts` | S | Low |
 | 4.6 | Module-level `TextEncoder`/`TextDecoder` singletons | per-call alloc in hot loops | `wasip1/memory.ts`, `wasip1/fd.ts:584`, `browser/types.ts:311` | S | Low |
 | 4.7 | `StatCache.evictOldest`: delete first N Map keys (no sort) | full sort per insert | `shared/stat-cache.ts:176` | S | Low |

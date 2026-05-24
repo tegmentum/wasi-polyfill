@@ -44,6 +44,18 @@ export class AsyncExecutor {
   private config: Required<AsyncExecutorConfig>
   private activeTasks: Map<number, Task> = new Map()
   private nextTaskId = 1
+  /** Resolvers waiting for `activeTasks` to drain (see waitAll). */
+  private idleWaiters: Array<() => void> = []
+
+  /** Remove a finished task and wake any waitAll() waiters once idle. */
+  private finishTask(taskId: number): void {
+    this.activeTasks.delete(taskId)
+    if (this.activeTasks.size === 0 && this.idleWaiters.length > 0) {
+      const waiters = this.idleWaiters
+      this.idleWaiters = []
+      for (const wake of waiters) wake()
+    }
+  }
 
   constructor(config: AsyncExecutorConfig = {}) {
     this.config = {
@@ -95,7 +107,7 @@ export class AsyncExecutor {
 
       return task.getReturnValues() as T
     } finally {
-      this.activeTasks.delete(taskId)
+      this.finishTask(taskId)
     }
   }
 
@@ -147,7 +159,7 @@ export class AsyncExecutor {
 
       return fn(caller)
     } finally {
-      this.activeTasks.delete(taskId)
+      this.finishTask(taskId)
     }
   }
 
@@ -165,14 +177,22 @@ export class AsyncExecutor {
    * @returns Promise that resolves when all tasks complete
    */
   async waitAll(timeout = this.config.waitTimeout): Promise<void> {
-    const startTime = Date.now()
+    if (this.activeTasks.size === 0) return
 
-    while (this.activeTasks.size > 0) {
-      if (Date.now() - startTime > timeout) {
-        throw new Error('Timeout waiting for tasks to complete')
+    // Resolve as soon as the last task finishes (finishTask wakes us) rather
+    // than polling activeTasks.size on a fixed interval.
+    await new Promise<void>((resolve, reject) => {
+      const wake = (): void => {
+        clearTimeout(timer)
+        resolve()
       }
-      await new Promise((resolve) => setTimeout(resolve, 10))
-    }
+      const timer = setTimeout(() => {
+        const i = this.idleWaiters.indexOf(wake)
+        if (i >= 0) this.idleWaiters.splice(i, 1)
+        reject(new Error('Timeout waiting for tasks to complete'))
+      }, timeout)
+      this.idleWaiters.push(wake)
+    })
   }
 
   /**
@@ -183,6 +203,10 @@ export class AsyncExecutor {
       task.cancelAll()
     }
     this.activeTasks.clear()
+    // No tasks remain — wake any waitAll() waiters.
+    const waiters = this.idleWaiters
+    this.idleWaiters = []
+    for (const wake of waiters) wake()
   }
 }
 
