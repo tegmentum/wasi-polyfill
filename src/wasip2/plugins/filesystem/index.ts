@@ -65,6 +65,7 @@ export type { OpfsConfig } from './impl-opfs.js'
 export {
   opfsFilesystemImplementation,
   OpfsDescriptor,
+  OpfsTimesStore,
   isOpfsAvailable,
   getGlobalOpfsFilesystemInstance,
 } from './impl-opfs.js'
