@@ -396,34 +396,28 @@ export class GcEnhancedEvents {
 
   /**
    * Read raw event references from a subscription.
-   * Returns the actual Event objects for on-demand property access.
    *
-   * Note: This currently returns an empty array as the base events system
-   * serializes events to EventData. Full GC-enhanced event streaming requires
-   * deeper integration with the events system to preserve raw Event objects.
-   * Use queryEventProperty() and related methods with Event references
-   * obtained through other means (e.g., direct DOM event listeners).
+   * Not supported: the base events system intentionally serializes events to
+   * `EventData` and does not retain raw `Event` objects (retaining them would
+   * pin DOM nodes and leak across the host boundary). Rather than silently
+   * returning an empty success — which looks like "no events" — this reports
+   * `NOT_SUPPORTED`. Use the per-`EventRef` query methods
+   * ({@link queryEventProperty}, {@link getMouseEventData}, …) with an `Event`
+   * obtained from a direct DOM listener instead.
    */
   async readEventRefs(handle: SubscriptionHandle): Promise<Result<EventRef[], BrowserError>> {
     const check = this.checkRequirements()
     if (!check.ok) return check
 
-    // Get events from the base events system to verify subscription exists
-    const events = getDefaultEvents()
-    const result = await events.read(handle)
+    // Verify the subscription exists so the caller still gets BadDescriptor-style
+    // errors for invalid handles rather than a blanket NOT_SUPPORTED.
+    const info = getDefaultEvents().getSubscriptionInfo(handle)
+    if (!info.ok) return info
 
-    if (result.status === 'error') {
-      return { ok: false, error: result.error }
-    }
-
-    // The base system returns serialized EventData, not raw Event objects.
-    // For true GC-enhanced event streaming, the events system would need
-    // to maintain a parallel queue of raw Event references.
-    // This is a limitation of the current implementation.
-
-    // Return empty array - callers should use direct DOM listeners
-    // and pass the Event reference to query methods instead.
-    return ok([])
+    return browserErr(
+      BrowserErrorCode.NOT_SUPPORTED,
+      'raw Event-ref streaming is not supported; query properties via an Event from a direct DOM listener'
+    )
   }
 
   /**

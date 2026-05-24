@@ -73,24 +73,31 @@ export function isBrowser(): boolean {
     typeof globalThis.self !== 'undefined'
 }
 
+/** Memoized result of {@link isWasmGcEnabled} (feature support can't change). */
+let wasmGcSupport: boolean | undefined
+
 /**
- * Check if wasmGC is available.
- *
- * This checks for WebAssembly GC proposal support.
+ * Check if the WebAssembly GC proposal is available, by validating a tiny
+ * module whose type section declares a GC struct type — `WebAssembly.validate`
+ * only accepts it on engines that implement GC. The result is memoized.
  */
 export function isWasmGcEnabled(): boolean {
+  if (wasmGcSupport !== undefined) return wasmGcSupport
   try {
-    // Check for GC types support by looking for struct/array support
-    // This is a simplified check - full detection would require more
-    if (typeof WebAssembly === 'undefined') {
+    if (typeof WebAssembly === 'undefined' || typeof WebAssembly.validate !== 'function') {
+      wasmGcSupport = false
       return false
     }
-
-    // Check if the validate function exists and can handle GC types
-    // For now, return false as GC support is still experimental
-    // In production, this would check for actual GC feature support
-    return false
+    // \0asm v1 + a type section declaring `struct { i8 }` (0x5f = struct,
+    // 0x78 = i8 packed field, 0x00 = immutable). Validates only under GC.
+    const gcProbe = new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x05, 0x01, 0x5f,
+      0x01, 0x78, 0x00,
+    ])
+    wasmGcSupport = WebAssembly.validate(gcProbe)
+    return wasmGcSupport
   } catch {
+    wasmGcSupport = false
     return false
   }
 }

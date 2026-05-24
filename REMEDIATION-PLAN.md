@@ -376,6 +376,18 @@ Thirty-first batch — Phase 3.11 incoming-handler dispatch:
   up. The `stub`/`callback` plugin implementations remain for the registry path.
   (6 tests: status/headers/body, method+path, body passthrough, 501, 500×2.)
 
+Thirty-second batch — Phase 3.15 wasm-GC detection + readEventRefs:
+
+- ✅ `isWasmGcEnabled()` now really detects the WebAssembly GC proposal by
+  validating a tiny module that declares a GC `struct` type (was hardcoded
+  `false`); memoized. This correctly gates the GC-enhanced DOM/events tier.
+- ✅ `readEventRefs` no longer returns a misleading empty success: it reports
+  `NOT_SUPPORTED` (after a real subscription-handle check) because the base
+  events layer deliberately serializes events rather than retaining raw `Event`
+  objects (which would pin DOM nodes / leak across the host boundary). Callers
+  use the per-`EventRef` query methods with an `Event` from a direct listener.
+  (3 tests for the detector.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -479,7 +491,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 3.12 | OPFS `set-times` and metadata: sidecar metadata store or return `Unsupported` (stop pretending) | silent no-op returns ok | `filesystem/impl-opfs.ts:191` | M | Low |
 | 3.13 | ✅ Manifest: `verifyComponentHash` (Web Crypto) + `validateExports` put the previously-unused fields to work | unused validation fields | `wasip2/core/manifest.ts` | M | Low |
 | 3.14 | ✅ WASIP1 `poll_oneoff`: opt-in blocking (`blockingPoll`) waits for the earliest clock via `Atomics.wait`; non-blocking default documented | returns 0 events, busy-loops | `wasip1/poll.ts`, `wasip1/index.ts` | M | Med |
-| 3.15 | `isWasmGcEnabled()` real detection (or document the GC tier as disabled) + implement/remove `readEventRefs` stub | GC tier unreachable | `browser/runtime.ts:81`, `browser/gc-enhanced.ts:408` | M | Low |
+| 3.15 | ✅ `isWasmGcEnabled()` validates a GC struct module (real detection, memoized); `readEventRefs` returns honest NOT_SUPPORTED instead of empty success | GC tier unreachable | `browser/runtime.ts`, `browser/gc-enhanced.ts` | M | Low |
 
 ---
 
