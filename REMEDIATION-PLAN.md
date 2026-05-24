@@ -299,6 +299,16 @@ Twenty-fourth batch — Phase 5.8 buildTunnelConfig:
   the existing 200 ws-gateway/sockets tests). The `AggregateError`→`MultiError`
   rename was already done in a prior batch (no global shadowing remains).
 
+Twenty-fifth batch — Phase 5.4 buildJcoImports cleanup:
+
+- ✅ Extracted `makeMethodCallable`/`makePlainCallable` (sharing a `finishJcoCall`
+  finisher) so the duplicated wrapDesc-ternary closures in `buildJcoImports`
+  collapse to single calls, and a single `parseImportKey` classifies each key in
+  one regex pass (replacing the sequential `[resource-drop]`/`[method]`/`[static]`/
+  `[constructor]` match ladder) feeding a `switch`. Pure refactor; behavior
+  unchanged (covered by the 34 jco-compat tests). Static methods keep their
+  existing semantics (no return-wrap/guard).
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -430,7 +440,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 5.1 | Generate `Wasip1.getImports()` by iterating fn maps + one guard wrapper (drop ~180 lines) | hand-written passthroughs | `wasip1/index.ts:255` | M | Med |
 | 5.2 | Extract `parseInterfaceList(items, kind)` for manifest import/export parsing | copy-paste | `wasip2/core/manifest.ts:77` | S | Low |
 | 5.3 | Consolidate `createDevPolyfill`/`createJcoPolyfill`; fix jcoCompat docstring (store default on instance + apply in getImports) | identical / false doc | `wasip2/core/polyfill.ts:301` | S | Low |
-| 5.4 | Refactor `buildJcoImports` into one `makeWrappedCallable` helper; single regex parse per key | ~120-line fn, dup closures | `wasip2/core/polyfill.ts:528` | M | Med |
+| 5.4 | ✅ `buildJcoImports`: `makeMethodCallable`/`makePlainCallable` + `finishJcoCall`; single `parseImportKey` pass → `switch` | ~120-line fn, dup closures | `wasip2/core/polyfill.ts` | M | Med |
 | 5.5 | ✅ Typed `FilesystemError` with POSIX `.code`; `mapError` maps by code (also covers native node:fs errors). Browser DOM-error heuristic left as-is (third-party errors) | brittle `e.message` matching | `wasip1/memory-filesystem.ts`, `wasip1/path.ts`, `wasip1/hostfs-node.ts` | M | Med |
 | 5.6 | Extract `withDescriptor`/`withSocket`/`withObject(table,handle,fn)` guard helpers (remove ~30 repeated null-checks) | boilerplate per method | fs/sockets/browser plugins | M | Low |
 | 5.7 | Dedup `PluginRegistry.get`/`getSync` into shared `resolveLoaded`; dedup in-flight lazy-loader promise | dup logic + load race | `wasip2/core/plugin-registry.ts:61` | S | Low |
