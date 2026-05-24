@@ -79,6 +79,13 @@ export class Polyfill {
   private readonly instances: Map<string, PluginInstance> = new Map()
   private readonly defaultJcoCompat: boolean
   private readonly context: ResourceContext
+  /**
+   * Memoized jco-import builds, keyed by the sorted set of loaded interface
+   * strings. Plugin instances are cached for the polyfill's lifetime, so the
+   * same set of interfaces always yields the same raw imports and thus the same
+   * jco resource classes — no need to rebuild them on every getImports call.
+   */
+  private readonly jcoImportCache = new Map<string, Record<string, Record<string, unknown>>>()
   private destroyed = false
 
   constructor(config?: PolyfillConfig) {
@@ -161,7 +168,14 @@ export class Polyfill {
     }
 
     if (rawJcoImports) {
-      return { imports: buildJcoImports(rawJcoImports), loaded, denied, missing }
+      // Reuse a previously built jco-import set for the same loaded interfaces.
+      const cacheKey = loaded.map((i) => formatInterfaceString(i)).sort().join('|')
+      let built = this.jcoImportCache.get(cacheKey)
+      if (!built) {
+        built = buildJcoImports(rawJcoImports)
+        this.jcoImportCache.set(cacheKey, built)
+      }
+      return { imports: built, loaded, denied, missing }
     }
 
     return { imports, loaded, denied, missing }
@@ -243,6 +257,7 @@ export class Polyfill {
     }
 
     this.instances.clear()
+    this.jcoImportCache.clear()
     this.destroyed = true
   }
 

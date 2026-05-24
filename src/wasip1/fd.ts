@@ -10,6 +10,9 @@ import { Errno, FileType, Rights, Whence, FdFlags, FstFlags } from './types.js'
 import { WasiMemory, DIRENT_SIZE } from './memory.js'
 import { FileDescriptorTable } from './fd-table.js'
 
+/** Shared encoder to avoid per-call/per-entry allocation in hot paths. */
+const textEncoder = new TextEncoder()
+
 /**
  * Input stream interface for stdin.
  */
@@ -460,7 +463,7 @@ export function createFdFunctions(
         return Errno.EBADF // Not a preopen
       }
 
-      const pathLen = new TextEncoder().encode(entry.preopen).length
+      const pathLen = textEncoder.encode(entry.preopen).length
       memory.writePrestat(prestatPtr, pathLen)
       return Errno.SUCCESS
     },
@@ -478,7 +481,7 @@ export function createFdFunctions(
         return Errno.EBADF // Not a preopen
       }
 
-      const encoded = new TextEncoder().encode(entry.preopen)
+      const encoded = textEncoder.encode(entry.preopen)
       if (encoded.length > pathLen) {
         return Errno.ENAMETOOLONG
       }
@@ -592,39 +595,43 @@ export function createFdFunctions(
       const resource = entry.resource as DirectoryResource | undefined
       if (!resource?.readdir) return Errno.EBADF
 
-      const entries = resource.readdir()
-      let bufUsed = 0
-      let currentCookie = 0n
-
-      for (const dirEntry of entries) {
-        // Skip entries before cookie
-        if (currentCookie < cookie) {
-          currentCookie++
-          continue
+      // Build (or reuse) a directory snapshot. A fresh enumeration starts at
+      // cookie 0; later pages reuse the cached, pre-encoded snapshot so paging
+      // a directory is O(N) overall instead of O(N^2) (re-reading + re-encoding
+      // and skipping `cookie` entries on every call).
+      let snapshot = entry.readdirCache
+      if (cookie === 0n || !snapshot) {
+        snapshot = {
+          entries: resource.readdir().map((e) => ({
+            ino: e.ino,
+            type: e.type,
+            nameBytes: textEncoder.encode(e.name),
+          })),
         }
+        entry.readdirCache = snapshot
+      }
 
-        const nameBytes = new TextEncoder().encode(dirEntry.name)
-        const entrySize = DIRENT_SIZE + nameBytes.length
+      let bufUsed = 0
+      const start = cookie >= BigInt(snapshot.entries.length) ? snapshot.entries.length : Number(cookie)
 
-        // Check if we have space
+      for (let i = start; i < snapshot.entries.length; i++) {
+        const dirEntry = snapshot.entries[i]!
+        const entrySize = DIRENT_SIZE + dirEntry.nameBytes.length
+
+        // Check if we have space; otherwise stop (more entries remain).
         if (bufUsed + entrySize > bufLen) {
-          // No more space - indicate there are more entries
           break
         }
 
-        // Write dirent
         memory.writeDirent(bufPtr + bufUsed, {
-          next: currentCookie + 1n,
+          next: BigInt(i + 1),
           ino: dirEntry.ino,
-          namelen: nameBytes.length,
+          namelen: dirEntry.nameBytes.length,
           type: dirEntry.type,
         })
-
-        // Write name
-        memory.writeBytes(bufPtr + bufUsed + DIRENT_SIZE, nameBytes)
+        memory.writeBytes(bufPtr + bufUsed + DIRENT_SIZE, dirEntry.nameBytes)
 
         bufUsed += entrySize
-        currentCookie++
       }
 
       memory.writeU32(bufUsedPtr, bufUsed)

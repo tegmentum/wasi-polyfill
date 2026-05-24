@@ -10,8 +10,12 @@
  */
 export class ByteQueue {
   private chunks: Uint8Array[] = []
-  private totalBytes = 0
+  /** Index of the first not-yet-fully-consumed chunk in `chunks`. */
+  private head = 0
+  /** Bytes already consumed from `chunks[head]`. */
   private readOffset = 0
+  /** Bytes currently available to read (kept as a running counter). */
+  private availableBytes = 0
   private readonly maxSize: number
   private closed = false
   private error?: Error
@@ -28,7 +32,26 @@ export class ByteQueue {
    * Get the number of bytes available to read
    */
   get available(): number {
-    return this.totalBytes - this.readOffset
+    return this.availableBytes
+  }
+
+  /**
+   * Drop consumed chunks. Advancing `head` instead of `Array.shift`-ing each
+   * drained chunk keeps reads amortized O(1) in the number of chunks (shift is
+   * O(n) per call, so draining many small chunks was O(n^2)). We splice the
+   * consumed prefix only occasionally so the backing array can't grow without
+   * bound.
+   */
+  private compact(): void {
+    if (this.head === 0) return
+    if (this.head >= this.chunks.length) {
+      // Fully drained: the common case (reader caught up to writer).
+      this.chunks.length = 0
+      this.head = 0
+    } else if (this.head > 64 && this.head * 2 >= this.chunks.length) {
+      this.chunks.splice(0, this.head)
+      this.head = 0
+    }
   }
 
   /**
@@ -75,13 +98,13 @@ export class ByteQueue {
       return false
     }
 
-    if (this.available + data.length > this.maxSize) {
+    if (this.availableBytes + data.length > this.maxSize) {
       return false
     }
 
     // Make a copy to avoid external mutation
     this.chunks.push(data.slice())
-    this.totalBytes += data.length
+    this.availableBytes += data.length
 
     return true
   }
@@ -95,13 +118,13 @@ export class ByteQueue {
       return new Uint8Array(0)
     }
 
-    const toRead = Math.min(length, this.available)
+    const toRead = Math.min(length, this.availableBytes)
     const result = new Uint8Array(toRead)
     let resultOffset = 0
     let remaining = toRead
 
-    while (remaining > 0 && this.chunks.length > 0) {
-      const chunk = this.chunks[0]!
+    while (remaining > 0 && this.head < this.chunks.length) {
+      const chunk = this.chunks[this.head]!
       const chunkAvailable = chunk.length - this.readOffset
       const copyLen = Math.min(remaining, chunkAvailable)
 
@@ -110,15 +133,16 @@ export class ByteQueue {
       resultOffset += copyLen
       remaining -= copyLen
       this.readOffset += copyLen
+      this.availableBytes -= copyLen
 
-      // If we've consumed the entire chunk, remove it
+      // If we've consumed the entire chunk, advance past it.
       if (this.readOffset >= chunk.length) {
-        this.chunks.shift()
-        this.totalBytes -= chunk.length
+        this.head++
         this.readOffset = 0
       }
     }
 
+    this.compact()
     return result
   }
 
@@ -131,11 +155,11 @@ export class ByteQueue {
       return new Uint8Array(0)
     }
 
-    const toRead = Math.min(length, this.available)
+    const toRead = Math.min(length, this.availableBytes)
     const result = new Uint8Array(toRead)
     let resultOffset = 0
     let remaining = toRead
-    let chunkIndex = 0
+    let chunkIndex = this.head
     let offset = this.readOffset
 
     while (remaining > 0 && chunkIndex < this.chunks.length) {
@@ -164,24 +188,25 @@ export class ByteQueue {
       return 0
     }
 
-    const toSkip = Math.min(length, this.available)
+    const toSkip = Math.min(length, this.availableBytes)
     let remaining = toSkip
 
-    while (remaining > 0 && this.chunks.length > 0) {
-      const chunk = this.chunks[0]!
+    while (remaining > 0 && this.head < this.chunks.length) {
+      const chunk = this.chunks[this.head]!
       const chunkAvailable = chunk.length - this.readOffset
       const skipLen = Math.min(remaining, chunkAvailable)
 
       remaining -= skipLen
       this.readOffset += skipLen
+      this.availableBytes -= skipLen
 
       if (this.readOffset >= chunk.length) {
-        this.chunks.shift()
-        this.totalBytes -= chunk.length
+        this.head++
         this.readOffset = 0
       }
     }
 
+    this.compact()
     return toSkip
   }
 
@@ -207,8 +232,9 @@ export class ByteQueue {
    */
   clear(): void {
     this.chunks = []
-    this.totalBytes = 0
+    this.head = 0
     this.readOffset = 0
+    this.availableBytes = 0
   }
 
   /**

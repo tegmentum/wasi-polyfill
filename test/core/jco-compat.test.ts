@@ -411,4 +411,27 @@ describe('jco compatibility', () => {
       p.destroy()
     })
   })
+
+  // ---------------------------------------------------------------------------
+  // jco import memoization (4.5)
+  // ---------------------------------------------------------------------------
+  describe('jco import memoization', () => {
+    it('reuses the built jco imports for the same (order-independent) set', async () => {
+      await registerCorePlugins()
+      const pf = new Polyfill({ policy: new AllowAllPolicy() })
+      try {
+        const set = ['wasi:io/streams@0.2.0', 'wasi:io/error@0.2.0', 'wasi:io/poll@0.2.0']
+        const a = await pf.forInterfaces(set, { jcoCompat: true })
+        const b = await pf.forInterfaces([...set].reverse(), { jcoCompat: true })
+        // Same loaded set -> same memoized imports object (no rebuild).
+        expect(b.imports).toBe(a.imports)
+
+        // A different set must produce a distinct build.
+        const c = await pf.forInterfaces(['wasi:io/error@0.2.0'], { jcoCompat: true })
+        expect(c.imports).not.toBe(a.imports)
+      } finally {
+        pf.destroy()
+      }
+    })
+  })
 })

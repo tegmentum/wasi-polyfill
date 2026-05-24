@@ -526,6 +526,41 @@ describe('ByteQueue', () => {
       expect(queue.freeSpace).toBe(924)
     })
   })
+
+  describe('many-chunk draining (head-index / compaction)', () => {
+    it('preserves byte order and accounting across interleaved push/read', () => {
+      const big = new ByteQueue(1024 * 1024)
+      const expected: number[] = []
+      let nextByte = 0
+      let readBack: number[] = []
+
+      // Interleave many single-byte pushes with small reads so the queue
+      // accumulates and drains chunks repeatedly (exercises compaction).
+      for (let i = 0; i < 5000; i++) {
+        const v = nextByte++ & 0xff
+        big.push(new Uint8Array([v]))
+        expected.push(v)
+        if (i % 3 === 0) {
+          readBack = readBack.concat(Array.from(big.read(2)))
+        }
+      }
+      readBack = readBack.concat(Array.from(big.readAll()))
+
+      expect(big.available).toBe(0)
+      expect(big.isEmpty).toBe(true)
+      expect(readBack).toEqual(expected)
+    })
+
+    it('peek does not disturb the head pointer', () => {
+      const q = new ByteQueue(1024)
+      q.push(new Uint8Array([1, 2]))
+      q.push(new Uint8Array([3, 4]))
+      q.read(1) // consume part of the first chunk
+      expect(Array.from(q.peek(3))).toEqual([2, 3, 4])
+      expect(q.available).toBe(3)
+      expect(Array.from(q.read(3))).toEqual([2, 3, 4])
+    })
+  })
 })
 
 describe('AsyncByteQueue', () => {
