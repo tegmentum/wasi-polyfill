@@ -20,6 +20,7 @@ import {
   unsafeAttributeReason,
 } from './types.js'
 import { isMainThread } from './runtime.js'
+import { WeakHandleRegistry } from '../shared/registry.js'
 
 // =============================================================================
 // Types
@@ -91,9 +92,7 @@ export class BrowserDom {
   private doc: Document
   private allowScripts: boolean
   private allowedTags: Set<string> | null
-  private handleCounter = 1
-  private nodeToHandle = new WeakMap<Node, NodeHandle>()
-  private handleToNode = new Map<NodeHandle, WeakRef<Node>>()
+  private readonly nodes = new WeakHandleRegistry<Node>(1)
   private documentHandle: DocumentHandle = 0
 
   constructor(options: DomOptions = {}) {
@@ -124,27 +123,14 @@ export class BrowserDom {
    * Get or create a handle for a node.
    */
   private getHandle(node: Node): NodeHandle {
-    let handle = this.nodeToHandle.get(node)
-    if (handle === undefined) {
-      handle = this.handleCounter++
-      this.nodeToHandle.set(node, handle)
-      this.handleToNode.set(handle, new WeakRef(node))
-    }
-    return handle
+    return this.nodes.handleFor(node)
   }
 
   /**
    * Get a node from its handle.
    */
   private getNode(handle: NodeHandle): Node | null {
-    const ref = this.handleToNode.get(handle)
-    if (!ref) return null
-    const node = ref.deref()
-    if (!node) {
-      this.handleToNode.delete(handle)
-      return null
-    }
-    return node
+    return this.nodes.get(handle) ?? null
   }
 
   /**
@@ -668,7 +654,7 @@ export class BrowserDom {
    * Release a handle (optional cleanup).
    */
   releaseHandle(handle: NodeHandle): void {
-    this.handleToNode.delete(handle)
+    this.nodes.drop(handle)
   }
 
   /**

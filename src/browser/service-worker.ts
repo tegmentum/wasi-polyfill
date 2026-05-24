@@ -19,6 +19,7 @@ import {
   browserErr,
 } from './types.js'
 import { isSecureContext, supports, isMainThread } from './runtime.js'
+import { WeakHandleRegistry } from '../shared/registry.js'
 
 // =============================================================================
 // Types
@@ -112,11 +113,8 @@ export interface ServiceWorkerOptions {
  */
 export class BrowserServiceWorker {
   private baseUrl: string
-  private handleCounter = 1
-  private registrationHandles = new Map<RegistrationHandle, WeakRef<ServiceWorkerRegistration>>()
-  private handleToRegistration = new WeakMap<ServiceWorkerRegistration, RegistrationHandle>()
-  private workerHandles = new Map<ServiceWorkerHandle, WeakRef<ServiceWorker>>()
-  private handleToWorker = new WeakMap<ServiceWorker, ServiceWorkerHandle>()
+  private readonly registrations = new WeakHandleRegistry<ServiceWorkerRegistration>(1)
+  private readonly workers = new WeakHandleRegistry<ServiceWorker>(1)
 
   constructor(options: ServiceWorkerOptions = {}) {
     this.baseUrl = options.baseUrl ?? (typeof location !== 'undefined' ? location.href : '')
@@ -154,54 +152,28 @@ export class BrowserServiceWorker {
    * Get or create a handle for a registration.
    */
   private getRegistrationHandle(registration: ServiceWorkerRegistration): RegistrationHandle {
-    let handle = this.handleToRegistration.get(registration)
-    if (handle === undefined) {
-      handle = this.handleCounter++
-      this.handleToRegistration.set(registration, handle)
-      this.registrationHandles.set(handle, new WeakRef(registration))
-    }
-    return handle
+    return this.registrations.handleFor(registration)
   }
 
   /**
    * Get a registration from its handle.
    */
   private getRegistration(handle: RegistrationHandle): ServiceWorkerRegistration | null {
-    const ref = this.registrationHandles.get(handle)
-    if (!ref) return null
-    const registration = ref.deref()
-    if (!registration) {
-      this.registrationHandles.delete(handle)
-      return null
-    }
-    return registration
+    return this.registrations.get(handle) ?? null
   }
 
   /**
    * Get or create a handle for a service worker.
    */
   private getWorkerHandle(worker: ServiceWorker): ServiceWorkerHandle {
-    let handle = this.handleToWorker.get(worker)
-    if (handle === undefined) {
-      handle = this.handleCounter++
-      this.handleToWorker.set(worker, handle)
-      this.workerHandles.set(handle, new WeakRef(worker))
-    }
-    return handle
+    return this.workers.handleFor(worker)
   }
 
   /**
    * Get a service worker from its handle.
    */
   private getWorker(handle: ServiceWorkerHandle): ServiceWorker | null {
-    const ref = this.workerHandles.get(handle)
-    if (!ref) return null
-    const worker = ref.deref()
-    if (!worker) {
-      this.workerHandles.delete(handle)
-      return null
-    }
-    return worker
+    return this.workers.get(handle) ?? null
   }
 
   /**
@@ -329,7 +301,7 @@ export class BrowserServiceWorker {
 
     try {
       const result = await registration.unregister()
-      this.registrationHandles.delete(handle)
+      this.registrations.drop(handle)
       return ok(result)
     } catch (error) {
       return { ok: false, error: mapErrorToBrowserError(error) }
@@ -432,14 +404,14 @@ export class BrowserServiceWorker {
    * Release a registration handle.
    */
   releaseRegistration(handle: RegistrationHandle): void {
-    this.registrationHandles.delete(handle)
+    this.registrations.drop(handle)
   }
 
   /**
    * Release a worker handle.
    */
   releaseWorker(handle: ServiceWorkerHandle): void {
-    this.workerHandles.delete(handle)
+    this.workers.drop(handle)
   }
 }
 
