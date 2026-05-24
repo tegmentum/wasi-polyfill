@@ -18,6 +18,7 @@ import {
   colorToCss,
 } from './types.js'
 import { isMainThread, supports } from './runtime.js'
+import { WeakHandleRegistry } from '../shared/registry.js'
 
 // =============================================================================
 // Types
@@ -152,11 +153,10 @@ export interface CanvasOptions {
  */
 export class BrowserCanvas {
   private doc: Document | null
-  private handleCounter = 1
-  private canvasToHandle = new WeakMap<HTMLCanvasElement | OffscreenCanvas, CanvasHandle>()
-  private handleToCanvas = new Map<CanvasHandle, WeakRef<HTMLCanvasElement | OffscreenCanvas>>()
-  private contextToHandle = new WeakMap<CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, Context2DHandle>()
-  private handleToContext = new Map<Context2DHandle, WeakRef<CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D>>()
+  private readonly canvases = new WeakHandleRegistry<HTMLCanvasElement | OffscreenCanvas>(1)
+  private readonly contexts = new WeakHandleRegistry<
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+  >(1)
 
   constructor(options: CanvasOptions = {}) {
     this.doc = options.document ?? (isMainThread() ? globalThis.document : null)
@@ -166,54 +166,28 @@ export class BrowserCanvas {
    * Get or create a handle for a canvas.
    */
   private getCanvasHandle(canvas: HTMLCanvasElement | OffscreenCanvas): CanvasHandle {
-    let handle = this.canvasToHandle.get(canvas)
-    if (handle === undefined) {
-      handle = this.handleCounter++
-      this.canvasToHandle.set(canvas, handle)
-      this.handleToCanvas.set(handle, new WeakRef(canvas))
-    }
-    return handle
+    return this.canvases.handleFor(canvas)
   }
 
   /**
    * Get a canvas from its handle.
    */
   private getCanvas(handle: CanvasHandle): HTMLCanvasElement | OffscreenCanvas | null {
-    const ref = this.handleToCanvas.get(handle)
-    if (!ref) return null
-    const canvas = ref.deref()
-    if (!canvas) {
-      this.handleToCanvas.delete(handle)
-      return null
-    }
-    return canvas
+    return this.canvases.get(handle) ?? null
   }
 
   /**
    * Get or create a handle for a context.
    */
   private getContextHandle(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D): Context2DHandle {
-    let handle = this.contextToHandle.get(ctx)
-    if (handle === undefined) {
-      handle = this.handleCounter++
-      this.contextToHandle.set(ctx, handle)
-      this.handleToContext.set(handle, new WeakRef(ctx))
-    }
-    return handle
+    return this.contexts.handleFor(ctx)
   }
 
   /**
    * Get a context from its handle.
    */
   private getContext(handle: Context2DHandle): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null {
-    const ref = this.handleToContext.get(handle)
-    if (!ref) return null
-    const ctx = ref.deref()
-    if (!ctx) {
-      this.handleToContext.delete(handle)
-      return null
-    }
-    return ctx
+    return this.contexts.get(handle) ?? null
   }
 
   /**
@@ -314,7 +288,13 @@ export class BrowserCanvas {
       return browserErr(BrowserErrorCode.NOT_FOUND, 'Canvas not found')
     }
 
-    const ctx = canvas.getContext('2d')
+    // getContext('2d') on a union receiver (HTMLCanvasElement | OffscreenCanvas)
+    // resolves to the wide RenderingContext overload; we asked for '2d', so the
+    // result is a 2D context.
+    const ctx = canvas.getContext('2d') as
+      | CanvasRenderingContext2D
+      | OffscreenCanvasRenderingContext2D
+      | null
     if (!ctx) {
       return browserErr(
         BrowserErrorCode.NOT_SUPPORTED,
@@ -946,14 +926,14 @@ export class BrowserCanvas {
    * Release a canvas handle.
    */
   releaseCanvas(handle: CanvasHandle): void {
-    this.handleToCanvas.delete(handle)
+    this.canvases.drop(handle)
   }
 
   /**
    * Release a context handle.
    */
   releaseContext(handle: Context2DHandle): void {
-    this.handleToContext.delete(handle)
+    this.contexts.drop(handle)
   }
 }
 

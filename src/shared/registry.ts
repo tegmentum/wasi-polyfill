@@ -234,6 +234,8 @@ export class HandleRegistry<T> {
 export class WeakHandleRegistry<T extends object> {
   private nextHandle = 1
   private readonly items = new Map<number, WeakRef<T>>()
+  /** Reverse map for {@link handleFor} dedup; entries auto-clear on GC. */
+  private readonly objToHandle = new WeakMap<T, number>()
   private readonly finalizationRegistry: FinalizationRegistry<number>
 
   /**
@@ -257,8 +259,27 @@ export class WeakHandleRegistry<T extends object> {
   register(item: T): number {
     const handle = this.nextHandle++
     this.items.set(handle, new WeakRef(item))
-    this.finalizationRegistry.register(item, handle)
+    this.objToHandle.set(item, handle)
+    // item doubles as the unregister token so drop() can cancel the callback.
+    this.finalizationRegistry.register(item, handle, item)
     return handle
+  }
+
+  /**
+   * Get a stable handle for `item`, allocating one on first sight and returning
+   * the same handle for the same object thereafter (reference identity). Use
+   * this for host objects handed out by handle (DOM nodes, media streams, …)
+   * where the same object must map to a stable handle.
+   *
+   * @param item - The object to get a handle for
+   * @returns The (stable) numeric handle
+   */
+  handleFor(item: T): number {
+    const existing = this.objToHandle.get(item)
+    if (existing !== undefined) {
+      return existing
+    }
+    return this.register(item)
   }
 
   /**
@@ -298,6 +319,11 @@ export class WeakHandleRegistry<T extends object> {
    * @returns True if the entry was removed
    */
   drop(handle: number): boolean {
+    const obj = this.items.get(handle)?.deref()
+    if (obj !== undefined) {
+      this.objToHandle.delete(obj)
+      this.finalizationRegistry.unregister(obj)
+    }
     return this.items.delete(handle)
   }
 

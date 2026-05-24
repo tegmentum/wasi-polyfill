@@ -21,6 +21,7 @@ import {
   mapPermissionState,
 } from './types.js'
 import { isSecureContext, supports, isMainThread } from './runtime.js'
+import { WeakHandleRegistry } from '../shared/registry.js'
 import { type ElementHandle, getDefaultDom } from './dom.js'
 
 // =============================================================================
@@ -155,11 +156,8 @@ export interface MediaOptions {
  * Browser media implementation.
  */
 export class BrowserMedia {
-  private handleCounter = 1
-  private streamHandles = new Map<MediaStreamHandle, WeakRef<MediaStream>>()
-  private handleToStream = new WeakMap<MediaStream, MediaStreamHandle>()
-  private trackHandles = new Map<TrackHandle, WeakRef<MediaStreamTrack>>()
-  private handleToTrack = new WeakMap<MediaStreamTrack, TrackHandle>()
+  private readonly streams = new WeakHandleRegistry<MediaStream>(1)
+  private readonly tracks = new WeakHandleRegistry<MediaStreamTrack>(1)
 
   constructor(_options: MediaOptions = {}) {
     // Options reserved for future use
@@ -190,54 +188,28 @@ export class BrowserMedia {
    * Get or create a handle for a stream.
    */
   private getStreamHandle(stream: MediaStream): MediaStreamHandle {
-    let handle = this.handleToStream.get(stream)
-    if (handle === undefined) {
-      handle = this.handleCounter++
-      this.handleToStream.set(stream, handle)
-      this.streamHandles.set(handle, new WeakRef(stream))
-    }
-    return handle
+    return this.streams.handleFor(stream)
   }
 
   /**
    * Get a stream from its handle.
    */
   private getStream(handle: MediaStreamHandle): MediaStream | null {
-    const ref = this.streamHandles.get(handle)
-    if (!ref) return null
-    const stream = ref.deref()
-    if (!stream) {
-      this.streamHandles.delete(handle)
-      return null
-    }
-    return stream
+    return this.streams.get(handle) ?? null
   }
 
   /**
    * Get or create a handle for a track.
    */
   private getTrackHandle(track: MediaStreamTrack): TrackHandle {
-    let handle = this.handleToTrack.get(track)
-    if (handle === undefined) {
-      handle = this.handleCounter++
-      this.handleToTrack.set(track, handle)
-      this.trackHandles.set(handle, new WeakRef(track))
-    }
-    return handle
+    return this.tracks.handleFor(track)
   }
 
   /**
    * Get a track from its handle.
    */
   private getTrack(handle: TrackHandle): MediaStreamTrack | null {
-    const ref = this.trackHandles.get(handle)
-    if (!ref) return null
-    const track = ref.deref()
-    if (!track) {
-      this.trackHandles.delete(handle)
-      return null
-    }
-    return track
+    return this.tracks.get(handle) ?? null
   }
 
   /**
@@ -493,14 +465,14 @@ export class BrowserMedia {
    * Release a stream handle.
    */
   releaseStream(handle: MediaStreamHandle): void {
-    this.streamHandles.delete(handle)
+    this.streams.drop(handle)
   }
 
   /**
    * Release a track handle.
    */
   releaseTrack(handle: TrackHandle): void {
-    this.trackHandles.delete(handle)
+    this.tracks.drop(handle)
   }
 }
 

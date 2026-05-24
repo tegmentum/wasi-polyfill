@@ -469,6 +469,19 @@ Thirty-ninth batch — Phase 0.6 stale docs:
   (`package.json` `files` ships only `dist` + `README.md`); git history retains
   them. REMEDIATION-PLAN.md remains the living plan.
 
+Fortieth batch — Phase 1.3 browser weak handle tables:
+
+- ✅ Made the shared `WeakHandleRegistry` bidirectional (`handleFor(obj)` dedup
+  via a reverse `WeakMap` + `FinalizationRegistry` unregister on `drop`) and
+  migrated the five hand-rolled WeakRef tables in `browser/dom`, `media`
+  (streams/tracks), `canvas` (canvas/context) and `service-worker`
+  (registrations/workers) onto it. The strong-ref `HandleRegistry` was the wrong
+  fit (it would pin GC-able DOM objects); the `FinalizationRegistry` also fixes
+  the "dead entries linger until lookup" leak by pruning on GC. Per-resource-type
+  handle spaces (each registry starts at 1) match the component model. (7 unit
+  tests for the bidirectional API; GC-finalization timing isn't deterministically
+  testable.) One `getContext('2d')` cast added — union-receiver overload quirk.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -511,9 +524,9 @@ These are prerequisites that make the Phase 2 leak/isolation fixes small and uni
 
 | # | Item | Finding | Files | Effort | Risk |
 |---|------|---------|-------|--------|------|
-| 1.1 | Promote generic `HandleTable<T>` (with `FinalizationRegistry`) to a shared module | ~40 hand-rolled handle tables | new `src/shared/handle-table.ts` (from `browser/webgpu/adapter.ts`) | M | Low |
+| 1.1 | ✅ Shared `HandleRegistry` + `WeakHandleRegistry` (with `FinalizationRegistry`) in `src/shared/registry.ts` | ~40 hand-rolled handle tables | `src/shared/registry.ts` | M | Low |
 | 1.2 | Migrate WASIP2 plugin registries to `HandleTable` (fs, io streams/pollables, sockets, http, kv, blobstore, sql, nn, messaging, ws-gateway) | dedup + missing-drop leaks | `src/wasip2/plugins/**` | L | Med |
-| 1.3 | Migrate `browser/*` hand-rolled tables (dom, canvas, media, service-worker) to `HandleTable` | leak entries until lookup | `src/browser/*.ts` | M | Med |
+| 1.3 | ✅ Migrated browser dom/canvas/media/service-worker weak tables to a bidirectional `WeakHandleRegistry` (FinalizationRegistry prune) | leak entries until lookup | `src/browser/*.ts`, `shared/registry.ts` | M | Med |
 | 1.4 | ✅ nn/sql/messaging/keyvalue Result types now alias shared `Result<T,E>`; keyvalue migrated off `{tag,val}`; constructors delegate to shared ok/err | Result reinvented per plugin | `src/shared/result.ts`, plugins | M | Med |
 | 1.5 | ✅ Added `interfaceKey(iface)` + replaced 12 inline `` `${pkg}/${name}` `` constructions | duplicated key formula | `src/wasip2/core/types.ts` + callers | S | Low |
 
