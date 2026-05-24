@@ -448,6 +448,17 @@ Thirty-seventh batch — Phase 1.5 interfaceKey helper:
   provider-registry/testing-harness. Versioned formatting stays
   `formatInterfaceString`. (2 tests.)
 
+Thirty-eighth batch — Phase 2.8 WASIP3 stream error variant:
+
+- ✅ Added an `error` status variant to `StreamReadResult`/`StreamWriteResult`
+  and stopped masking source/sink failures as a clean EOF/close. The
+  iterable/ReadableStream read paths and the WritableStream write path now
+  return `{status:'error', error}` on a thrown error, and the p2-to-p3 adapter
+  returns `error` for non-end errors (a message containing "end" is still a
+  clean EOF). Tests that asserted errors-as-EOF were corrected, plus a new test
+  that an end-signal error still yields `end`. (pendingWrite deadlock-drain half
+  of 2.8 was already done.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -516,7 +527,7 @@ Highest-impact, smallest diffs. Each ships with a regression test.
 | 2.5 | Fix WASIP1 `path_open` to attach filesystem ref to directory entries | subdir fds return EBADF | `wasip1/path.ts:98,312` | M | Med |
 | 2.6 | Normalize `..`/absolute paths and clamp to preopen root (return `ENOTCAPABLE`/error on escape) | path-traversal escape | `wasip1/path.ts:123`, `wasip1/memory-filesystem.ts:112`, `wasip2/.../impl-memory.ts:168` | M | Med |
 | 2.7 | ✅ ws-gateway UDP: inbound datagrams routed to the per-socket queue via a per-stream boundary-preserving handler (connected/per-dest); pure-server receive still unsupported (no per-frame source addr) | UDP receive/send broken | `ws-gateway/udp-adapter.ts`, `tunnel-manager.ts` | L | Med |
-| 2.8 | WASIP3 stream: drain `pendingWrite` unconditionally on read; add `error` status variant | deadlock + errors as EOF | `wasip3/canonical-abi/stream.ts:86,296`, `adapters/p2-to-p3.ts:96` | M | Med |
+| 2.8 | ✅ WASIP3 stream: pendingWrite drain (done earlier) + `error` status variant; source/sink errors no longer masked as EOF | deadlock + errors as EOF | `wasip3/canonical-abi/stream.ts`, `wasip3/types.ts`, `adapters/p2-to-p3.ts` | M | Med |
 | 2.9 | Bound `payloadLen` against max frame size; cursor-based receive buffer | ws-gateway OOM DoS | `ws-gateway/tunnel-manager.ts:636`, `protocol.ts` | M | Med |
 | 2.10 | Scope WASIP2 registries per-instance (pass through `PluginConfig`) instead of module singletons | cross-instance handle collision | `wasip2/plugins/**` global registries | L | High |
 | 2.11 | Add `wasi:cli/terminal-*` to `createCliPolicy` | jco CLI components denied | `wasip2/core/policy.ts:247` | S | Low |

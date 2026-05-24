@@ -296,7 +296,7 @@ describe('WASIP3 Stream', () => {
       expect(cleanupCalled).toBe(true)
     })
 
-    it('handles iterator errors gracefully', async () => {
+    it('surfaces iterator errors as an error result (not EOF)', async () => {
       async function* generator() {
         yield 1
         throw new Error('Iterator error')
@@ -308,7 +308,11 @@ describe('WASIP3 Stream', () => {
       expect(result1).toEqual({ status: 'values', values: [1] })
 
       const result2 = await stream.read()
-      expect(result2).toEqual({ status: 'end' })
+      expect(result2.status).toBe('error')
+      if (result2.status === 'error') {
+        expect(result2.error).toBeInstanceOf(Error)
+        expect(result2.error.message).toBe('Iterator error')
+      }
     })
 
     it('works with array async iteration', async () => {
@@ -416,7 +420,11 @@ describe('WASIP3 Stream', () => {
       expect(result1.status).toBe('values')
 
       const result2 = await stream.read()
-      expect(result2).toEqual({ status: 'end' })
+      expect(result2.status).toBe('error')
+      if (result2.status === 'error') {
+        expect(result2.error).toBeInstanceOf(Error)
+        expect(result2.error.message).toBe('Stream error')
+      }
     })
   })
 
@@ -459,7 +467,7 @@ describe('WASIP3 Stream', () => {
       expect(result).toEqual({ status: 'cancelled' })
     })
 
-    it('handles WritableStream errors', async () => {
+    it('surfaces WritableStream errors as an error result (not a clean close)', async () => {
       const writable = new WritableStream<Uint8Array>({
         write() {
           throw new Error('Write error')
@@ -469,7 +477,10 @@ describe('WASIP3 Stream', () => {
       const writer = writerFromWritable(writable)
 
       const result = await writer.write([new Uint8Array([1])])
-      expect(result).toEqual({ status: 'closed' })
+      expect(result.status).toBe('error')
+      if (result.status === 'error') {
+        expect(result.error).toBeInstanceOf(Error)
+      }
     })
 
     it('close calls WritableStream close', async () => {
