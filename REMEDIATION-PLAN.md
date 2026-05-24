@@ -205,6 +205,16 @@ Seventeenth batch — Phase 2.10 polish:
   storage (OPFS disk / IndexedDB) stays shared by nature, which is correct.
   This makes 2.10 complete for all three filesystem backends.
 
+Eighteenth batch — HandleRegistry migration tail:
+
+- ✅ Migrated the remaining **single-handle-space** registries to the shared
+  HandleRegistry (extend + small overrides): fs DescriptorRegistry /
+  DirectoryEntryStreamRegistry / OpfsDirectoryEntryStreamRegistry, http
+  FutureIncomingResponseRegistry, ws-gateway TunneledTcp/UdpSocketRegistry.
+  Left intentionally bespoke: OPFS/IDB descriptor registries (async drop),
+  dual-space tables (Datagram/TunneledDatagram/Terminal), and the domain
+  classes (Pollable/Stream/Error/Thread/Tunnel/gfx, Fields' size getter).
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
