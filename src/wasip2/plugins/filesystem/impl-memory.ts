@@ -37,6 +37,37 @@ import type { OutputStream, InputStream, StreamError } from '../io/streams.js'
 /** Maximum symlink chain depth before reporting a loop. */
 const MAX_SYMLINK_DEPTH = 40
 
+/**
+ * Grow a file node's content to at least `newSize` bytes, amortizing
+ * reallocation by capacity-doubling the backing ArrayBuffer. `node.content`
+ * stays a view whose `.length` equals the logical file size, so every reader
+ * that treats `content.length` as the size (stat, read, slice) is unaffected;
+ * only the backing buffer may be larger. Newly exposed bytes are zero-filled
+ * to honor POSIX hole/extend semantics. No-op when already large enough.
+ *
+ * Without this, streaming appends reallocate to the exact size on every write,
+ * making N sequential appends O(N^2); doubling makes them amortized O(N).
+ */
+function growFile(node: FileNode, newSize: number): void {
+  const view = node.content
+  const oldSize = view.length
+  if (newSize <= oldSize) return
+  const buf = view.buffer
+  // Reuse the existing backing buffer when it has spare capacity.
+  if (view.byteOffset === 0 && buf.byteLength >= newSize) {
+    const grown = new Uint8Array(buf, 0, newSize)
+    grown.fill(0, oldSize, newSize)
+    node.content = grown
+    return
+  }
+  // Otherwise allocate a larger (doubled) buffer and copy the live bytes.
+  let capacity = buf.byteLength || 64
+  while (capacity < newSize) capacity *= 2
+  const next = new Uint8Array(capacity)
+  next.set(view)
+  node.content = next.subarray(0, newSize)
+}
+
 /** Map an internal node to its WASI descriptor type. */
 function descriptorTypeOf(node: FsNode): DescriptorType {
   switch (node.type) {
@@ -76,11 +107,7 @@ class FileWriteStream implements OutputStream {
   write(contents: Uint8Array): StreamError | undefined {
     if (this.closed) return { tag: 'closed' }
     const end = this.offset + contents.length
-    if (end > this.node.content.length) {
-      const grown = new Uint8Array(end)
-      grown.set(this.node.content)
-      this.node.content = grown
-    }
+    growFile(this.node, end)
     this.node.content.set(contents, this.offset)
     this.offset += contents.length
     return undefined
@@ -716,12 +743,8 @@ export class Descriptor {
     const start = Number(offset)
     const end = start + buffer.length
 
-    // Expand file if needed
-    if (end > this.node.content.length) {
-      const newContent = new Uint8Array(end)
-      newContent.set(this.node.content)
-      this.node.content = newContent
-    }
+    // Expand (capacity-doubling) if needed; zero-fills any gap before `start`.
+    growFile(this.node, end)
 
     this.node.content.set(buffer, start)
     this.node.modified = now()
@@ -1332,11 +1355,10 @@ export class FilesystemTypesInstance implements PluginInstance {
 
     const newSize = Number(size)
     if (newSize < node.content.length) {
+      // Shrink with a copy so the (possibly oversized) backing buffer is freed.
       node.content = node.content.slice(0, newSize)
     } else if (newSize > node.content.length) {
-      const newContent = new Uint8Array(newSize)
-      newContent.set(node.content)
-      node.content = newContent
+      growFile(node, newSize)
     }
     node.modified = now()
 
