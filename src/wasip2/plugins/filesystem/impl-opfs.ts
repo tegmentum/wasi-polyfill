@@ -395,6 +395,28 @@ export class OpfsDescriptor {
       const { dir, name } = this.parsePath(path)
       const parentDir = dir ? await this.getOrCreateDir(this.dirHandle!, dir, false) : this.dirHandle!
 
+      // O_CREAT|O_EXCL must fail if the file already exists. OPFS's
+      // getFileHandle({create:true}) is get-or-create and would otherwise both
+      // succeed and (having created the entry) defeat a later check — so probe
+      // for prior existence first.
+      if (openFlags.create && openFlags.exclusive) {
+        let alreadyExists = true
+        try {
+          await parentDir.getFileHandle(name, { create: false })
+        } catch (e) {
+          if ((e as Error).name === 'NotFoundError') {
+            alreadyExists = false
+          } else if ((e as Error).name === 'TypeMismatchError') {
+            return err(FilesystemErrorCode.IsDirectory)
+          } else {
+            throw e
+          }
+        }
+        if (alreadyExists) {
+          return err(FilesystemErrorCode.Exist)
+        }
+      }
+
       let fileHandle: FileSystemFileHandle
       try {
         fileHandle = await parentDir.getFileHandle(name, { create: !!openFlags.create })
@@ -406,15 +428,6 @@ export class OpfsDescriptor {
           return err(FilesystemErrorCode.IsDirectory)
         }
         throw e
-      }
-
-      if (openFlags.exclusive) {
-        // Check if file already existed (exclusive should fail)
-        // Unfortunately OPFS doesn't distinguish, so we check size as proxy
-        const file = await fileHandle.getFile()
-        if (file.size > 0) {
-          return err(FilesystemErrorCode.Exist)
-        }
       }
 
       if (openFlags.truncate) {
@@ -544,7 +557,9 @@ export class OpfsDescriptor {
         : newDescriptor.dirHandle!
 
       if (oldHandle.kind === 'file') {
-        // Copy file contents
+        // OPFS has no atomic rename, so copy-then-delete. The source is kept
+        // intact until the copy is fully written; if deleting the source then
+        // fails, roll back the copy so we don't leave a duplicate.
         const oldFile = await (oldHandle as FileSystemFileHandle).getFile()
         const newFileHandle = await newParent.getFileHandle(newName, { create: true })
         const writable = await newFileHandle.createWritable()
@@ -556,7 +571,17 @@ export class OpfsDescriptor {
         const oldParent = oldDir
           ? await this.getOrCreateDir(this.dirHandle!, oldDir, false)
           : this.dirHandle!
-        await oldParent.removeEntry(oldName)
+        try {
+          await oldParent.removeEntry(oldName)
+        } catch (deleteErr) {
+          // Roll back the copy so the rename is all-or-nothing.
+          try {
+            await newParent.removeEntry(newName)
+          } catch {
+            // best effort
+          }
+          throw deleteErr
+        }
       } else {
         // For directories, we'd need to recursively copy - not fully implemented
         return err(FilesystemErrorCode.Unsupported)
