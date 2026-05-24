@@ -37,6 +37,11 @@ export class ResourceContext {
     return this.resources.has(key)
   }
 
+  /** Remove the resource for `key`, if any. */
+  delete(key: symbol): void {
+    this.resources.delete(key)
+  }
+
   /** Remove all resources (e.g. on polyfill teardown). */
   clear(): void {
     this.resources.clear()

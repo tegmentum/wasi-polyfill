@@ -5,6 +5,10 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import {
+  contextFromConfig,
+  globalResourceContext,
+} from '../../core/resource-context.js'
 import { PollableRegistry, createReadyPollable, globalPollableRegistry } from '../io/pollable.js'
 import { MemoryInputStream, globalStreamRegistry } from '../io/streams.js'
 import {
@@ -1198,7 +1202,7 @@ const globalDirectoryStreamRegistry = new DirectoryEntryStreamRegistry()
 /**
  * Filesystem types plugin instance
  */
-class FilesystemTypesInstance implements PluginInstance {
+export class FilesystemTypesInstance implements PluginInstance {
   private readonly fs: MemoryFileSystem
   private readonly descriptorRegistry: DescriptorRegistry
   private readonly directoryStreamRegistry: DirectoryEntryStreamRegistry
@@ -1567,12 +1571,36 @@ class FilesystemTypesInstance implements PluginInstance {
   }
 }
 
-// Global instance for singleton access
-let globalFilesystemInstance: FilesystemTypesInstance | null = null
+/**
+ * ResourceContext key for the per-polyfill filesystem instance. fs/types and
+ * preopens of one polyfill share it (same context + key); different polyfills
+ * get isolated filesystems (no shared file data or descriptor handles).
+ */
+const FS_INSTANCE_KEY = Symbol('wasi:filesystem/instance')
 
-// Optional pre-populated filesystem to use when the singleton is created.
-// Set via setGlobalFilesystem() before any plugin instantiation.
+// Optional pre-populated filesystem consumed by the first filesystem instance
+// created in any context. Set via setGlobalFilesystem() before instantiation.
 let pendingFilesystem: MemoryFileSystem | null = null
+
+/** Take the pending pre-populated filesystem (one-shot). */
+function consumePendingFilesystem(): MemoryFileSystem | undefined {
+  const fs = pendingFilesystem ?? undefined
+  pendingFilesystem = null
+  return fs
+}
+
+/**
+ * Resolve the filesystem instance for a plugin config (per-polyfill via its
+ * ResourceContext, else the global context). Shared by fs/types and preopens.
+ */
+export function resolveFilesystemTypesInstance(
+  config: PluginConfig
+): FilesystemTypesInstance {
+  return contextFromConfig(config).get(
+    FS_INSTANCE_KEY,
+    () => new FilesystemTypesInstance(consumePendingFilesystem())
+  )
+}
 
 /**
  * Set a pre-populated MemoryFileSystem to be used as the global
@@ -1596,7 +1624,7 @@ let pendingFilesystem: MemoryFileSystem | null = null
  * ```
  */
 export function setGlobalFilesystem(fs: MemoryFileSystem): void {
-  if (globalFilesystemInstance) {
+  if (globalResourceContext.has(FS_INSTANCE_KEY)) {
     throw new Error(
       'setGlobalFilesystem must be called before any filesystem plugin is instantiated'
     )
@@ -1609,7 +1637,7 @@ export function setGlobalFilesystem(fs: MemoryFileSystem): void {
  * re-initialization.
  */
 export function resetGlobalFilesystem(): void {
-  globalFilesystemInstance = null
+  globalResourceContext.delete(FS_INSTANCE_KEY)
   pendingFilesystem = null
 }
 
@@ -1619,21 +1647,22 @@ export function resetGlobalFilesystem(): void {
 export const memoryFilesystemImplementation: Implementation = {
   name: 'memory',
   description: 'In-memory virtual filesystem',
-  create(_config: PluginConfig): PluginInstance {
-    // Use singleton pattern so preopens can access the same filesystem
-    if (!globalFilesystemInstance) {
-      globalFilesystemInstance = new FilesystemTypesInstance(
-        pendingFilesystem ?? undefined
-      )
-      pendingFilesystem = null
-    }
-    return globalFilesystemInstance
+  create(config: PluginConfig): PluginInstance {
+    // Per-polyfill via the resource context; preopens resolves the same one.
+    return resolveFilesystemTypesInstance(config)
   },
 }
 
 /**
- * Get the global filesystem instance (for preopens)
+ * Get the global filesystem instance (for preopens / external callers).
+ * Returns the global context's instance, or null if none has been created.
  */
 export function getGlobalFilesystemInstance(): FilesystemTypesInstance | null {
-  return globalFilesystemInstance
+  if (!globalResourceContext.has(FS_INSTANCE_KEY)) {
+    return null
+  }
+  return globalResourceContext.get(
+    FS_INSTANCE_KEY,
+    () => new FilesystemTypesInstance()
+  )
 }
