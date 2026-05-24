@@ -2,8 +2,24 @@ import { describe, it, expect } from 'vitest'
 import {
   parseInterfaceString,
   formatInterfaceString,
+  interfaceKey,
   interfaceMatches,
 } from '../../src/wasip2/core/types.js'
+
+describe('interfaceKey', () => {
+  it('produces a version-independent package/name key', () => {
+    expect(
+      interfaceKey({ package: 'wasi:keyvalue', name: 'store', version: '0.2.0' })
+    ).toBe('wasi:keyvalue/store')
+  })
+
+  it('ignores the version (same key across versions)', () => {
+    const a = interfaceKey({ package: 'wasi:io', name: 'streams', version: '0.2.0' })
+    const b = interfaceKey({ package: 'wasi:io', name: 'streams', version: '0.2.3' })
+    expect(a).toBe(b)
+    expect(a).toBe('wasi:io/streams')
+  })
+})
 
 describe('parseInterfaceString', () => {
   it('parses full interface string with subinterface', () => {

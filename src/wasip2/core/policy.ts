@@ -8,7 +8,7 @@ import type {
   PluginOverride,
   WasiInterface,
 } from './types.js'
-import { parseInterfaceString } from './types.js'
+import { parseInterfaceString, interfaceKey } from './types.js'
 
 /**
  * Configuration for building a policy
@@ -201,7 +201,7 @@ export class ConfigurablePolicy implements Policy {
   }
 
   private makeKey(iface: WasiInterface): string {
-    return `${iface.package}/${iface.name}`
+    return interfaceKey(iface)
   }
 }
 

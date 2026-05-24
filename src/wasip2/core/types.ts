@@ -149,6 +149,18 @@ export function parseInterfaceString(str: string): WasiInterface {
 }
 
 /**
+ * Version-independent key for a WASI interface (`package/name`).
+ *
+ * The canonical key used to index/match interfaces when the version is not
+ * significant — e.g. registry/policy/instance lookups. Centralizes the
+ * `${pkg}/${name}` formula that was inlined across the codebase. Use
+ * {@link formatInterfaceString} when the version must be included.
+ */
+export function interfaceKey(iface: WasiInterface): string {
+  return `${iface.package}/${iface.name}`
+}
+
+/**
  * Format a WASI interface as a string
  */
 export function formatInterfaceString(iface: WasiInterface): string {

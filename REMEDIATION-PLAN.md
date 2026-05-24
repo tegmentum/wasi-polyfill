@@ -440,6 +440,14 @@ Thirty-sixth batch — Phase 1.4 Result unification:
   construction) — removing 90+ call sites would be churn for negative value; the
   goal was eliminating the divergent *shape*, now done. Full suite green at 2943.
 
+Thirty-seventh batch — Phase 1.5 interfaceKey helper:
+
+- ✅ Added `interfaceKey(iface)` (`core/types.ts`, version-independent
+  `package/name`) and replaced the 12 inlined `${pkg}/${name}` constructions
+  across plugin-registry/policy/polyfill/manifest/runtime-policy/
+  provider-registry/testing-harness. Versioned formatting stays
+  `formatInterfaceString`. (2 tests.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -486,7 +494,7 @@ These are prerequisites that make the Phase 2 leak/isolation fixes small and uni
 | 1.2 | Migrate WASIP2 plugin registries to `HandleTable` (fs, io streams/pollables, sockets, http, kv, blobstore, sql, nn, messaging, ws-gateway) | dedup + missing-drop leaks | `src/wasip2/plugins/**` | L | Med |
 | 1.3 | Migrate `browser/*` hand-rolled tables (dom, canvas, media, service-worker) to `HandleTable` | leak entries until lookup | `src/browser/*.ts` | M | Med |
 | 1.4 | ✅ nn/sql/messaging/keyvalue Result types now alias shared `Result<T,E>`; keyvalue migrated off `{tag,val}`; constructors delegate to shared ok/err | Result reinvented per plugin | `src/shared/result.ts`, plugins | M | Med |
-| 1.5 | Add `interfaceKey(iface)` helper; replace 5+ inline `` `${pkg}/${name}` `` constructions | duplicated key formula | `src/wasip2/core/types.ts` + callers | S | Low |
+| 1.5 | ✅ Added `interfaceKey(iface)` + replaced 12 inline `` `${pkg}/${name}` `` constructions | duplicated key formula | `src/wasip2/core/types.ts` + callers | S | Low |
 
 **Note:** 1.2/1.3 should be mechanical and test-covered; do them per-plugin in small PRs.
 The `HandleTable` adoption directly fixes the WebGPU missing-drop leaks and the browser

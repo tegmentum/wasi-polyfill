@@ -3,7 +3,7 @@
  */
 
 import type { WasiInterface, WasiPlugin } from './types.js'
-import { formatInterfaceString, interfaceMatches } from './types.js'
+import { formatInterfaceString, interfaceMatches, interfaceKey } from './types.js'
 import { PluginNotFoundError } from '../../shared/errors.js'
 
 /**
@@ -102,7 +102,7 @@ export class PluginRegistry {
   private resolveVersionAgnostic(
     iface: WasiInterface
   ): WasiPlugin | undefined {
-    const cacheKey = `${iface.package}/${iface.name}`
+    const cacheKey = interfaceKey(iface)
     const cached = this.lookupCache.get(cacheKey)
     if (cached) {
       return cached
@@ -192,7 +192,7 @@ export class PluginRegistry {
 
   private makeKey(iface: WasiInterface): string {
     // Key by package/name without version to allow version flexibility
-    return `${iface.package}/${iface.name}`
+    return interfaceKey(iface)
   }
 }
 

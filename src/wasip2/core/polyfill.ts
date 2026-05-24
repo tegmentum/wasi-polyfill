@@ -12,7 +12,7 @@ import type {
   WasiInterface,
   WasiPlugin,
 } from './types.js'
-import { formatInterfaceString, parseInterfaceString } from './types.js'
+import { formatInterfaceString, parseInterfaceString, interfaceKey } from './types.js'
 import { PluginRegistry, globalRegistry } from './plugin-registry.js'
 import { ResourceContext } from './resource-context.js'
 import { AllowAllPolicy, createSafePolicy } from './policy.js'
@@ -279,7 +279,7 @@ export class Polyfill {
     iface: WasiInterface,
     plugin: WasiPlugin
   ): Promise<PluginInstance> {
-    const key = `${iface.package}/${iface.name}`
+    const key = interfaceKey(iface)
 
     let instance = this.instances.get(key)
     if (instance) {
@@ -303,7 +303,7 @@ export class Polyfill {
     if (includeVersion) {
       return formatInterfaceString(iface)
     }
-    return `${iface.package}/${iface.name}`
+    return interfaceKey(iface)
   }
 
   private checkDestroyed(): void {
