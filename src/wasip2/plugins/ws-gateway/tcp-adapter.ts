@@ -7,6 +7,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import {
   PollableRegistry,
   globalPollableRegistry,
@@ -71,40 +72,27 @@ export interface TunneledTcpSocket {
 /**
  * Registry for tunneled TCP sockets
  */
-export class TunneledTcpSocketRegistry {
-  private nextHandle = 1
-  private readonly sockets: Map<number, TunneledTcpSocket> = new Map()
-
-  register(socket: TunneledTcpSocket): number {
-    const handle = this.nextHandle++
+export class TunneledTcpSocketRegistry extends HandleRegistry<TunneledTcpSocket> {
+  override register(socket: TunneledTcpSocket): number {
+    const handle = super.register(socket)
     socket.handle = handle
-    this.sockets.set(handle, socket)
     return handle
   }
 
-  get(handle: number): TunneledTcpSocket | undefined {
-    return this.sockets.get(handle)
+  override drop(handle: number): boolean {
+    this.closeSocketStream(this.get(handle))
+    return super.drop(handle)
   }
 
-  drop(handle: number): boolean {
-    const socket = this.sockets.get(handle)
-    if (socket) {
-      // Close the stream if connected
-      if (socket.streamId !== undefined && socket.tunnel) {
-        socket.tunnel.closeStream(socket.streamId)
-      }
-      return this.sockets.delete(handle)
-    }
-    return false
+  override clear(): void {
+    this.forEach((socket) => this.closeSocketStream(socket))
+    super.clear()
   }
 
-  clear(): void {
-    for (const socket of this.sockets.values()) {
-      if (socket.streamId !== undefined && socket.tunnel) {
-        socket.tunnel.closeStream(socket.streamId)
-      }
+  private closeSocketStream(socket: TunneledTcpSocket | undefined): void {
+    if (socket?.streamId !== undefined && socket.tunnel) {
+      socket.tunnel.closeStream(socket.streamId)
     }
-    this.sockets.clear()
   }
 }
 

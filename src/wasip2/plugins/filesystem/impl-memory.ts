@@ -9,6 +9,7 @@ import {
   contextFromConfig,
   globalResourceContext,
 } from '../../core/resource-context.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import { PollableRegistry, createReadyPollable, globalPollableRegistry } from '../io/pollable.js'
 import { MemoryInputStream, globalStreamRegistry } from '../io/streams.js'
 import {
@@ -120,34 +121,25 @@ class FileWriteStream implements OutputStream {
 /**
  * Descriptor handle manager
  */
-class DescriptorRegistry {
-  private nextHandle = 3 // Start at 3 (0, 1, 2 reserved for stdio)
-  private readonly descriptors: Map<number, Descriptor> = new Map()
+class DescriptorRegistry extends HandleRegistry<Descriptor> {
+  constructor() {
+    super(3) // Handles 0, 1, 2 are reserved for stdio.
+  }
 
-  register(descriptor: Descriptor): number {
-    const handle = this.nextHandle++
+  override register(descriptor: Descriptor): number {
+    const handle = super.register(descriptor)
     descriptor.handle = handle
-    this.descriptors.set(handle, descriptor)
     return handle
   }
 
-  get(handle: number): Descriptor | undefined {
-    return this.descriptors.get(handle)
+  override drop(handle: number): boolean {
+    this.get(handle)?.close()
+    return super.drop(handle)
   }
 
-  drop(handle: number): void {
-    const descriptor = this.descriptors.get(handle)
-    if (descriptor) {
-      descriptor.close()
-      this.descriptors.delete(handle)
-    }
-  }
-
-  clear(): void {
-    for (const descriptor of this.descriptors.values()) {
-      descriptor.close()
-    }
-    this.descriptors.clear()
+  override clear(): void {
+    this.forEach((descriptor) => descriptor.close())
+    super.clear()
   }
 }
 
@@ -1175,23 +1167,11 @@ class DirectoryEntryStreamImpl {
 /**
  * Directory entry stream registry
  */
-class DirectoryEntryStreamRegistry {
-  private nextHandle = 1
-  private readonly streams: Map<number, DirectoryEntryStreamImpl> = new Map()
-
-  register(stream: DirectoryEntryStreamImpl): number {
-    const handle = this.nextHandle++
+class DirectoryEntryStreamRegistry extends HandleRegistry<DirectoryEntryStreamImpl> {
+  override register(stream: DirectoryEntryStreamImpl): number {
+    const handle = super.register(stream)
     stream.handle = handle
-    this.streams.set(handle, stream)
     return handle
-  }
-
-  get(handle: number): DirectoryEntryStreamImpl | undefined {
-    return this.streams.get(handle)
-  }
-
-  drop(handle: number): void {
-    this.streams.delete(handle)
   }
 }
 

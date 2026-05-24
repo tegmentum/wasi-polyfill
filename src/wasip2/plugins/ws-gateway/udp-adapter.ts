@@ -10,6 +10,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { HandleRegistry } from '../../../shared/registry.js'
 import {
   PollableRegistry,
   globalPollableRegistry,
@@ -136,19 +137,11 @@ export interface TunneledOutgoingDatagramStream {
 /**
  * Registry for tunneled UDP sockets
  */
-export class TunneledUdpSocketRegistry {
-  private nextHandle = 1
-  private readonly sockets: Map<number, TunneledUdpSocket> = new Map()
-
-  register(socket: TunneledUdpSocket): number {
-    const handle = this.nextHandle++
+export class TunneledUdpSocketRegistry extends HandleRegistry<TunneledUdpSocket> {
+  override register(socket: TunneledUdpSocket): number {
+    const handle = super.register(socket)
     socket.handle = handle
-    this.sockets.set(handle, socket)
     return handle
-  }
-
-  get(handle: number): TunneledUdpSocket | undefined {
-    return this.sockets.get(handle)
   }
 
   /** Close every tunnel stream a socket opened (connected + per-destination). */
@@ -163,22 +156,21 @@ export class TunneledUdpSocketRegistry {
     socket.streamsByDest?.clear()
   }
 
-  drop(handle: number): boolean {
-    const socket = this.sockets.get(handle)
+  override drop(handle: number): boolean {
+    const socket = this.get(handle)
     if (socket) {
       this.closeSocketStreams(socket)
       socket.incomingQueue.close()
-      return this.sockets.delete(handle)
     }
-    return false
+    return super.drop(handle)
   }
 
-  clear(): void {
-    for (const socket of this.sockets.values()) {
+  override clear(): void {
+    this.forEach((socket) => {
       this.closeSocketStreams(socket)
       socket.incomingQueue.close()
-    }
-    this.sockets.clear()
+    })
+    super.clear()
   }
 }
 
