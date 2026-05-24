@@ -7,9 +7,18 @@
  * WASI P3 introduces native async support with built-in `stream<T>` and
  * `future<T>` types, enabling composable concurrency across components.
  *
- * Expected timeline:
- * - August 2025: Preview release (0.3.0-rc)
- * - November 2025: Final release (0.3.0)
+ * ## Scope & limitations
+ *
+ * This implementation models the async Component Model primitives (`stream<T>`,
+ * `future<T>`, task/subtask) as **JavaScript objects** and wires imports/exports
+ * as nested namespaces. It targets **jco-transpiled components**, where jco
+ * generates the JS glue that bridges the component to these host objects.
+ *
+ * It does **not** implement the real canonical ABI (lifting/lowering values and
+ * stream/future handles through linear memory + handle tables), so it cannot
+ * `WebAssembly.instantiate` a raw P3 component binary directly — transpile P3
+ * components with jco, then supply these imports. The Component Model async ABI
+ * is still stabilizing upstream; real lift/lower is tracked as future work.
  *
  * @example
  * ```typescript
