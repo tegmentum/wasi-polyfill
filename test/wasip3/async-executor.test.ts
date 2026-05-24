@@ -233,6 +233,19 @@ describe('WASIP3 AsyncExecutor', () => {
       expect(elapsed).toBeLessThan(50)
     })
 
+    it('wakes multiple concurrent waiters when tasks drain', async () => {
+      const executor = new AsyncExecutor()
+      executor.execute(async (builtins) => {
+        builtins['task.start']()
+        await new Promise((resolve) => setTimeout(resolve, 15))
+        builtins['task.return']([])
+      })
+
+      // Both waiters register on the same drain event (event-driven, not polled).
+      await Promise.all([executor.waitAll(), executor.waitAll()])
+      expect(executor.activeTaskCount).toBe(0)
+    })
+
     it('throws on timeout', async () => {
       const executor = new AsyncExecutor({ waitTimeout: 50 })
 
