@@ -104,14 +104,21 @@ Fifth autonomous batch:
   symlink/readlink/link and the syscalls delegate to them) — the symlink gap is
   WASIP2-only (still deferred, needs full path-following).
 
+Sixth autonomous batch:
+
+- ✅ **3.1 hostfs** — `createNodeFilesystem(rootDir)`: a real `node:fs`-backed
+  WASIP1 filesystem, sandboxed to a root (rejects `..`/absolute/symlink escapes →
+  ENOTCAPABLE). Adds a `FileResource.close()` hook (called by fd_close) so real
+  OS fds don't leak. Ships as a Node-only entry so browser bundles stay clean.
+
 Remaining (large / dependency-bearing, best as dedicated PRs):
 - **Phase 1 full migration** of ~40 hand-rolled tables to the existing
   `shared/registry.ts` HandleRegistry (mechanical, large).
 - **2.4** browser capability enforcement; **2.5–2.9** (wasip1 path_open/traversal,
   ws-gateway UDP/framing); **2.10** per-instance registries (high-risk overhaul).
 - **2.16/2.17** worker import ABI; OPFS atomicity.
-- **3.1** hostfs (Node), **3.2** symlinks, **3.3** streaming HTTP, **3.6** P3 fs
-  methods, **3.7** document P3-jco scope.
+- **3.2** symlinks (wasip2), **3.3** streaming HTTP, **3.6** P3 fs methods,
+  **3.7** document P3-jco scope.
 - **3.8–3.10 real backends** (NN onnx-runtime-web, SQL sql.js/SQLite-WASM,
   messaging durability) — these add heavy external dependencies and an async
   init model; flagged for an explicit dependency decision before adding.
