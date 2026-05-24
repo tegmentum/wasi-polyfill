@@ -42,6 +42,26 @@ export interface RuntimeBindgenOptions {
    * Custom jco options for transpilation
    */
   jcoOptions?: JcoTranspileOptions
+
+  /**
+   * Transform each emitted core module's bytes before compiling — e.g. a
+   * binaryen/wasm-opt instrumentation pass. Receives the core wasm and its file
+   * name; returns the (possibly rewritten) wasm. A rewrite that adds a core
+   * import must be satisfied via `instantiateCore`.
+   */
+  instrumentCore?: (wasm: Uint8Array, name: string) => Uint8Array | Promise<Uint8Array>
+
+  /**
+   * Custom core-module instantiation, forwarded to jco's instantiation-mode glue
+   * as its `instantiateCore` argument
+   * (`instantiate(getCoreModule, imports, instantiateCore)`). Lets a caller
+   * supply extra core imports the component never declared — e.g. an injected
+   * yield/log import added by `instrumentCore`. Defaults to `WebAssembly.instantiate`.
+   */
+  instantiateCore?: (
+    module: WebAssembly.Module,
+    imports: Record<string, unknown>
+  ) => Promise<WebAssembly.Instance>
 }
 
 /**
@@ -410,13 +430,16 @@ export class RuntimeBindgen {
       }
     }
 
-    // Compile WASM modules ahead of time
+    // Compile WASM modules ahead of time, optionally instrumenting first.
     const compiledModules = new Map<string, WebAssembly.Module>()
     for (const [name, contents] of wasmModules) {
+      const bytes = this.options.instrumentCore
+        ? await this.options.instrumentCore(contents, name)
+        : contents
       // Create a proper ArrayBuffer from the Uint8Array
-      const buffer = contents.buffer.slice(
-        contents.byteOffset,
-        contents.byteOffset + contents.byteLength
+      const buffer = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength
       ) as ArrayBuffer
       const module = await WebAssembly.compile(buffer)
       compiledModules.set(name, module)
@@ -439,8 +462,9 @@ export class RuntimeBindgen {
       transpiled.files
     )
 
-    // Call instantiate with our imports
-    return instantiate(getCoreModule, imports)
+    // Call instantiate with our imports, forwarding a caller-supplied
+    // instantiateCore (e.g. to provide an injected core import).
+    return instantiate(getCoreModule, imports, this.options.instantiateCore)
   }
 
   private async loadInstantiateFunction<T>(

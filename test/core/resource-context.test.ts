@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest'
 import { ResourceContext } from '../../src/wasip2/core/index.js'
 import { memoryStoreImplementation } from '../../src/wasip2/plugins/keyvalue/index.js'
 
-type KvOk<T> = { tag: 'ok'; val: T }
+type KvOk<T> = { ok: true; value: T }
 interface KvImports {
   open(id: string): KvOk<number>
   '[method]bucket.set'(h: number, k: string, v: Uint8Array): unknown
@@ -49,13 +49,13 @@ describe('keyvalue state is isolated per ResourceContext', () => {
     const a = kvFor(new ResourceContext())
     const b = kvFor(new ResourceContext())
 
-    const ha = a.open('shared').val
+    const ha = a.open('shared').value
     a['[method]bucket.set'](ha, 'k', bytes)
 
     // B opens the same bucket name but on its own store — key is absent.
-    const hb = b.open('shared').val
+    const hb = b.open('shared').value
     const got = b['[method]bucket.get'](hb, 'k')
-    expect(got).toEqual({ tag: 'ok', val: undefined })
+    expect(got).toEqual({ ok: true, value: undefined })
   })
 
   it('instances sharing one context share buckets (within a polyfill)', () => {
@@ -63,11 +63,11 @@ describe('keyvalue state is isolated per ResourceContext', () => {
     const a = kvFor(ctx)
     const b = kvFor(ctx)
 
-    const ha = a.open('shared').val
+    const ha = a.open('shared').value
     a['[method]bucket.set'](ha, 'k', bytes)
 
-    const hb = b.open('shared').val
+    const hb = b.open('shared').value
     const got = b['[method]bucket.get'](hb, 'k') as KvOk<Uint8Array>
-    expect(Array.from(got.val)).toEqual([1, 2, 3])
+    expect(Array.from(got.value)).toEqual([1, 2, 3])
   })
 })

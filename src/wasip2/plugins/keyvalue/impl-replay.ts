@@ -205,10 +205,10 @@ class ReplayBucket {
     if (this.fallbackStore) {
       const result = this.fallbackStore.get(this.identifier, key)
 
-      if (this.mode === 'record' && this.recorder && result.tag === 'ok') {
+      if (this.mode === 'record' && this.recorder && result.ok) {
         const response: KvCassetteGetResponse = {}
-        if (result.val !== undefined) {
-          response.value = encodeBase64(result.val)
+        if (result.value !== undefined) {
+          response.value = encodeBase64(result.value)
         }
         this.recorder.record('keyvalue-get', request, response)
       }
@@ -246,7 +246,7 @@ class ReplayBucket {
     if (this.fallbackStore) {
       const result = this.fallbackStore.set(this.identifier, key, value)
 
-      if (this.mode === 'record' && this.recorder && result.tag === 'ok') {
+      if (this.mode === 'record' && this.recorder && result.ok) {
         const response: KvCassetteSetResponse = { success: true }
         this.recorder.record('keyvalue-set', request, response)
       }
@@ -283,7 +283,7 @@ class ReplayBucket {
     if (this.fallbackStore) {
       const result = this.fallbackStore.delete(this.identifier, key)
 
-      if (this.mode === 'record' && this.recorder && result.tag === 'ok') {
+      if (this.mode === 'record' && this.recorder && result.ok) {
         const response: KvCassetteDeleteResponse = { success: true }
         this.recorder.record('keyvalue-set', request, response)
       }
@@ -320,8 +320,8 @@ class ReplayBucket {
     if (this.fallbackStore) {
       const result = this.fallbackStore.exists(this.identifier, key)
 
-      if (this.mode === 'record' && this.recorder && result.tag === 'ok') {
-        const response: KvCassetteExistsResponse = { exists: result.val }
+      if (this.mode === 'record' && this.recorder && result.ok) {
+        const response: KvCassetteExistsResponse = { exists: result.value }
         this.recorder.record('keyvalue-get', request, response)
       }
 
@@ -363,10 +363,10 @@ class ReplayBucket {
     if (this.fallbackStore) {
       const result = this.fallbackStore.listKeys(this.identifier, cursor)
 
-      if (this.mode === 'record' && this.recorder && result.tag === 'ok') {
-        const response: KvCassetteListKeysResponse = { keys: result.val.keys }
-        if (result.val.cursor !== undefined) {
-          response.cursor = result.val.cursor
+      if (this.mode === 'record' && this.recorder && result.ok) {
+        const response: KvCassetteListKeysResponse = { keys: result.value.keys }
+        if (result.value.cursor !== undefined) {
+          response.cursor = result.value.cursor
         }
         this.recorder.record('keyvalue-get', request, response)
       }

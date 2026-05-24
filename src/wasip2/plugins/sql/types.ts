@@ -9,6 +9,8 @@
  * - Result set iteration
  */
 
+import { type Result, ok, err } from '../../../shared/result.js'
+
 // =============================================================================
 // Handle Types
 // =============================================================================
@@ -413,22 +415,20 @@ export function createSqlError(code: SqlErrorCode, message: string): SqlError {
 /**
  * Result type for operations that can fail.
  */
-export type SqlResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: SqlError }
+export type SqlResult<T> = Result<T, SqlError>
 
 /**
- * Create a successful result.
+ * Create a successful result. Thin wrapper over the shared {@link ok}.
  */
 export function sqlOk<T>(value: T): SqlResult<T> {
-  return { ok: true, value }
+  return ok(value)
 }
 
 /**
- * Create an error result.
+ * Create an error result (bundles error construction over the shared {@link err}).
  */
 export function sqlErr<T>(code: SqlErrorCode, message: string): SqlResult<T> {
-  return { ok: false, error: createSqlError(code, message) }
+  return err(createSqlError(code, message))
 }
 
 // =============================================================================

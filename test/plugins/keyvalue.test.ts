@@ -47,14 +47,14 @@ describe('wasi:keyvalue/store', () => {
 
     it('kvOk creates success result', () => {
       const result = kvOk(42)
-      expect(result.tag).toBe('ok')
-      expect(result.val).toBe(42)
+      expect(result.ok).toBe(true)
+      expect(result.value).toBe(42)
     })
 
     it('kvErr creates error result', () => {
       const result = kvErr(noSuchStore())
-      expect(result.tag).toBe('err')
-      expect(result.val.tag).toBe('no-such-store')
+      expect(result.ok).toBe(false)
+      expect(result.error.tag).toBe('no-such-store')
     })
   })
 
@@ -80,8 +80,8 @@ describe('memory implementation', () => {
       }
 
       const result = imports.open('test-bucket')
-      expect(result.tag).toBe('ok')
-      expect(result.val).toBeGreaterThan(0)
+      expect(result.ok).toBe(true)
+      expect(result.value).toBeGreaterThan(0)
     })
 
     it('returns different handles for same bucket', () => {
@@ -93,9 +93,9 @@ describe('memory implementation', () => {
       const result1 = imports.open('test-bucket')
       const result2 = imports.open('test-bucket')
 
-      expect(result1.tag).toBe('ok')
-      expect(result2.tag).toBe('ok')
-      expect(result1.val).not.toBe(result2.val)
+      expect(result1.ok).toBe(true)
+      expect(result2.ok).toBe(true)
+      expect(result1.value).not.toBe(result2.value)
     })
 
     it('respects allowedBuckets restriction', () => {
@@ -109,10 +109,10 @@ describe('memory implementation', () => {
       const allowed = imports.open('allowed')
       const denied = imports.open('denied')
 
-      expect(allowed.tag).toBe('ok')
-      expect(denied.tag).toBe('err')
-      if (denied.tag === 'err') {
-        expect(denied.val.tag).toBe('access-denied')
+      expect(allowed.ok).toBe(true)
+      expect(denied.ok).toBe(false)
+      if (!denied.ok) {
+        expect(denied.error.tag).toBe('access-denied')
       }
     })
   })
@@ -135,45 +135,45 @@ describe('memory implementation', () => {
     describe('get/set', () => {
       it('returns undefined for non-existent key', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         const result = imports['[method]bucket.get'](handle, 'nonexistent')
-        expect(result.tag).toBe('ok')
-        expect(result.val).toBeUndefined()
+        expect(result.ok).toBe(true)
+        expect(result.value).toBeUndefined()
       })
 
       it('sets and gets a value', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         const value = new TextEncoder().encode('hello world')
         const setResult = imports['[method]bucket.set'](handle, 'key1', value)
-        expect(setResult.tag).toBe('ok')
+        expect(setResult.ok).toBe(true)
 
         const getResult = imports['[method]bucket.get'](handle, 'key1')
-        expect(getResult.tag).toBe('ok')
-        if (getResult.tag === 'ok' && getResult.val) {
-          expect(new TextDecoder().decode(getResult.val)).toBe('hello world')
+        expect(getResult.ok).toBe(true)
+        if (getResult.ok && getResult.value) {
+          expect(new TextDecoder().decode(getResult.value)).toBe('hello world')
         }
       })
 
       it('overwrites existing value', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         imports['[method]bucket.set'](handle, 'key1', new TextEncoder().encode('first'))
         imports['[method]bucket.set'](handle, 'key1', new TextEncoder().encode('second'))
 
         const result = imports['[method]bucket.get'](handle, 'key1')
-        expect(result.tag).toBe('ok')
-        if (result.tag === 'ok' && result.val) {
-          expect(new TextDecoder().decode(result.val)).toBe('second')
+        expect(result.ok).toBe(true)
+        if (result.ok && result.value) {
+          expect(new TextDecoder().decode(result.value)).toBe('second')
         }
       })
 
       it('returns copy of value', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         const original = new Uint8Array([1, 2, 3])
         imports['[method]bucket.set'](handle, 'key1', original)
@@ -181,11 +181,11 @@ describe('memory implementation', () => {
         const result1 = imports['[method]bucket.get'](handle, 'key1')
         const result2 = imports['[method]bucket.get'](handle, 'key1')
 
-        expect(result1.tag).toBe('ok')
-        expect(result2.tag).toBe('ok')
-        if (result1.tag === 'ok' && result2.tag === 'ok') {
-          expect(result1.val).not.toBe(result2.val) // Different instances
-          expect(result1.val).toEqual(result2.val) // Same content
+        expect(result1.ok).toBe(true)
+        expect(result2.ok).toBe(true)
+        if (result1.ok && result2.ok) {
+          expect(result1.value).not.toBe(result2.value) // Different instances
+          expect(result1.value).toEqual(result2.value) // Same content
         }
       })
     })
@@ -193,73 +193,73 @@ describe('memory implementation', () => {
     describe('delete', () => {
       it('deletes existing key', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         imports['[method]bucket.set'](handle, 'key1', new Uint8Array([1]))
         const deleteResult = imports['[method]bucket.delete'](handle, 'key1')
-        expect(deleteResult.tag).toBe('ok')
+        expect(deleteResult.ok).toBe(true)
 
         const getResult = imports['[method]bucket.get'](handle, 'key1')
-        expect(getResult.tag).toBe('ok')
-        expect(getResult.val).toBeUndefined()
+        expect(getResult.ok).toBe(true)
+        expect(getResult.value).toBeUndefined()
       })
 
       it('succeeds for non-existent key', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         const result = imports['[method]bucket.delete'](handle, 'nonexistent')
-        expect(result.tag).toBe('ok')
+        expect(result.ok).toBe(true)
       })
     })
 
     describe('exists', () => {
       it('returns false for non-existent key', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         const result = imports['[method]bucket.exists'](handle, 'nonexistent')
-        expect(result.tag).toBe('ok')
-        expect(result.val).toBe(false)
+        expect(result.ok).toBe(true)
+        expect(result.value).toBe(false)
       })
 
       it('returns true for existing key', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         imports['[method]bucket.set'](handle, 'key1', new Uint8Array([1]))
 
         const result = imports['[method]bucket.exists'](handle, 'key1')
-        expect(result.tag).toBe('ok')
-        expect(result.val).toBe(true)
+        expect(result.ok).toBe(true)
+        expect(result.value).toBe(true)
       })
     })
 
     describe('list-keys', () => {
       it('returns empty list for empty bucket', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         const result = imports['[method]bucket.list-keys'](handle)
-        expect(result.tag).toBe('ok')
-        if (result.tag === 'ok') {
-          expect(result.val.keys).toEqual([])
-          expect(result.val.cursor).toBeUndefined()
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.value.keys).toEqual([])
+          expect(result.value.cursor).toBeUndefined()
         }
       })
 
       it('returns all keys sorted', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         imports['[method]bucket.set'](handle, 'zebra', new Uint8Array([1]))
         imports['[method]bucket.set'](handle, 'apple', new Uint8Array([2]))
         imports['[method]bucket.set'](handle, 'mango', new Uint8Array([3]))
 
         const result = imports['[method]bucket.list-keys'](handle)
-        expect(result.tag).toBe('ok')
-        if (result.tag === 'ok') {
-          expect(result.val.keys).toEqual(['apple', 'mango', 'zebra'])
+        expect(result.ok).toBe(true)
+        if (result.ok) {
+          expect(result.value.keys).toEqual(['apple', 'mango', 'zebra'])
         }
       })
 
@@ -271,7 +271,7 @@ describe('memory implementation', () => {
           '[method]bucket.list-keys': (handle: number, cursor?: string) => KeyValueResult<KeyResponse>
         }
 
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
         imports['[method]bucket.set'](handle, 'a', new Uint8Array([1]))
         imports['[method]bucket.set'](handle, 'b', new Uint8Array([2]))
         imports['[method]bucket.set'](handle, 'c', new Uint8Array([3]))
@@ -280,24 +280,24 @@ describe('memory implementation', () => {
 
         // First page
         const page1 = imports['[method]bucket.list-keys'](handle)
-        expect(page1.tag).toBe('ok')
-        if (page1.tag === 'ok') {
-          expect(page1.val.keys).toEqual(['a', 'b'])
-          expect(page1.val.cursor).toBeDefined()
+        expect(page1.ok).toBe(true)
+        if (page1.ok) {
+          expect(page1.value.keys).toEqual(['a', 'b'])
+          expect(page1.value.cursor).toBeDefined()
 
           // Second page
-          const page2 = imports['[method]bucket.list-keys'](handle, page1.val.cursor)
-          expect(page2.tag).toBe('ok')
-          if (page2.tag === 'ok') {
-            expect(page2.val.keys).toEqual(['c', 'd'])
-            expect(page2.val.cursor).toBeDefined()
+          const page2 = imports['[method]bucket.list-keys'](handle, page1.value.cursor)
+          expect(page2.ok).toBe(true)
+          if (page2.ok) {
+            expect(page2.value.keys).toEqual(['c', 'd'])
+            expect(page2.value.cursor).toBeDefined()
 
             // Third page (last)
-            const page3 = imports['[method]bucket.list-keys'](handle, page2.val.cursor)
-            expect(page3.tag).toBe('ok')
-            if (page3.tag === 'ok') {
-              expect(page3.val.keys).toEqual(['e'])
-              expect(page3.val.cursor).toBeUndefined()
+            const page3 = imports['[method]bucket.list-keys'](handle, page2.value.cursor)
+            expect(page3.ok).toBe(true)
+            if (page3.ok) {
+              expect(page3.value.keys).toEqual(['e'])
+              expect(page3.value.cursor).toBeUndefined()
             }
           }
         }
@@ -309,20 +309,20 @@ describe('memory implementation', () => {
         const imports = getTestImports()
 
         const result = imports['[method]bucket.get'](999, 'key')
-        expect(result.tag).toBe('err')
-        if (result.tag === 'err') {
-          expect(result.val.tag).toBe('no-such-store')
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          expect(result.error.tag).toBe('no-such-store')
         }
       })
 
       it('returns error after handle dropped', () => {
         const imports = getTestImports()
-        const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+        const { value: handle } = imports.open('test') as { ok: true; value: number }
 
         imports['[resource-drop]bucket'](handle)
 
         const result = imports['[method]bucket.get'](handle, 'key')
-        expect(result.tag).toBe('err')
+        expect(result.ok).toBe(false)
       })
     })
   })
@@ -335,17 +335,17 @@ describe('memory implementation', () => {
         '[method]bucket.set': (handle: number, key: string, value: Uint8Array) => KeyValueResult<void>
       }
 
-      const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+      const { value: handle } = imports.open('test') as { ok: true; value: number }
 
       // Small value should work
       const smallResult = imports['[method]bucket.set'](handle, 'small', new Uint8Array(5))
-      expect(smallResult.tag).toBe('ok')
+      expect(smallResult.ok).toBe(true)
 
       // Large value should fail
       const largeResult = imports['[method]bucket.set'](handle, 'large', new Uint8Array(20))
-      expect(largeResult.tag).toBe('err')
-      if (largeResult.tag === 'err') {
-        expect(largeResult.val.tag).toBe('other')
+      expect(largeResult.ok).toBe(false)
+      if (!largeResult.ok) {
+        expect(largeResult.error.tag).toBe('other')
       }
     })
 
@@ -356,21 +356,21 @@ describe('memory implementation', () => {
         '[method]bucket.set': (handle: number, key: string, value: Uint8Array) => KeyValueResult<void>
       }
 
-      const { val: handle } = imports.open('test') as { tag: 'ok'; val: number }
+      const { value: handle } = imports.open('test') as { ok: true; value: number }
 
       imports['[method]bucket.set'](handle, 'key1', new Uint8Array([1]))
       imports['[method]bucket.set'](handle, 'key2', new Uint8Array([2]))
 
       // Third key should fail
       const result = imports['[method]bucket.set'](handle, 'key3', new Uint8Array([3]))
-      expect(result.tag).toBe('err')
-      if (result.tag === 'err') {
-        expect(result.val.tag).toBe('other')
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error.tag).toBe('other')
       }
 
       // Overwriting existing key should work
       const overwrite = imports['[method]bucket.set'](handle, 'key1', new Uint8Array([10]))
-      expect(overwrite.tag).toBe('ok')
+      expect(overwrite.ok).toBe(true)
     })
   })
 
@@ -389,12 +389,12 @@ describe('memory implementation', () => {
         '[method]bucket.get': (handle: number, key: string) => KeyValueResult<Uint8Array | undefined>
       }
 
-      const { val: handle } = imports.open('bucket1') as { tag: 'ok'; val: number }
+      const { value: handle } = imports.open('bucket1') as { ok: true; value: number }
 
       const result1 = imports['[method]bucket.get'](handle, 'key1')
-      expect(result1.tag).toBe('ok')
-      if (result1.tag === 'ok' && result1.val) {
-        expect(new TextDecoder().decode(result1.val)).toBe('value1')
+      expect(result1.ok).toBe(true)
+      if (result1.ok && result1.value) {
+        expect(new TextDecoder().decode(result1.value)).toBe('value1')
       }
     })
   })
@@ -408,17 +408,17 @@ describe('memory implementation', () => {
         '[method]bucket.set': (handle: number, key: string, value: Uint8Array) => KeyValueResult<void>
       }
 
-      const { val: handle1 } = imports.open('shared') as { tag: 'ok'; val: number }
-      const { val: handle2 } = imports.open('shared') as { tag: 'ok'; val: number }
+      const { value: handle1 } = imports.open('shared') as { ok: true; value: number }
+      const { value: handle2 } = imports.open('shared') as { ok: true; value: number }
 
       // Write through handle1
       imports['[method]bucket.set'](handle1, 'key', new TextEncoder().encode('value'))
 
       // Read through handle2
       const result = imports['[method]bucket.get'](handle2, 'key')
-      expect(result.tag).toBe('ok')
-      if (result.tag === 'ok' && result.val) {
-        expect(new TextDecoder().decode(result.val)).toBe('value')
+      expect(result.ok).toBe(true)
+      if (result.ok && result.value) {
+        expect(new TextDecoder().decode(result.value)).toBe('value')
       }
     })
   })
@@ -453,6 +453,6 @@ describe('plugin integration', () => {
     }
 
     const result = imports.open('test')
-    expect(result.tag).toBe('ok')
+    expect(result.ok).toBe(true)
   })
 })

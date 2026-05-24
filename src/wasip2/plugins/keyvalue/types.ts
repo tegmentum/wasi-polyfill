@@ -5,6 +5,8 @@
  * bucket handles, and operation results.
  */
 
+import { type Result, ok, err } from '../../../shared/result.js'
+
 /**
  * Key-value error variants
  */
@@ -37,22 +39,20 @@ export function otherError(message: string): KeyValueError {
 /**
  * Result type for key-value operations
  */
-export type KeyValueResult<T> =
-  | { tag: 'ok'; val: T }
-  | { tag: 'err'; val: KeyValueError }
+export type KeyValueResult<T> = Result<T, KeyValueError>
 
 /**
- * Create a successful result
+ * Create a successful result. Thin wrapper over the shared {@link ok}.
  */
 export function kvOk<T>(value: T): KeyValueResult<T> {
-  return { tag: 'ok', val: value }
+  return ok(value)
 }
 
 /**
- * Create an error result
+ * Create an error result. Thin wrapper over the shared {@link err}.
  */
 export function kvErr<T>(error: KeyValueError): KeyValueResult<T> {
-  return { tag: 'err', val: error }
+  return err(error)
 }
 
 /**

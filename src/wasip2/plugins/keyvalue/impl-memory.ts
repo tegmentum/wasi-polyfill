@@ -375,8 +375,8 @@ class MemoryStoreInstance implements PluginInstance {
   ): KeyValueResult<Array<[string, Uint8Array]>> {
     return this.withBucket(handle, (bucket) => {
       const res = bucket.getMany(keys)
-      if (res.tag === 'err') return res
-      return kvOk(Array.from(res.val.entries()))
+      if (!res.ok) return res
+      return kvOk(Array.from(res.value.entries()))
     })
   }
 
@@ -397,7 +397,7 @@ class MemoryStoreInstance implements PluginInstance {
     }
     const current = bucket.get(key)
     const snapshot =
-      current.tag === 'ok' && current.val ? new Uint8Array(current.val) : undefined
+      current.ok && current.value ? new Uint8Array(current.value) : undefined
     const handle = this.store.nextHandle++
     this.store.casHandles.set(handle, { bucket, key, snapshot })
     return kvOk(handle)
@@ -427,13 +427,13 @@ class MemoryStoreInstance implements PluginInstance {
       return kvErr(noSuchStore())
     }
     const current = cas.bucket.get(cas.key)
-    const actual = current.tag === 'ok' ? current.val : undefined
+    const actual = current.ok ? current.value : undefined
     if (!bytesEqual(actual, cas.snapshot)) {
       return kvOk(false)
     }
     const setResult = cas.bucket.set(cas.key, value)
-    if (setResult.tag === 'err') {
-      return kvErr(setResult.val)
+    if (!setResult.ok) {
+      return kvErr(setResult.error)
     }
     cas.snapshot = new Uint8Array(value)
     return kvOk(true)

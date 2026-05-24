@@ -15,8 +15,8 @@ import {
   memoryStoreImplementation,
 } from '../../src/wasip2/plugins/keyvalue/index.js'
 
-type KvOk<T> = { tag: 'ok'; val: T }
-type KvResult<T> = KvOk<T> | { tag: 'err'; val: unknown }
+type KvOk<T> = { ok: true; value: T }
+type KvResult<T> = KvOk<T> | { ok: false; error: unknown }
 
 interface KvImports {
   open(id: string): KvResult<number>
@@ -41,8 +41,8 @@ interface KvImports {
 
 function openBucket(imports: KvImports, id = 'test'): number {
   const res = imports.open(id)
-  expect(res.tag).toBe('ok')
-  return (res as KvOk<number>).val
+  expect(res.ok).toBe(true)
+  return (res as KvOk<number>).value
 }
 
 describe('wasi:keyvalue/atomics + batch are exported and functional', () => {
@@ -69,13 +69,13 @@ describe('wasi:keyvalue/atomics + batch are exported and functional', () => {
     const handle = openBucket(imports)
 
     const first = imports.increment(handle, 'counter', 5n)
-    expect(first).toEqual({ tag: 'ok', val: 5n })
+    expect(first).toEqual({ ok: true, value: 5n })
 
     const second = imports.increment(handle, 'counter', 3n)
-    expect(second).toEqual({ tag: 'ok', val: 8n })
+    expect(second).toEqual({ ok: true, value: 8n })
 
     const third = imports.increment(handle, 'counter', -2n)
-    expect(third).toEqual({ tag: 'ok', val: 6n })
+    expect(third).toEqual({ ok: true, value: 6n })
   })
 
   it('get-many / set-many / delete-many round-trip', () => {
@@ -89,18 +89,18 @@ describe('wasi:keyvalue/atomics + batch are exported and functional', () => {
       ['a', a],
       ['b', b],
     ])
-    expect(setRes.tag).toBe('ok')
+    expect(setRes.ok).toBe(true)
 
     const got = imports['get-many'](handle, ['a', 'b', 'missing'])
-    expect(got.tag).toBe('ok')
-    const entries = (got as KvOk<Array<[string, Uint8Array]>>).val
+    expect(got.ok).toBe(true)
+    const entries = (got as KvOk<Array<[string, Uint8Array]>>).value
     const asObj = Object.fromEntries(entries.map(([k, v]) => [k, Array.from(v)]))
     expect(asObj).toEqual({ a: [1, 2], b: [3, 4] })
 
     const del = imports['delete-many'](handle, ['a'])
-    expect(del.tag).toBe('ok')
+    expect(del.ok).toBe(true)
     const after = imports['get-many'](handle, ['a', 'b'])
-    expect((after as KvOk<Array<[string, Uint8Array]>>).val.map(([k]) => k)).toEqual(['b'])
+    expect((after as KvOk<Array<[string, Uint8Array]>>).value.map(([k]) => k)).toEqual(['b'])
   })
 
   it('compare-and-swap succeeds when unchanged and fails after intervening write', () => {
@@ -111,28 +111,28 @@ describe('wasi:keyvalue/atomics + batch are exported and functional', () => {
     imports['[method]bucket.set'](handle, 'k', new Uint8Array([1]))
 
     const cas1 = imports['[static]cas.new'](handle, 'k')
-    expect(cas1.tag).toBe('ok')
-    const casHandle1 = (cas1 as KvOk<number>).val
+    expect(cas1.ok).toBe(true)
+    const casHandle1 = (cas1 as KvOk<number>).value
 
     // current() reflects the snapshot at cas.new time.
     const cur = imports['[method]cas.current'](casHandle1)
-    expect(Array.from((cur as KvOk<Uint8Array>).val)).toEqual([1])
+    expect(Array.from((cur as KvOk<Uint8Array>).value)).toEqual([1])
 
     // Unchanged → swap succeeds.
     const ok = imports.swap(casHandle1, new Uint8Array([2]))
-    expect(ok).toEqual({ tag: 'ok', val: true })
+    expect(ok).toEqual({ ok: true, value: true })
     expect(
       Array.from(
-        (imports['[method]bucket.get'](handle, 'k') as KvOk<Uint8Array>).val
+        (imports['[method]bucket.get'](handle, 'k') as KvOk<Uint8Array>).value
       )
     ).toEqual([2])
 
     // A second, stale CAS handle taken before the next write should fail.
     const cas2 = imports['[static]cas.new'](handle, 'k')
-    const casHandle2 = (cas2 as KvOk<number>).val
+    const casHandle2 = (cas2 as KvOk<number>).value
     imports['[method]bucket.set'](handle, 'k', new Uint8Array([99])) // intervening write
     const fail = imports.swap(casHandle2, new Uint8Array([3]))
-    expect(fail).toEqual({ tag: 'ok', val: false })
+    expect(fail).toEqual({ ok: true, value: false })
   })
 
   it('shares buckets across separately-created plugin instances', () => {
@@ -149,10 +149,10 @@ describe('wasi:keyvalue/atomics + batch are exported and functional', () => {
 
     // increment via the *atomics* instance using the handle from the *store*.
     const inc = atomicsImports.increment(handle, 'n2', 7n)
-    expect(inc).toEqual({ tag: 'ok', val: 7n })
+    expect(inc).toEqual({ ok: true, value: 7n })
 
     // and the store instance sees writes the atomics instance made.
     const got = storeImports['get-many'](handle, ['n2'])
-    expect((got as KvOk<Array<[string, Uint8Array]>>).val.map(([k]) => k)).toEqual(['n2'])
+    expect((got as KvOk<Array<[string, Uint8Array]>>).value.map(([k]) => k)).toEqual(['n2'])
   })
 })

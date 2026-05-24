@@ -4,6 +4,8 @@
  * Types for neural network inference following the wasi-nn specification.
  */
 
+import { type Result, ok, err } from '../../../shared/result.js'
+
 // =============================================================================
 // Handle Types
 // =============================================================================
@@ -179,22 +181,20 @@ export function createNnError(code: NnErrorCode, message: string): NnError {
 /**
  * Result type for operations that can fail.
  */
-export type NnResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: NnError }
+export type NnResult<T> = Result<T, NnError>
 
 /**
- * Create a successful result.
+ * Create a successful result. Thin wrapper over the shared {@link ok}.
  */
 export function nnOk<T>(value: T): NnResult<T> {
-  return { ok: true, value }
+  return ok(value)
 }
 
 /**
- * Create an error result.
+ * Create an error result (bundles error construction over the shared {@link err}).
  */
 export function nnErr<T>(code: NnErrorCode, message: string): NnResult<T> {
-  return { ok: false, error: createNnError(code, message) }
+  return err(createNnError(code, message))
 }
 
 // =============================================================================

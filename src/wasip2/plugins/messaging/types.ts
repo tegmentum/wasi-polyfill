@@ -7,6 +7,8 @@
  * - Request/reply (with correlation)
  */
 
+import { type Result, ok, err } from '../../../shared/result.js'
+
 // =============================================================================
 // Handle Types
 // =============================================================================
@@ -213,22 +215,20 @@ export function createMessagingError(code: MessagingErrorCode, message: string):
 /**
  * Result type for operations that can fail.
  */
-export type MessagingResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: MessagingError }
+export type MessagingResult<T> = Result<T, MessagingError>
 
 /**
- * Create a successful result.
+ * Create a successful result. Thin wrapper over the shared {@link ok}.
  */
 export function msgOk<T>(value: T): MessagingResult<T> {
-  return { ok: true, value }
+  return ok(value)
 }
 
 /**
- * Create an error result.
+ * Create an error result (bundles error construction over the shared {@link err}).
  */
 export function msgErr<T>(code: MessagingErrorCode, message: string): MessagingResult<T> {
-  return { ok: false, error: createMessagingError(code, message) }
+  return err(createMessagingError(code, message))
 }
 
 // =============================================================================
