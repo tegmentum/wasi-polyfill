@@ -215,6 +215,22 @@ Eighteenth batch — HandleRegistry migration tail:
   dual-space tables (Datagram/TunneledDatagram/Terminal), and the domain
   classes (Pollable/Stream/Error/Thread/Tunnel/gfx, Fields' size getter).
 
+Nineteenth batch — Phase 3.8 NN real backend:
+
+- ✅ Added a real ONNX-Runtime-backed wasi:nn implementation (`onnx`):
+  `impl-onnx.ts` runs actual ONNX models through the standard load(model-bytes)
+  → init-execution-context → set-input → compute → get-output flow, mapping
+  onto `InferenceSession.create` / `session.run`. The runtime is an **optional,
+  host-provided peer dependency** (`config.ort`, `onnxruntime-web`/`-node`) and
+  is type-decoupled via a minimal structural interface, so the polyfill bundles
+  nothing and the bridge is unit-testable with a fake `ort` (no model fixtures).
+  Tensor<->ort.Tensor marshalling covers fp32/fp16/u8/i32/i64. Registered as
+  the opt-in `onnx` implementation across all four nn interfaces and scoped to
+  the polyfill's ResourceContext so the interfaces share graphs/contexts. The
+  earlier blocker was the assumption that wasi:nn here was the WebNN
+  graph-builder API; in fact the interface already exposes the model-load flow,
+  which maps cleanly. (14 tests.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -227,10 +243,10 @@ Remaining (the hard tail — large, low-value, or externally blocked):
   datagram frames and the tunnel rxQueue is a byte stream (no datagram
   boundaries). Needs a protocol/tunnel change or a documented connected-only
   subset. (Send — 2.8 — is fixed.)
-- **3.8 NN real backend** — onnxruntime-web (~10 MB dep): the wasi:nn surface
-  here is the WebNN graph-builder API, which doesn't map onto onnxruntime's
-  load-a-model model; also hard to test without ONNX model fixtures. Dedicated
-  effort warranted. (SQL and messaging real backends: ✅ done.)
+- **3.8 NN real backend — ✅ done** (see nineteenth batch). Real ONNX Runtime
+  backend wired as the opt-in `onnx` implementation; runtime is an optional
+  host-provided peer dep, bridge is unit-tested with a fake `ort`. (SQL and
+  messaging real backends: ✅ done.)
 
 ---
 
@@ -311,7 +327,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 3.5 | Add missing WebGPU `[resource-drop]` entries (texture-view, sampler, bind-group(-layout), pipeline-layout, shader-module, render/compute-pipeline, command-buffer); implement or error `create-query-set` | GPU handle leaks | `webgpu/plugin.ts:141` | M | Low |
 | 3.6 | Expand WASIP3 filesystem to full `wasi:filesystem/types@0.3.0` (`open-at`, `*-at`, set-times/size, get-flags/type, metadata-hash, advise, sync) | only ~7/22 methods | `wasip3/interfaces/filesystem.ts:432` | L | Med |
 | 3.7 | **Decision-gated:** real canonical ABI lift/lower over linear memory + handle tables, OR document P3 as jco-glue-only | P3 ABI is JS-object abstraction | `wasip3/canonical-abi/*`, `runtime/component-loader.ts` | XL | High |
-| 3.8 | **Decision-gated:** NN — make `mock` (or onnx-runtime-web) the default, or implement WebNN graph loading; document clearly | webnn default can't load models | `nn/impl-webnn.ts:289`, `nn/plugin.ts` | L–XL | Med |
+| 3.8 | ✅ NN — added an opt-in `onnx` implementation backed by a host-provided ONNX Runtime (optional peer dep); real model load/compute, fake-`ort` unit tests | webnn default can't load models | `nn/impl-onnx.ts`, `nn/plugin.ts` | L–XL | Med |
 | 3.9 | **Decision-gated:** SQL — adopt sql.js/WASM SQLite, or scope+document the subset and escape `LIKE`; add connection isolation | regex parser, no isolation | `sql/impl-memory.ts`, `sql/plugin.ts:14` | L–XL | Med |
 | 3.10 | **Decision-gated:** messaging — honor TTL/durable/dead-letter + real request/reply correlation + topic cursors, or document as in-memory only | mock presented as real | `messaging/impl-memory.ts:246,315` | L | Med |
 | 3.11 | Implement `incoming-handler` (Service Worker) or mark experimental/stub clearly | HTTP server stub | `http/incoming-handler.ts` | L | Med |

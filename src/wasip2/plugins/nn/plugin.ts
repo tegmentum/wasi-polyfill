@@ -18,6 +18,7 @@
 import type { WasiPlugin, WasiInterface } from '../../core/types.js'
 import { createPlugin } from '../plugin-base.js'
 import { webnnImplementation } from './impl-webnn.js'
+import { onnxNnImplementation } from './impl-onnx.js'
 import { mockNnImplementation } from './impl-mock.js'
 
 /**
@@ -65,6 +66,7 @@ export const nnTensorPlugin: WasiPlugin = createPlugin(
   NN_TENSOR_INTERFACE,
   {
     webnn: webnnImplementation,
+    onnx: onnxNnImplementation,
     mock: mockNnImplementation,
   },
   'webnn'
@@ -83,6 +85,7 @@ export const nnGraphPlugin: WasiPlugin = createPlugin(
   NN_GRAPH_INTERFACE,
   {
     webnn: webnnImplementation,
+    onnx: onnxNnImplementation,
     mock: mockNnImplementation,
   },
   'webnn'
@@ -101,6 +104,7 @@ export const nnInferencePlugin: WasiPlugin = createPlugin(
   NN_INFERENCE_INTERFACE,
   {
     webnn: webnnImplementation,
+    onnx: onnxNnImplementation,
     mock: mockNnImplementation,
   },
   'webnn'
@@ -115,6 +119,7 @@ export const nnErrorsPlugin: WasiPlugin = createPlugin(
   NN_ERRORS_INTERFACE,
   {
     webnn: webnnImplementation,
+    onnx: onnxNnImplementation,
     mock: mockNnImplementation,
   },
   'webnn'

@@ -380,11 +380,15 @@
   },
   "peerDependencies": {
     "@bytecodealliance/jco": "^1.8.0",
+    "onnxruntime-web": "^1.16.0",
     "sql.js": "^1.0.0",
     "ws": "^8.0.0"
   },
   "peerDependenciesMeta": {
     "@bytecodealliance/jco": {
+      "optional": true
+    },
+    "onnxruntime-web": {
       "optional": true
     },
     "sql.js": {
