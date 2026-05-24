@@ -6,6 +6,7 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
+import { contextFromConfig } from '../../core/resource-context.js'
 import {
   type KeyValueResult,
   type KeyResponse,
@@ -445,22 +446,22 @@ class MemoryStoreInstance implements PluginInstance {
 }
 
 /**
- * Backing store shared by the store/atomics/batch plugin instances.
- *
- * Like the other plugins' module-level registries, this is process-global so
- * that the three keyvalue interfaces operate on the same buckets. (Per-polyfill
- * isolation is tracked separately in REMEDIATION-PLAN Phase 2.10.)
+ * Resource-context key for the backing store shared by the store/atomics/batch
+ * interfaces. Scoping it to the polyfill's ResourceContext means the three
+ * keyvalue interfaces of one polyfill share buckets, while different polyfills
+ * are isolated. Standalone use falls back to the global context.
  */
-let sharedBucketStore: BucketStore | undefined
+const KV_BUCKET_STORE = Symbol('wasi:keyvalue/bucket-store')
 
 export const memoryStoreImplementation: Implementation = {
   name: 'memory',
   description: 'In-memory key-value store (non-persistent)',
   create(config: PluginConfig): PluginInstance {
-    if (!sharedBucketStore) {
-      sharedBucketStore = new BucketStore(config as MemoryStoreConfig)
-    }
-    return new MemoryStoreInstance(sharedBucketStore, false)
+    const store = contextFromConfig(config).get(
+      KV_BUCKET_STORE,
+      () => new BucketStore(config as MemoryStoreConfig)
+    )
+    return new MemoryStoreInstance(store, false)
   },
 }
 

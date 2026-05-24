@@ -29,6 +29,13 @@ export {
   registerLazyPlugin,
 } from './plugin-registry.js'
 
+// Resource Context (per-polyfill plugin state isolation)
+export {
+  ResourceContext,
+  globalResourceContext,
+  contextFromConfig,
+} from './resource-context.js'
+
 // Policy
 export type { PolicyConfig } from './policy.js'
 
