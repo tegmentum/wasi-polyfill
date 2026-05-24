@@ -100,6 +100,21 @@ describe('Socket Plugins', () => {
       expect(udpCreateSocketPlugin.defaultImplementation).toBe('virtual')
     })
 
+    it('exposes the ws-gateway tunnel as the opt-in `tunneled` implementation', () => {
+      // 3.4: the real (relayed) TCP/UDP path is selectable on the standard
+      // sockets plugins, with `virtual` remaining the default.
+      for (const plugin of [
+        tcpPlugin,
+        tcpCreateSocketPlugin,
+        udpPlugin,
+        udpCreateSocketPlugin,
+      ]) {
+        expect(plugin.defaultImplementation).toBe('virtual')
+        expect(plugin.implementations.has('virtual')).toBe(true)
+        expect(plugin.implementations.has('tunneled')).toBe(true)
+      }
+    })
+
     it('should export all socket plugins', () => {
       expect(socketPlugins).toHaveLength(7)
       expect(socketPlugins).toContain(networkPlugin)
@@ -741,11 +756,12 @@ describe('DNS-over-HTTPS (DoH)', () => {
       expect(ipNameLookupPlugin.implementations.has('doh')).toBe(true)
     })
 
-    it('should have virtual, doh, and stub implementations', () => {
-      expect(ipNameLookupPlugin.implementations.size).toBe(3)
+    it('should have virtual, doh, stub, and tunneled implementations', () => {
+      expect(ipNameLookupPlugin.implementations.size).toBe(4)
       expect(ipNameLookupPlugin.implementations.has('virtual')).toBe(true)
       expect(ipNameLookupPlugin.implementations.has('doh')).toBe(true)
       expect(ipNameLookupPlugin.implementations.has('stub')).toBe(true)
+      expect(ipNameLookupPlugin.implementations.has('tunneled')).toBe(true)
     })
   })
 

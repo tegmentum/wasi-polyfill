@@ -259,6 +259,18 @@ Twenty-first batch — Phase 5.5 typed FilesystemError:
   as-is — it classifies third-party DOM/`TypeError` objects we don't throw, so
   there's no typed code to read.
 
+Twenty-second batch — Phase 3.4 sockets ↔ ws-gateway:
+
+- ✅ The ws-gateway tunnel adapters (`tunneledTcp/UdpImplementation`,
+  their create-socket variants, and `tunneledDnsLookupImplementation`) are now
+  registered as the opt-in `tunneled` implementation on the standard
+  `wasi:sockets` tcp/udp/(create-socket)/ip-name-lookup plugins, so the real
+  (relayed) path is selectable instead of only reachable via the separate
+  ws-gateway plugins. `virtual` stays the default. No import cycle — the
+  adapters depend on `sockets/types`, not `sockets/plugin`. Docstrings note
+  the tunnel and the known UDP-receive limitation (2.7). (Tests assert the
+  `tunneled` impl is present on all four socket plugins + DNS.)
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -351,7 +363,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 3.1 | Node/Deno `hostfs` backend implementing the `Implementation` contract via `node:fs` | no host FS backend | new `filesystem/impl-node.ts`, `filesystem/plugin.ts` | L | Med |
 | 3.2 | Symlink/hardlink support in memory FS (`SymlinkNode`), honor `symlinkFollow`; implement `link/symlink/readlink` | unimplemented everywhere | `filesystem/impl-memory.ts:1250` | L | Med |
 | 3.3 | Streaming HTTP response body (wrap `response.body` ReadableStream) + enforce size cap during stream | full buffering / OOM | `http/outgoing-handler.ts:325`, `browser/fetch.ts:184` | M | Med |
-| 3.4 | Wire `sockets/tcp`/`udp` stubs to the ws-gateway adapters (register as alternate impls) + document | working path hidden | `sockets/plugin.ts`, stub docstrings | M | Low |
+| 3.4 | ✅ Wired ws-gateway tcp/udp/dns adapters as the opt-in `tunneled` impl on the standard sockets plugins (+ docstrings); `virtual` stays default | working path hidden | `sockets/plugin.ts` | M | Low |
 | 3.5 | Add missing WebGPU `[resource-drop]` entries (texture-view, sampler, bind-group(-layout), pipeline-layout, shader-module, render/compute-pipeline, command-buffer); implement or error `create-query-set` | GPU handle leaks | `webgpu/plugin.ts:141` | M | Low |
 | 3.6 | Expand WASIP3 filesystem to full `wasi:filesystem/types@0.3.0` (`open-at`, `*-at`, set-times/size, get-flags/type, metadata-hash, advise, sync) | only ~7/22 methods | `wasip3/interfaces/filesystem.ts:432` | L | Med |
 | 3.7 | **Decision-gated:** real canonical ABI lift/lower over linear memory + handle tables, OR document P3 as jco-glue-only | P3 ABI is JS-object abstraction | `wasip3/canonical-abi/*`, `runtime/component-loader.ts` | XL | High |
