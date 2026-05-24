@@ -7,6 +7,8 @@ export default defineConfig({
 
     // WASI Preview 1
     'wasip1/index': 'src/wasip1/index.ts',
+    // Node-only host filesystem backend (imports node:fs).
+    'wasip1/hostfs-node': 'src/wasip1/hostfs-node.ts',
 
     // WASI Preview 2
     'wasip2/index': 'src/wasip2/index.ts',

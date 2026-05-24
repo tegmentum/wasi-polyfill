@@ -57,6 +57,8 @@ export interface FileResource {
   }
   /** Set file times. */
   setTimes(atim: bigint | null, mtim: bigint | null): void
+  /** Release any underlying host resource (e.g. a real fd). Called on fd_close. */
+  close?(): void
 }
 
 /**
@@ -217,6 +219,17 @@ export function createFdFunctions(
       // Don't allow closing stdio
       if (fd === 0 || fd === 1 || fd === 2) {
         return Errno.EBADF
+      }
+
+      // Release any underlying host resource (e.g. a real OS fd) before dropping.
+      const entry = fdTable.get(fd)
+      const resource = entry?.resource as FileResource | undefined
+      if (resource && typeof resource.close === 'function') {
+        try {
+          resource.close()
+        } catch {
+          // best effort; still drop the descriptor
+        }
       }
 
       fdTable.close(fd)

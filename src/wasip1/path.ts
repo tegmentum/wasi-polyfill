@@ -527,6 +527,9 @@ function mapError(e: unknown): Errno {
     if (msg.includes('too long') || msg.includes('enametoolong')) return Errno.ENAMETOOLONG
     if (msg.includes('busy') || msg.includes('ebusy')) return Errno.EBUSY
     if (msg.includes('cross-device') || msg.includes('exdev')) return Errno.EXDEV
+    if (msg.includes('enotcapable') || msg.includes('escapes sandbox')) {
+      return Errno.ENOTCAPABLE
+    }
   }
   return Errno.EIO
 }
