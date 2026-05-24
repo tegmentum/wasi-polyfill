@@ -6,7 +6,11 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry, createReadyPollable } from '../io/pollable.js'
+import {
+  PollableRegistry,
+  globalPollableRegistry,
+  createReadyPollable,
+} from '../io/pollable.js'
 import {
   type IpAddress,
   type IpAddressFamily,
@@ -396,7 +400,7 @@ export const tunneledDnsLookupImplementation: Implementation = {
 
     return new TunneledDnsLookupInstance(
       globalTunneledResolveAddressStreamRegistry,
-      new PollableRegistry(),
+      globalPollableRegistry,
       tunnel,
       dnsConfig
     )

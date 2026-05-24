@@ -7,7 +7,11 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry, createReadyPollable } from '../io/pollable.js'
+import {
+  PollableRegistry,
+  globalPollableRegistry,
+  createReadyPollable,
+} from '../io/pollable.js'
 import { globalStreamRegistry, type InputStream, type OutputStream } from '../io/streams.js'
 import { NetworkErrorCode } from '../sockets/types.js'
 import {
@@ -779,7 +783,7 @@ export const tunneledTcpImplementation: Implementation = {
     return new TunneledTcpInstance(
       globalTunneledTcpSocketRegistry,
       globalTunnelRegistry,
-      new PollableRegistry(),
+      globalPollableRegistry,
       tcpConfig
     )
   },

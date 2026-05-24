@@ -59,6 +59,29 @@ interface RawManifest {
 }
 
 /**
+ * Parse a list of interface entries (strings or objects) into WasiInterfaces.
+ *
+ * @param items - The raw entries (imports or exports), may be undefined
+ * @param kind - 'import' | 'export', used only in error messages
+ */
+function parseInterfaceList(
+  items: Array<string | WasiInterface> | undefined,
+  kind: 'import' | 'export'
+): WasiInterface[] {
+  const result: WasiInterface[] = []
+  for (const item of items ?? []) {
+    if (typeof item === 'string') {
+      result.push(parseInterfaceString(item))
+    } else if (isWasiInterface(item)) {
+      result.push(item)
+    } else {
+      throw new ManifestError(`Invalid ${kind} entry: ${JSON.stringify(item)}`)
+    }
+  }
+  return result
+}
+
+/**
  * Parse a manifest from JSON
  */
 export function parseManifest(json: unknown): ComponentManifest {
@@ -73,29 +96,8 @@ export function parseManifest(json: unknown): ComponentManifest {
     throw new ManifestError(`Unsupported manifest version: ${raw.version}`)
   }
 
-  // Parse imports
-  const imports: WasiInterface[] = []
-  for (const item of raw.imports ?? []) {
-    if (typeof item === 'string') {
-      imports.push(parseInterfaceString(item))
-    } else if (isWasiInterface(item)) {
-      imports.push(item)
-    } else {
-      throw new ManifestError(`Invalid import entry: ${JSON.stringify(item)}`)
-    }
-  }
-
-  // Parse exports
-  const exports: WasiInterface[] = []
-  for (const item of raw.exports ?? []) {
-    if (typeof item === 'string') {
-      exports.push(parseInterfaceString(item))
-    } else if (isWasiInterface(item)) {
-      exports.push(item)
-    } else {
-      throw new ManifestError(`Invalid export entry: ${JSON.stringify(item)}`)
-    }
-  }
+  const imports = parseInterfaceList(raw.imports, 'import')
+  const exports = parseInterfaceList(raw.exports, 'export')
 
   // Extract WASI subsystems from imports if not provided
   const wasiSubsystems =

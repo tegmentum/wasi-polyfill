@@ -47,6 +47,13 @@ interface QueuedMessage {
   deliveredTo: Set<SubscriptionHandle>
   deliveryCount: number
   enqueuedAt: number
+  /** Epoch ms after which the message has expired (undefined = no expiry). */
+  expiresAt?: number
+}
+
+/** Whether a queued message has passed its TTL. */
+function isExpired(msg: QueuedMessage): boolean {
+  return msg.expiresAt !== undefined && Date.now() >= msg.expiresAt
 }
 
 /**
@@ -301,12 +308,16 @@ class MemoryMessagingInstance implements PluginInstance {
       timestamp: message.metadata.timestamp ?? Date.now(),
     }
 
+    // Resolve TTL: per-message ttl wins over the channel default. >0 => expiry.
+    const now = Date.now()
+    const ttl = metadata.ttl ?? channel.options.defaultTtl ?? 0
     const queuedMessage: QueuedMessage = {
       message: { payload: message.payload, metadata },
       deliveryTag: this.nextDeliveryTag++,
       deliveredTo: new Set(),
       deliveryCount: 0,
-      enqueuedAt: Date.now(),
+      enqueuedAt: now,
+      ...(ttl > 0 ? { expiresAt: now + ttl } : {}),
     }
 
     channel.messages.push(queuedMessage)
@@ -326,6 +337,7 @@ class MemoryMessagingInstance implements PluginInstance {
   }
 
   private deliverToSubscription(sub: InternalSubscription, msg: QueuedMessage): void {
+    if (isExpired(msg)) return
     if (sub.pending.length < sub.options.prefetchCount) {
       sub.pending.push(msg)
       msg.deliveredTo.add(sub.handle)
@@ -407,18 +419,22 @@ class MemoryMessagingInstance implements PluginInstance {
       return msgErr(MessagingErrorCode.NOT_FOUND, `Channel '${sub.channelName}' not found`)
     }
 
-    // For queues, try to pull a new message if pending is empty
+    // For queues, try to pull a new (non-expired) message if pending is empty
     if (channel.options.type === ChannelType.QUEUE && sub.pending.length === 0) {
       for (const msg of channel.messages) {
-        if (msg.deliveredTo.size === 0) {
+        if (msg.deliveredTo.size === 0 && !isExpired(msg)) {
           this.deliverToSubscription(sub, msg)
           break
         }
       }
     }
 
-    // Get next pending message
-    const msg = sub.pending.shift()
+    // Get next pending message, discarding any that expired while queued.
+    let msg = sub.pending.shift()
+    while (msg && isExpired(msg)) {
+      this.removeFromChannel(channel, msg.deliveryTag)
+      msg = sub.pending.shift()
+    }
     if (!msg) {
       return msgErr(MessagingErrorCode.TIMEOUT, 'No messages available')
     }
@@ -453,11 +469,15 @@ class MemoryMessagingInstance implements PluginInstance {
     }
 
     const messages: ReceivedMessage[] = []
-    const count = Math.min(maxMessages, sub.pending.length)
 
-    for (let i = 0; i < count; i++) {
+    while (messages.length < maxMessages) {
       const msg = sub.pending.shift()
       if (!msg) break
+      // Drop messages that expired while queued.
+      if (isExpired(msg)) {
+        this.removeFromChannel(channel, msg.deliveryTag)
+        continue
+      }
 
       const received: ReceivedMessage = {
         message: msg.message,

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   WasiMemory,
+  WasiMemoryError,
   IOVEC_SIZE,
   CIOVEC_SIZE,
   FILESTAT_SIZE,
@@ -33,6 +34,45 @@ describe('WASIP1 WasiMemory', () => {
     it('throws when not attached', () => {
       const wm = new WasiMemory()
       expect(() => wm.readU8(0)).toThrow('Memory not attached')
+    })
+  })
+
+  describe('bounds checking (EFAULT)', () => {
+    // 1 page = 65536 bytes; valid offsets are [0, 65535].
+    const SIZE = 65536
+
+    it('throws WasiMemoryError for an out-of-range read', () => {
+      expect(() => wasiMemory.readU8(SIZE)).toThrow(WasiMemoryError)
+      expect(() => wasiMemory.readU32(SIZE - 2)).toThrow(WasiMemoryError)
+      expect(() => wasiMemory.readBytes(SIZE - 4, 8)).toThrow(WasiMemoryError)
+    })
+
+    it('throws WasiMemoryError for an out-of-range write', () => {
+      expect(() => wasiMemory.writeU8(SIZE, 1)).toThrow(WasiMemoryError)
+      expect(() => wasiMemory.writeBytes(SIZE - 1, new Uint8Array([1, 2, 3]))).toThrow(
+        WasiMemoryError
+      )
+    })
+
+    it('rejects negative and non-integer pointers', () => {
+      expect(() => wasiMemory.readU8(-1)).toThrow(WasiMemoryError)
+      expect(() => wasiMemory.readU8(1.5)).toThrow(WasiMemoryError)
+    })
+
+    it('carries EFAULT (21) as its errno', () => {
+      try {
+        wasiMemory.readU8(SIZE)
+        throw new Error('expected WasiMemoryError')
+      } catch (err) {
+        expect(err).toBeInstanceOf(WasiMemoryError)
+        expect((err as WasiMemoryError).errno).toBe(21)
+      }
+    })
+
+    it('still allows in-range accesses at the boundary', () => {
+      expect(() => wasiMemory.writeU8(SIZE - 1, 7)).not.toThrow()
+      expect(wasiMemory.readU8(SIZE - 1)).toBe(7)
+      expect(() => wasiMemory.readU32(SIZE - 4)).not.toThrow()
     })
   })
 

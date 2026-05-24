@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { registerCorePlugins } from '../../src/wasip2/core/index.js'
-import { Polyfill } from '../../src/wasip2/core/polyfill.js'
+import { Polyfill, createJcoPolyfill } from '../../src/wasip2/core/polyfill.js'
 import { AllowAllPolicy, createPolicy } from '../../src/wasip2/core/policy.js'
 
 /**
@@ -389,6 +389,26 @@ describe('jco compatibility', () => {
       // Call blockingWriteAndFlush with a small payload
       const result = stdout.blockingWriteAndFlush(new Uint8Array([104, 105]))
       expect(result).not.toBeInstanceOf(Promise)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // createJcoPolyfill defaults to jco-compat mode
+  // ---------------------------------------------------------------------------
+  describe('createJcoPolyfill default jcoCompat', () => {
+    it('produces unversioned keys without per-call jcoCompat', async () => {
+      await registerCorePlugins()
+      const p = createJcoPolyfill()
+      // Note: no { jcoCompat: true } passed here — it must default on.
+      const { imports: jcoImports } = await p.forInterfaces([
+        'wasi:io/streams@0.2.0',
+        'wasi:cli/stdout@0.2.0',
+      ])
+      expect(jcoImports['wasi:io/streams']).toBeDefined()
+      for (const key of Object.keys(jcoImports)) {
+        expect(key).not.toMatch(/@\d/)
+      }
+      p.destroy()
     })
   })
 })

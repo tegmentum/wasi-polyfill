@@ -128,8 +128,14 @@ export class AsyncExecutor {
           while (true) {
             const state = task.subtaskPoll(handle)
             if (state === 'returned' || state === 'done') {
+              // A rejected async import transitions to 'returned' with empty
+              // values; surface the error instead of silently returning [].
+              const error = task.subtaskError(handle)
               const values = task.subtaskReturnValues(handle)
               task.subtaskDrop(handle)
+              if (error) {
+                throw error
+              }
               return values as R
             }
 

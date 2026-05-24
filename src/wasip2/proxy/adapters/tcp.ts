@@ -184,7 +184,7 @@ export class TcpAdapter implements StreamAdapter {
     if (this.config.dnsLookup && !this.isIpAddress(host)) {
       try {
         host = await this.config.dnsLookup(host)
-      } catch (error) {
+      } catch {
         state.connecting = false
         await stream.reset(ErrorCode.DNS_ERROR, `DNS lookup failed: ${connectPayload.host}`)
         return

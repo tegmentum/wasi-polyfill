@@ -111,7 +111,7 @@ export {
   retry,
   withTimeout,
   // Error aggregation
-  AggregateError,
+  MultiError,
   collectErrors,
 } from './error-utils.js'
 

@@ -101,6 +101,11 @@ export interface PolyfillConfig {
   plugins?: PluginOverride[]
   /** Custom policy (overrides plugins if both provided) */
   policy?: Policy
+  /**
+   * Default jco compatibility mode for getImports (default: false).
+   * Per-call `GetImportsOptions.jcoCompat` overrides this.
+   */
+  jcoCompat?: boolean
 }
 
 /**

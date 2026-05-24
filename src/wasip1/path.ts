@@ -121,17 +121,33 @@ export function createPathFunctions(
    * Resolve a path relative to a directory fd.
    */
   function resolvePath(basePath: string, relativePath: string): string {
-    // Normalize and join paths
+    // Join basePath and relativePath. A leading '/' means "relative to the
+    // filesystem (preopen) root".
+    let combined: string
     if (relativePath.startsWith('/')) {
-      return relativePath
+      combined = relativePath
+    } else if (basePath === '' || basePath === '.') {
+      combined = relativePath
+    } else {
+      combined = basePath.replace(/\/+$/, '') + '/' + relativePath
     }
-    if (basePath === '' || basePath === '.') {
-      return relativePath
+
+    // Normalize '.' and '..'. '..' is clamped at the root so a path can never
+    // escape the preopen (defense-in-depth), and 'a/../b' correctly resolves to
+    // 'b' instead of failing on a literal '..' component. The absolute/relative
+    // distinction (leading '/') is preserved for the filesystem layer.
+    const isAbsolute = combined.startsWith('/')
+    const stack: string[] = []
+    for (const part of combined.split('/')) {
+      if (part === '' || part === '.') continue
+      if (part === '..') {
+        stack.pop()
+        continue
+      }
+      stack.push(part)
     }
-    if (basePath.endsWith('/')) {
-      return basePath + relativePath
-    }
-    return basePath + '/' + relativePath
+    const joined = stack.join('/')
+    return isAbsolute ? '/' + joined : joined
   }
 
   return {
@@ -195,6 +211,15 @@ export function createPathFunctions(
       fstFlags: number
     ): number {
       if (!fdTable.hasRights(fd, Rights.PATH_FILESTAT_SET_TIMES)) return Errno.ENOTCAPABLE
+
+      // It is invalid to request both an explicit timestamp and "now" for the
+      // same field (WASI requires EINVAL).
+      if (
+        (fstFlags & FstFlags.ATIM && fstFlags & FstFlags.ATIM_NOW) ||
+        (fstFlags & FstFlags.MTIM && fstFlags & FstFlags.MTIM_NOW)
+      ) {
+        return Errno.EINVAL
+      }
 
       const fsInfo = getFilesystem(fd)
       if (!fsInfo) return Errno.EBADF
@@ -309,6 +334,9 @@ export function createPathFunctions(
         // Create fd entry
         let newFd: number
         if (isDir) {
+          // Attach the filesystem so getFilesystem() can resolve path_* calls
+          // made against this directory fd (it is not a preopen).
+          ;(resource as { filesystem?: Filesystem }).filesystem = fsInfo.fs
           const entry = createDirectoryEntry(fullPath, undefined, resource)
           entry.rights.base = rightsBase
           entry.rights.inheriting = rightsInheriting
@@ -499,6 +527,9 @@ function mapError(e: unknown): Errno {
     if (msg.includes('too long') || msg.includes('enametoolong')) return Errno.ENAMETOOLONG
     if (msg.includes('busy') || msg.includes('ebusy')) return Errno.EBUSY
     if (msg.includes('cross-device') || msg.includes('exdev')) return Errno.EXDEV
+    if (msg.includes('enotcapable') || msg.includes('escapes sandbox')) {
+      return Errno.ENOTCAPABLE
+    }
   }
   return Errno.EIO
 }

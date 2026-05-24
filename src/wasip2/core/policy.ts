@@ -259,6 +259,14 @@ export function createCliPolicy(options?: {
       { package: 'wasi:cli', name: 'stdin', version: '0.2.0' },
       { package: 'wasi:cli', name: 'stdout', version: '0.2.0' },
       { package: 'wasi:cli', name: 'stderr', version: '0.2.0' },
+      // Terminal interfaces: jco-transpiled CLI components routinely import
+      // these (and the jco bridge wraps their return values), so a "CLI-friendly"
+      // policy must allow them or such components throw PolicyDeniedError.
+      { package: 'wasi:cli', name: 'terminal-input', version: '0.2.0' },
+      { package: 'wasi:cli', name: 'terminal-output', version: '0.2.0' },
+      { package: 'wasi:cli', name: 'terminal-stdin', version: '0.2.0' },
+      { package: 'wasi:cli', name: 'terminal-stdout', version: '0.2.0' },
+      { package: 'wasi:cli', name: 'terminal-stderr', version: '0.2.0' },
       { package: 'wasi:cli', name: 'exit', version: '0.2.0' },
       { package: 'wasi:io', name: 'streams', version: '0.2.0' },
       { package: 'wasi:io', name: 'error', version: '0.2.0' },

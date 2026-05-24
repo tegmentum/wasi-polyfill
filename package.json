@@ -15,6 +15,10 @@
       "types": "./dist/wasip1/index.d.ts",
       "import": "./dist/wasip1/index.js"
     },
+    "./wasip1/hostfs-node": {
+      "types": "./dist/wasip1/hostfs-node.d.ts",
+      "import": "./dist/wasip1/hostfs-node.js"
+    },
     "./wasip2": {
       "types": "./dist/wasip2/index.d.ts",
       "import": "./dist/wasip2/index.js"
@@ -358,24 +362,32 @@
   "license": "MIT",
   "devDependencies": {
     "@bytecodealliance/jco": "^1.8.0",
+    "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.57.0",
     "@types/node": "^22.10.2",
+    "@types/sql.js": "^1.4.11",
     "@types/ws": "^8.5.13",
     "esbuild": "^0.27.1",
     "eslint": "^9.16.0",
     "prettier": "^3.4.2",
+    "sql.js": "^1.14.1",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.59.4",
     "vite": "^5.4.21",
     "vitest": "^2.1.8",
     "ws": "^8.18.0"
   },
   "peerDependencies": {
     "@bytecodealliance/jco": "^1.8.0",
+    "sql.js": "^1.0.0",
     "ws": "^8.0.0"
   },
   "peerDependenciesMeta": {
     "@bytecodealliance/jco": {
+      "optional": true
+    },
+    "sql.js": {
       "optional": true
     },
     "ws": {

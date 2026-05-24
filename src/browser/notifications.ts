@@ -21,6 +21,9 @@ import {
 } from './types.js'
 import { isSecureContext, supports } from './runtime.js'
 
+/** Max buffered notification events per notification when no reader is draining. */
+const MAX_NOTIFICATION_QUEUE = 256
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -212,6 +215,10 @@ export class BrowserNotifications {
           const resolver = state.resolvers.shift()!
           resolver([event])
         } else {
+          // Bound the queue when no reader is draining it (drop oldest).
+          if (state.eventQueue.length >= MAX_NOTIFICATION_QUEUE) {
+            state.eventQueue.shift()
+          }
           state.eventQueue.push(event)
         }
       }

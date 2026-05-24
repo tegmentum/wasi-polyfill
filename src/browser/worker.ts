@@ -19,7 +19,6 @@
 
 import {
   BrowserErrorCode,
-  BrowserException,
   type BrowserError,
   type Result,
   ok,
@@ -394,6 +393,11 @@ export class BrowserWorker {
     }
 
     try {
+      // Detach handlers so the Worker (and the closures capturing `this`) can be
+      // collected, then drop any queued messages/errors from this worker.
+      worker.onmessage = null
+      worker.onerror = null
+      worker.onmessageerror = null
       worker.terminate()
 
       const info = this.workerInfo.get(handle)
@@ -402,6 +406,8 @@ export class BrowserWorker {
       }
 
       this.workers.delete(handle)
+      this.messageQueue = this.messageQueue.filter((m) => m.worker !== handle)
+      this.errorQueue = this.errorQueue.filter((e) => e.worker !== handle)
       return ok(undefined)
     } catch (error) {
       return browserErr(
@@ -791,33 +797,25 @@ export function getBrowserWorkerImports(options?: BrowserWorkerOptions): Record<
       'supports-workers': () => manager.supportsWorkers(),
       'supports-shared-memory': () => manager.supportsSharedMemory(),
 
-      // Worker management
+      // Worker management. These return a WIT `result<>` (the Result object)
+      // like every other browser interface, rather than throwing.
       'spawn': (url: string, type: number, name: string) => {
         const workerType = type === 0 ? WorkerType.CLASSIC : WorkerType.MODULE
         const descriptor: WorkerDescriptor = { url, type: workerType }
         if (name) descriptor.name = name
-        const result = manager.spawn(descriptor)
-        if ('error' in result) throw new BrowserException(result.error)
-        return result.value
+        return manager.spawn(descriptor)
       },
       'spawn-inline': (code: string, type: number) => {
         const workerType = type === 0 ? WorkerType.CLASSIC : WorkerType.MODULE
-        const result = manager.spawnInline(code, workerType)
-        if ('error' in result) throw new BrowserException(result.error)
-        return result.value
+        return manager.spawnInline(code, workerType)
       },
-      'terminate': (handle: WorkerHandle) => {
-        const result = manager.terminate(handle)
-        if ('error' in result) throw new BrowserException(result.error)
-      },
+      'terminate': (handle: WorkerHandle) => manager.terminate(handle),
       'get-worker-info': (handle: WorkerHandle) => manager.getWorkerInfo(handle),
       'get-active-workers': () => manager.getActiveWorkers(),
 
       // Messaging
-      'post-message': (handle: WorkerHandle, data: unknown) => {
-        const result = manager.postMessage(handle, data)
-        if ('error' in result) throw new BrowserException(result.error)
-      },
+      'post-message': (handle: WorkerHandle, data: unknown) =>
+        manager.postMessage(handle, data),
       'read-messages': (maxCount: number) => manager.readMessages(maxCount || undefined),
       'has-messages': () => manager.hasMessages(),
       'read-errors': (maxCount: number) => manager.readErrors(maxCount || undefined),
@@ -827,23 +825,15 @@ export function getBrowserWorkerImports(options?: BrowserWorkerOptions): Record<
       'create-shared-buffer': (byteLength: number, maxByteLength: number) => {
         const descriptor: SharedBufferDescriptor = { byteLength }
         if (maxByteLength) descriptor.maxByteLength = maxByteLength
-        const result = manager.createSharedBuffer(descriptor)
-        if ('error' in result) throw new BrowserException(result.error)
-        return result.value
+        return manager.createSharedBuffer(descriptor)
       },
       'get-shared-buffer-info': (handle: SharedBufferHandle) => manager.getSharedBufferInfo(handle),
       'delete-shared-buffer': (handle: SharedBufferHandle) => manager.deleteSharedBuffer(handle),
 
       // Message channels
-      'create-message-channel': () => {
-        const result = manager.createMessageChannel()
-        if ('error' in result) throw new BrowserException(result.error)
-        return result.value
-      },
-      'close-message-port': (handle: MessagePortHandle) => {
-        const result = manager.closeMessagePort(handle)
-        if ('error' in result) throw new BrowserException(result.error)
-      },
+      'create-message-channel': () => manager.createMessageChannel(),
+      'close-message-port': (handle: MessagePortHandle) =>
+        manager.closeMessagePort(handle),
     },
   }
 }

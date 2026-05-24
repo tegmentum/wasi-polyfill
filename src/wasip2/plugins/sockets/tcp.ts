@@ -7,7 +7,11 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry, createReadyPollable } from '../io/pollable.js'
+import {
+  PollableRegistry,
+  globalPollableRegistry,
+  createReadyPollable,
+} from '../io/pollable.js'
 import {
   type IpSocketAddress,
   type IpAddressFamily,
@@ -567,7 +571,7 @@ export const virtualTcpImplementation: Implementation = {
   name: 'virtual',
   description: 'Virtual TCP sockets (no actual networking)',
   create(_config: PluginConfig): PluginInstance {
-    return new TcpSocketInstance(globalTcpSocketRegistry, new PollableRegistry())
+    return new TcpSocketInstance(globalTcpSocketRegistry, globalPollableRegistry)
   },
 }
 

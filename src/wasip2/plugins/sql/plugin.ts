@@ -11,13 +11,14 @@
  * - wasi:sql/transaction - Transaction management
  *
  * Implementations:
- * - memory: In-memory SQLite-like database
- * - indexeddb: Browser IndexedDB backend (for persistence)
+ * - memory: In-memory toy engine (dev/testing; limited SQL subset)
+ * - sqljs: Real SQLite via sql.js (host provides the initialized module)
  */
 
 import type { WasiPlugin, WasiInterface } from '../../core/types.js'
 import { createPlugin } from '../plugin-base.js'
 import { memorySqlImplementation } from './impl-memory.js'
+import { sqljsSqlImplementation } from './impl-sqljs.js'
 
 /**
  * WASI sql types interface definition
@@ -73,6 +74,7 @@ export const sqlTypesPlugin: WasiPlugin = createPlugin(
   SQL_TYPES_INTERFACE,
   {
     memory: memorySqlImplementation,
+    sqljs: sqljsSqlImplementation,
   },
   'memory'
 )
@@ -89,6 +91,7 @@ export const sqlConnectionPlugin: WasiPlugin = createPlugin(
   SQL_CONNECTION_INTERFACE,
   {
     memory: memorySqlImplementation,
+    sqljs: sqljsSqlImplementation,
   },
   'memory'
 )
@@ -105,6 +108,7 @@ export const sqlQueryPlugin: WasiPlugin = createPlugin(
   SQL_QUERY_INTERFACE,
   {
     memory: memorySqlImplementation,
+    sqljs: sqljsSqlImplementation,
   },
   'memory'
 )
@@ -121,6 +125,7 @@ export const sqlStatementPlugin: WasiPlugin = createPlugin(
   SQL_STATEMENT_INTERFACE,
   {
     memory: memorySqlImplementation,
+    sqljs: sqljsSqlImplementation,
   },
   'memory'
 )
@@ -137,6 +142,7 @@ export const sqlTransactionPlugin: WasiPlugin = createPlugin(
   SQL_TRANSACTION_INTERFACE,
   {
     memory: memorySqlImplementation,
+    sqljs: sqljsSqlImplementation,
   },
   'memory'
 )

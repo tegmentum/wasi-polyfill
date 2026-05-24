@@ -297,6 +297,74 @@ export function validateUrl(url: Url): Result<URL, BrowserError> {
 }
 
 // =============================================================================
+// Attribute Safety
+// =============================================================================
+
+/**
+ * Attributes whose values are interpreted as URLs by the browser and can
+ * therefore carry an active scheme (javascript:, data:text/html, …).
+ */
+const URL_ATTRIBUTES: ReadonlySet<string> = new Set([
+  'href',
+  'src',
+  'srcset',
+  'action',
+  'formaction',
+  'xlink:href',
+  'cite',
+  'background',
+  'poster',
+  'data',
+  'codebase',
+  'longdesc',
+  'usemap',
+  'manifest',
+  'profile',
+  'ping',
+])
+
+/**
+ * Schemes that can execute script or load arbitrary markup. Browsers ignore
+ * leading/embedded control characters and whitespace when parsing the scheme,
+ * so we strip those before matching.
+ */
+const DANGEROUS_SCHEME = /^(?:javascript|vbscript|data):/i
+
+/**
+ * Decide whether a `setAttribute(name, value)` call should be blocked when the
+ * DOM is being driven by untrusted WebAssembly.
+ *
+ * Blocks:
+ * - event-handler attributes (`on*`)
+ * - `srcdoc` (inline iframe markup)
+ * - URL attributes whose value uses a `javascript:`/`vbscript:`/`data:` scheme
+ *
+ * @returns a human-readable reason if the attribute is unsafe, otherwise null.
+ */
+export function unsafeAttributeReason(
+  name: string,
+  value: string
+): string | null {
+  const lower = name.toLowerCase()
+  if (lower.startsWith('on')) {
+    return `Setting event handler attribute "${name}" is not allowed`
+  }
+  if (lower === 'srcdoc') {
+    return 'Setting srcdoc is not allowed'
+  }
+  if (URL_ATTRIBUTES.has(lower)) {
+    // Browsers ignore embedded control characters/whitespace when parsing a
+    // URL scheme, so strip them first to defeat "java\\tscript:" bypasses.
+    // eslint-disable-next-line no-control-regex
+    const normalized = value.replace(/[\u0000-\u0020\u007f]+/g, '')
+    if (DANGEROUS_SCHEME.test(normalized)) {
+      return `Setting "${name}" to a javascript:/vbscript:/data: URL is not allowed`
+    }
+  }
+  return null
+}
+
+// =============================================================================
 // Byte Types
 // =============================================================================
 
@@ -305,18 +373,22 @@ export function validateUrl(url: Url): Result<URL, BrowserError> {
  */
 export type Bytes = Uint8Array
 
+// Reused across all byte<->string conversions (hot in storage/console/websocket).
+const UTF8_ENCODER = new TextEncoder()
+const UTF8_DECODER = new TextDecoder()
+
 /**
  * Encode a string to bytes (UTF-8).
  */
 export function stringToBytes(str: string): Bytes {
-  return new TextEncoder().encode(str)
+  return UTF8_ENCODER.encode(str)
 }
 
 /**
  * Decode bytes to a string (UTF-8).
  */
 export function bytesToString(bytes: Bytes): string {
-  return new TextDecoder().decode(bytes)
+  return UTF8_DECODER.decode(bytes)
 }
 
 /**

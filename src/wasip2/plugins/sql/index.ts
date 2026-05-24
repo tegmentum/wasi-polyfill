@@ -11,7 +11,8 @@
  * - wasi:sql/transaction - Transaction management
  *
  * Implementations:
- * - memory: In-memory SQL database (default)
+ * - memory: In-memory toy engine (default; dev/testing, limited SQL subset)
+ * - sqljs: Real SQLite via sql.js (host provides the initialized module)
  *
  * @example
  * ```typescript
@@ -108,3 +109,11 @@ export {
 
 // Memory implementation
 export { memorySqlImplementation } from './impl-memory.js'
+
+// Real SQLite implementation (sql.js)
+export {
+  sqljsSqlImplementation,
+  SqlJsBackend,
+  createSqlJsSql,
+  type SqlJsConfig,
+} from './impl-sqljs.js'

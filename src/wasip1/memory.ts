@@ -15,11 +15,32 @@ import {
   PRESTAT_SIZE,
   DIRENT_SIZE,
   EVENT_SIZE,
+  Errno,
   type FileType,
   type FdFlags,
   type EventType,
   type EventRwFlags,
 } from './types.js'
+
+/**
+ * Thrown when a guest pointer/length falls outside linear memory.
+ *
+ * Carries `errno` (EFAULT) so the syscall dispatch layer can return it to the
+ * guest instead of letting a raw `RangeError` escape as a host trap.
+ */
+export class WasiMemoryError extends Error {
+  readonly errno: number = Errno.EFAULT
+
+  constructor(ptr: number, len: number) {
+    super(`WASI memory access out of bounds: ptr=${ptr}, len=${len}`)
+    this.name = 'WasiMemoryError'
+  }
+}
+
+// Reused across all string operations (these are hot paths, e.g. per-dirent in
+// fd_readdir) — constructing a new encoder/decoder per call is wasteful.
+const UTF8_ENCODER = new TextEncoder()
+const UTF8_DECODER = new TextDecoder()
 
 /**
  * Helper class for reading/writing to WebAssembly linear memory.
@@ -63,6 +84,24 @@ export class WasiMemory {
     return { view: this.view!, bytes: this.bytes! }
   }
 
+  /**
+   * Validate that [ptr, ptr + len) lies within linear memory.
+   * Throws {@link WasiMemoryError} (EFAULT) for out-of-range or non-integer
+   * pointers so a malicious/buggy guest cannot trap the host with a RangeError.
+   */
+  private checkBounds(ptr: number, len: number): void {
+    const { bytes } = this.ensureViews()
+    if (
+      !Number.isInteger(ptr) ||
+      !Number.isInteger(len) ||
+      ptr < 0 ||
+      len < 0 ||
+      ptr + len > bytes.length
+    ) {
+      throw new WasiMemoryError(ptr, len)
+    }
+  }
+
   // ===========================================================================
   // Read Operations
   // ===========================================================================
@@ -72,6 +111,7 @@ export class WasiMemory {
    */
   readU8(ptr: number): number {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 1)
     return view.getUint8(ptr)
   }
 
@@ -80,6 +120,7 @@ export class WasiMemory {
    */
   readU16(ptr: number): number {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 2)
     return view.getUint16(ptr, true)
   }
 
@@ -88,6 +129,7 @@ export class WasiMemory {
    */
   readU32(ptr: number): number {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 4)
     return view.getUint32(ptr, true)
   }
 
@@ -96,6 +138,7 @@ export class WasiMemory {
    */
   readI32(ptr: number): number {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 4)
     return view.getInt32(ptr, true)
   }
 
@@ -104,6 +147,7 @@ export class WasiMemory {
    */
   readU64(ptr: number): bigint {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 8)
     return view.getBigUint64(ptr, true)
   }
 
@@ -112,6 +156,7 @@ export class WasiMemory {
    */
   readI64(ptr: number): bigint {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 8)
     return view.getBigInt64(ptr, true)
   }
 
@@ -121,6 +166,7 @@ export class WasiMemory {
    */
   readBytes(ptr: number, len: number): Uint8Array {
     const { bytes } = this.ensureViews()
+    this.checkBounds(ptr, len)
     return bytes.slice(ptr, ptr + len)
   }
 
@@ -129,7 +175,7 @@ export class WasiMemory {
    */
   readString(ptr: number, len: number): string {
     const bytes = this.readBytes(ptr, len)
-    return new TextDecoder().decode(bytes)
+    return UTF8_DECODER.decode(bytes)
   }
 
   /**
@@ -166,6 +212,7 @@ export class WasiMemory {
    */
   writeU8(ptr: number, value: number): void {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 1)
     view.setUint8(ptr, value)
   }
 
@@ -174,6 +221,7 @@ export class WasiMemory {
    */
   writeU16(ptr: number, value: number): void {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 2)
     view.setUint16(ptr, value, true)
   }
 
@@ -182,6 +230,7 @@ export class WasiMemory {
    */
   writeU32(ptr: number, value: number): void {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 4)
     view.setUint32(ptr, value, true)
   }
 
@@ -190,6 +239,7 @@ export class WasiMemory {
    */
   writeI32(ptr: number, value: number): void {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 4)
     view.setInt32(ptr, value, true)
   }
 
@@ -198,6 +248,7 @@ export class WasiMemory {
    */
   writeU64(ptr: number, value: bigint): void {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 8)
     view.setBigUint64(ptr, value, true)
   }
 
@@ -206,6 +257,7 @@ export class WasiMemory {
    */
   writeI64(ptr: number, value: bigint): void {
     const { view } = this.ensureViews()
+    this.checkBounds(ptr, 8)
     view.setBigInt64(ptr, value, true)
   }
 
@@ -214,6 +266,7 @@ export class WasiMemory {
    */
   writeBytes(ptr: number, data: Uint8Array): void {
     const { bytes } = this.ensureViews()
+    this.checkBounds(ptr, data.length)
     bytes.set(data, ptr)
   }
 
@@ -222,7 +275,7 @@ export class WasiMemory {
    * Returns the number of bytes written (including null terminator).
    */
   writeString(ptr: number, str: string): number {
-    const encoded = new TextEncoder().encode(str)
+    const encoded = UTF8_ENCODER.encode(str)
     this.writeBytes(ptr, encoded)
     this.writeU8(ptr + encoded.length, 0) // null terminator
     return encoded.length + 1
@@ -233,7 +286,7 @@ export class WasiMemory {
    * Returns the number of bytes written.
    */
   writeStringNoNull(ptr: number, str: string): number {
-    const encoded = new TextEncoder().encode(str)
+    const encoded = UTF8_ENCODER.encode(str)
     this.writeBytes(ptr, encoded)
     return encoded.length
   }

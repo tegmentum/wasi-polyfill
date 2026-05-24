@@ -17,6 +17,7 @@ import {
   type Result,
   ok,
   browserErr,
+  unsafeAttributeReason,
 } from './types.js'
 import { isMainThread } from './runtime.js'
 
@@ -323,13 +324,10 @@ export class BrowserDom {
       return browserErr(BrowserErrorCode.NOT_FOUND, 'Element not found')
     }
 
-    // Block dangerous attributes
-    const lowerName = name.toLowerCase()
-    if (lowerName.startsWith('on') || lowerName === 'srcdoc') {
-      return browserErr(
-        BrowserErrorCode.DENIED,
-        `Setting '${name}' attribute is not allowed for security reasons`
-      )
+    // Block event handlers, srcdoc, and javascript:/data: URLs in URL attributes.
+    const unsafe = unsafeAttributeReason(name, value)
+    if (unsafe) {
+      return browserErr(BrowserErrorCode.DENIED, unsafe)
     }
 
     try {

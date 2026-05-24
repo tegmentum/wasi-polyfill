@@ -6,7 +6,11 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry, createReadyPollable } from '../io/pollable.js'
+import {
+  PollableRegistry,
+  globalPollableRegistry,
+  createReadyPollable,
+} from '../io/pollable.js'
 import {
   type IpSocketAddress,
   type IpAddressFamily,
@@ -494,7 +498,7 @@ export const virtualUdpImplementation: Implementation = {
     return new UdpSocketInstance(
       globalUdpSocketRegistry,
       globalDatagramStreamRegistry,
-      new PollableRegistry()
+      globalPollableRegistry
     )
   },
 }

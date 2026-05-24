@@ -5,7 +5,11 @@
  */
 
 import type { Implementation, PluginConfig, PluginInstance } from '../../core/types.js'
-import { PollableRegistry, createReadyPollable } from '../io/pollable.js'
+import {
+  PollableRegistry,
+  globalPollableRegistry,
+  createReadyPollable,
+} from '../io/pollable.js'
 import {
   globalStreamRegistry,
   MemoryInputStream,
@@ -876,7 +880,7 @@ export const fetchOutgoingHandlerImplementation: Implementation = {
       globalFutureIncomingResponseRegistry,
       globalRequestOptionsRegistry,
       globalFieldsRegistry,
-      new PollableRegistry(),
+      globalPollableRegistry,
       handlerConfig
     )
   },
@@ -895,7 +899,7 @@ export const fetchHttpTypesImplementation: Implementation = {
       globalFutureIncomingResponseRegistry,
       globalRequestOptionsRegistry,
       globalFieldsRegistry,
-      new PollableRegistry()
+      globalPollableRegistry
     )
   },
 }

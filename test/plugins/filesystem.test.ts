@@ -109,6 +109,24 @@ describe('Filesystem Plugins', () => {
           expect(result.val).toBe(FilesystemErrorCode.NotEmpty)
         }
       })
+
+      it('resolves "." and ".." in paths (Phase 2.6)', () => {
+        fs.createDirectory('/a')
+        fs.createDirectory('/a/b')
+        fs.createFile('/a/b/file.txt', { create: true })
+
+        // './' and 'x/../' segments should collapse to the same node.
+        expect(fs.getNode('/a/./b/file.txt').tag).toBe('ok')
+        expect(fs.getNode('/a/b/../b/file.txt').tag).toBe('ok')
+        expect(fs.getNode('/a/c/../b/file.txt').tag).toBe('ok')
+      })
+
+      it('clamps ".." at the root (no escape)', () => {
+        fs.createFile('/file.txt', { create: true })
+        // '../../file.txt' must clamp to '/file.txt', not error or escape.
+        expect(fs.getNode('/../../file.txt').tag).toBe('ok')
+        expect(fs.getNode('/a/../../file.txt').tag).toBe('ok')
+      })
     })
 
     describe('File Operations', () => {

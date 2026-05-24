@@ -183,7 +183,10 @@ export class Fields {
     if (name.length === 0) {
       return false
     }
-    // Header names must be valid tokens (ASCII, no spaces, no special chars)
+    // Header names must be valid tokens (ASCII, no spaces, no special chars).
+    // The control-character ranges below are intentional: header names must
+    // reject CTLs per RFC 7230 §3.2.6.
+    // eslint-disable-next-line no-control-regex
     return /^[\x21-\x7e]+$/.test(name) && !/[\s\x00-\x1f\x7f():;<=>?@[\\\]{}]/.test(name)
   }
 }

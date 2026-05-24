@@ -594,7 +594,7 @@ describe('WASIP3 P2-to-P3 Adapters', () => {
   describe('integration scenarios', () => {
     it('adapts complete P2 stream pipeline', async () => {
       // Create P2-style streams
-      let data = new Uint8Array([1, 2, 3, 4, 5])
+      const data = new Uint8Array([1, 2, 3, 4, 5])
       let readPos = 0
       const output: Uint8Array[] = []
 

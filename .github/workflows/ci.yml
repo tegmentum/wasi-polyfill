@@ -90,4 +90,3 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true  # Don't fail on lint errors for now

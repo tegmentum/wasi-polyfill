@@ -57,6 +57,8 @@ export interface FileResource {
   }
   /** Set file times. */
   setTimes(atim: bigint | null, mtim: bigint | null): void
+  /** Release any underlying host resource (e.g. a real fd). Called on fd_close. */
+  close?(): void
 }
 
 /**
@@ -219,6 +221,17 @@ export function createFdFunctions(
         return Errno.EBADF
       }
 
+      // Release any underlying host resource (e.g. a real OS fd) before dropping.
+      const entry = fdTable.get(fd)
+      const resource = entry?.resource as FileResource | undefined
+      if (resource && typeof resource.close === 'function') {
+        try {
+          resource.close()
+        } catch {
+          // best effort; still drop the descriptor
+        }
+      }
+
       fdTable.close(fd)
       return Errno.SUCCESS
     },
@@ -362,6 +375,15 @@ export function createFdFunctions(
 
       const resource = entry.resource as FileResource | undefined
       if (!resource?.setTimes) return Errno.EBADF
+
+      // It is invalid to request both an explicit timestamp and "now" for the
+      // same field (WASI requires EINVAL).
+      if (
+        (fstFlags & FstFlags.ATIM && fstFlags & FstFlags.ATIM_NOW) ||
+        (fstFlags & FstFlags.MTIM && fstFlags & FstFlags.MTIM_NOW)
+      ) {
+        return Errno.EINVAL
+      }
 
       const now = BigInt(Date.now()) * 1_000_000n
 

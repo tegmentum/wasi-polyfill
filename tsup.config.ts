@@ -7,6 +7,8 @@ export default defineConfig({
 
     // WASI Preview 1
     'wasip1/index': 'src/wasip1/index.ts',
+    // Node-only host filesystem backend (imports node:fs).
+    'wasip1/hostfs-node': 'src/wasip1/hostfs-node.ts',
 
     // WASI Preview 2
     'wasip2/index': 'src/wasip2/index.ts',
@@ -29,6 +31,15 @@ export default defineConfig({
     'wasip2/plugins/keyvalue/index': 'src/wasip2/plugins/keyvalue/index.ts',
     'wasip2/plugins/blobstore/index': 'src/wasip2/plugins/blobstore/index.ts',
     'wasip2/plugins/config/index': 'src/wasip2/plugins/config/index.ts',
+    // Plugins with declared package exports that were previously not built.
+    'wasip2/plugins/sql/index': 'src/wasip2/plugins/sql/index.ts',
+    'wasip2/plugins/nn/index': 'src/wasip2/plugins/nn/index.ts',
+    'wasip2/plugins/messaging/index': 'src/wasip2/plugins/messaging/index.ts',
+    'wasip2/plugins/webgpu/index': 'src/wasip2/plugins/webgpu/index.ts',
+    'wasip2/plugins/frame-buffer/index': 'src/wasip2/plugins/frame-buffer/index.ts',
+    'wasip2/plugins/graphics-context/index': 'src/wasip2/plugins/graphics-context/index.ts',
+    'wasip2/plugins/surface/index': 'src/wasip2/plugins/surface/index.ts',
+    'wasip2/plugins/wasi-gfx/index': 'src/wasip2/plugins/wasi-gfx/index.ts',
     'wasip2/build/index': 'src/wasip2/build/index.ts',
     'wasip2/runtime/index': 'src/wasip2/runtime/index.ts',
     'wasip2/testing/index': 'src/wasip2/testing/index.ts',

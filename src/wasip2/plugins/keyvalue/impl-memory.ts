@@ -205,16 +205,44 @@ class MemoryBucket {
   }
 }
 
+/** Compare two optional byte buffers for equality (used by compare-and-swap). */
+function bytesEqual(
+  a: Uint8Array | undefined,
+  b: Uint8Array | undefined
+): boolean {
+  if (a === undefined || b === undefined) return a === b
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+/** A live compare-and-swap handle: the target bucket/key and the snapshot. */
+interface CasEntry {
+  bucket: MemoryBucket
+  key: string
+  snapshot: Uint8Array | undefined
+}
+
 /**
- * In-memory store instance
+ * Shared backing state for the keyvalue store/atomics/batch interfaces.
+ *
+ * The WIT `bucket` resource is defined in `wasi:keyvalue/store` and re-`use`d by
+ * `atomics` and `batch`. Resources share identity across interfaces, so a bucket
+ * opened via `store.open` must resolve when later passed to `atomics.increment`
+ * or `batch.get-many`. The polyfill instantiates one PluginInstance per
+ * interface, so the three instances must point at the same BucketStore for
+ * handles to line up.
  */
-class MemoryStoreInstance implements PluginInstance {
-  private readonly buckets: Map<string, MemoryBucket> = new Map()
-  private readonly bucketHandles: Map<number, MemoryBucket> = new Map()
-  private nextHandle = 1
-  private readonly config: Required<StoreConfig>
-  private readonly allowedBuckets?: Set<string>
-  private readonly initialData?: Map<string, Map<string, Uint8Array>>
+class BucketStore {
+  readonly buckets: Map<string, MemoryBucket> = new Map()
+  readonly bucketHandles: Map<number, MemoryBucket> = new Map()
+  readonly casHandles: Map<number, CasEntry> = new Map()
+  nextHandle = 1
+  readonly config: Required<StoreConfig>
+  readonly allowedBuckets?: Set<string>
+  readonly initialData?: Map<string, Map<string, Uint8Array>>
 
   constructor(config: MemoryStoreConfig) {
     this.config = {
@@ -230,35 +258,11 @@ class MemoryStoreInstance implements PluginInstance {
     }
   }
 
-  getImports(): Record<string, unknown> {
-    return {
-      open: this.open.bind(this),
-      // Bucket methods (dispatched by handle)
-      '[method]bucket.get': this.bucketGet.bind(this),
-      '[method]bucket.set': this.bucketSet.bind(this),
-      '[method]bucket.delete': this.bucketDelete.bind(this),
-      '[method]bucket.exists': this.bucketExists.bind(this),
-      '[method]bucket.list-keys': this.bucketListKeys.bind(this),
-      // Resource drop
-      '[resource-drop]bucket': this.dropBucket.bind(this),
-    }
-  }
-
-  destroy(): void {
-    this.buckets.clear()
-    this.bucketHandles.clear()
-  }
-
-  /**
-   * Open a bucket by identifier
-   */
-  private open(identifier: string): KeyValueResult<number> {
-    // Check if bucket is allowed
+  open(identifier: string): KeyValueResult<number> {
     if (this.allowedBuckets && !this.allowedBuckets.has(identifier)) {
       return kvErr(accessDenied())
     }
 
-    // Get or create bucket
     let bucket = this.buckets.get(identifier)
     if (!bucket) {
       const initialData = this.initialData?.get(identifier)
@@ -266,104 +270,197 @@ class MemoryStoreInstance implements PluginInstance {
       this.buckets.set(identifier, bucket)
     }
 
-    // Create handle
     const handle = this.nextHandle++
     this.bucketHandles.set(handle, bucket)
     return kvOk(handle)
   }
 
-  /**
-   * Get bucket by handle
-   */
-  private getBucket(handle: number): MemoryBucket | undefined {
+  getBucket(handle: number): MemoryBucket | undefined {
     return this.bucketHandles.get(handle)
   }
 
-  /**
-   * Bucket.get method
-   */
-  private bucketGet(handle: number, key: string): KeyValueResult<Uint8Array | undefined> {
-    const bucket = this.getBucket(handle)
-    if (!bucket) {
-      return kvErr(noSuchStore())
-    }
-    return bucket.get(key)
-  }
-
-  /**
-   * Bucket.set method
-   */
-  private bucketSet(handle: number, key: string, value: Uint8Array): KeyValueResult<void> {
-    const bucket = this.getBucket(handle)
-    if (!bucket) {
-      return kvErr(noSuchStore())
-    }
-    return bucket.set(key, value)
-  }
-
-  /**
-   * Bucket.delete method
-   */
-  private bucketDelete(handle: number, key: string): KeyValueResult<void> {
-    const bucket = this.getBucket(handle)
-    if (!bucket) {
-      return kvErr(noSuchStore())
-    }
-    return bucket.delete(key)
-  }
-
-  /**
-   * Bucket.exists method
-   */
-  private bucketExists(handle: number, key: string): KeyValueResult<boolean> {
-    const bucket = this.getBucket(handle)
-    if (!bucket) {
-      return kvErr(noSuchStore())
-    }
-    return bucket.exists(key)
-  }
-
-  /**
-   * Bucket.list-keys method
-   */
-  private bucketListKeys(handle: number, cursor?: string): KeyValueResult<KeyResponse> {
-    const bucket = this.getBucket(handle)
-    if (!bucket) {
-      return kvErr(noSuchStore())
-    }
-    return bucket.listKeys(cursor)
-  }
-
-  /**
-   * Drop bucket handle
-   */
-  private dropBucket(handle: number): void {
-    this.bucketHandles.delete(handle)
-  }
-
-  /**
-   * Get a bucket directly for testing
-   */
   getBucketByIdentifier(identifier: string): MemoryBucket | undefined {
     return this.buckets.get(identifier)
+  }
+
+  clear(): void {
+    this.buckets.clear()
+    this.bucketHandles.clear()
+    this.casHandles.clear()
   }
 }
 
 /**
- * In-memory key-value store implementation
+ * In-memory store instance.
  *
- * Provides a simple in-memory store suitable for:
- * - Testing
- * - Short-lived data
- * - Development environments
- *
- * Note: Data is not persisted across instance destruction.
+ * A thin facade over a {@link BucketStore}. The same instance exposes the
+ * store, atomics, and batch imports; when used through the plugins they share a
+ * single backing store (see {@link memoryStoreImplementation}).
  */
+class MemoryStoreInstance implements PluginInstance {
+  private readonly store: BucketStore
+  private readonly ownsStore: boolean
+
+  constructor(store: BucketStore, ownsStore: boolean) {
+    this.store = store
+    this.ownsStore = ownsStore
+  }
+
+  getImports(): Record<string, unknown> {
+    return {
+      // --- wasi:keyvalue/store -------------------------------------------
+      open: (identifier: string) => this.store.open(identifier),
+      '[method]bucket.get': (handle: number, key: string) =>
+        this.withBucket(handle, (b) => b.get(key)),
+      '[method]bucket.set': (handle: number, key: string, value: Uint8Array) =>
+        this.withBucket(handle, (b) => b.set(key, value)),
+      '[method]bucket.delete': (handle: number, key: string) =>
+        this.withBucket(handle, (b) => b.delete(key)),
+      '[method]bucket.exists': (handle: number, key: string) =>
+        this.withBucket(handle, (b) => b.exists(key)),
+      '[method]bucket.list-keys': (handle: number, cursor?: string) =>
+        this.withBucket(handle, (b) => b.listKeys(cursor)),
+      '[resource-drop]bucket': (handle: number) => this.dropBucket(handle),
+
+      // --- wasi:keyvalue/atomics -----------------------------------------
+      increment: (handle: number, key: string, delta: bigint | number) =>
+        this.withBucket(handle, (b) =>
+          b.increment(key, typeof delta === 'bigint' ? delta : BigInt(delta))
+        ),
+      '[static]cas.new': (handle: number, key: string) =>
+        this.casNew(handle, key),
+      '[method]cas.current': (casHandle: number) => this.casCurrent(casHandle),
+      swap: (casHandle: number, value: Uint8Array) =>
+        this.casSwap(casHandle, value),
+      '[resource-drop]cas': (casHandle: number) =>
+        this.store.casHandles.delete(casHandle),
+
+      // --- wasi:keyvalue/batch -------------------------------------------
+      'get-many': (handle: number, keys: string[]) =>
+        this.bucketGetMany(handle, keys),
+      'set-many': (
+        handle: number,
+        entries: Map<string, Uint8Array> | Array<[string, Uint8Array]>
+      ) => this.bucketSetMany(handle, entries),
+      'delete-many': (handle: number, keys: string[]) =>
+        this.withBucket(handle, (b) => b.deleteMany(keys)),
+    }
+  }
+
+  destroy(): void {
+    // Only the owning (isolated) instance clears the backing store; plugin
+    // instances share a singleton that must survive a single interface teardown.
+    if (this.ownsStore) {
+      this.store.clear()
+    }
+  }
+
+  /** Resolve a bucket handle and run `fn`, or return no-such-store. */
+  private withBucket<T>(
+    handle: number,
+    fn: (bucket: MemoryBucket) => KeyValueResult<T>
+  ): KeyValueResult<T> {
+    const bucket = this.store.getBucket(handle)
+    if (!bucket) {
+      return kvErr(noSuchStore())
+    }
+    return fn(bucket)
+  }
+
+  /** batch.get-many → list of [key, value] tuples (WIT list<tuple<...>>). */
+  private bucketGetMany(
+    handle: number,
+    keys: string[]
+  ): KeyValueResult<Array<[string, Uint8Array]>> {
+    return this.withBucket(handle, (bucket) => {
+      const res = bucket.getMany(keys)
+      if (res.tag === 'err') return res
+      return kvOk(Array.from(res.val.entries()))
+    })
+  }
+
+  /** batch.set-many, accepting either a Map or list of [key, value] tuples. */
+  private bucketSetMany(
+    handle: number,
+    entries: Map<string, Uint8Array> | Array<[string, Uint8Array]>
+  ): KeyValueResult<void> {
+    const map = entries instanceof Map ? entries : new Map(entries)
+    return this.withBucket(handle, (bucket) => bucket.setMany(map))
+  }
+
+  /** atomics: open a compare-and-swap handle capturing the current value. */
+  private casNew(bucketHandle: number, key: string): KeyValueResult<number> {
+    const bucket = this.store.getBucket(bucketHandle)
+    if (!bucket) {
+      return kvErr(noSuchStore())
+    }
+    const current = bucket.get(key)
+    const snapshot =
+      current.tag === 'ok' && current.val ? new Uint8Array(current.val) : undefined
+    const handle = this.store.nextHandle++
+    this.store.casHandles.set(handle, { bucket, key, snapshot })
+    return kvOk(handle)
+  }
+
+  /** atomics: the value captured when the cas handle was created. */
+  private casCurrent(
+    casHandle: number
+  ): KeyValueResult<Uint8Array | undefined> {
+    const cas = this.store.casHandles.get(casHandle)
+    if (!cas) {
+      return kvErr(noSuchStore())
+    }
+    return kvOk(cas.snapshot ? new Uint8Array(cas.snapshot) : undefined)
+  }
+
+  /**
+   * atomics: set the value iff it is unchanged since the cas handle was
+   * created. Returns true on success, false if another writer intervened.
+   */
+  private casSwap(
+    casHandle: number,
+    value: Uint8Array
+  ): KeyValueResult<boolean> {
+    const cas = this.store.casHandles.get(casHandle)
+    if (!cas) {
+      return kvErr(noSuchStore())
+    }
+    const current = cas.bucket.get(cas.key)
+    const actual = current.tag === 'ok' ? current.val : undefined
+    if (!bytesEqual(actual, cas.snapshot)) {
+      return kvOk(false)
+    }
+    const setResult = cas.bucket.set(cas.key, value)
+    if (setResult.tag === 'err') {
+      return kvErr(setResult.val)
+    }
+    cas.snapshot = new Uint8Array(value)
+    return kvOk(true)
+  }
+
+  /** Drop a bucket handle. */
+  private dropBucket(handle: number): void {
+    this.store.bucketHandles.delete(handle)
+  }
+}
+
+/**
+ * Backing store shared by the store/atomics/batch plugin instances.
+ *
+ * Like the other plugins' module-level registries, this is process-global so
+ * that the three keyvalue interfaces operate on the same buckets. (Per-polyfill
+ * isolation is tracked separately in REMEDIATION-PLAN Phase 2.10.)
+ */
+let sharedBucketStore: BucketStore | undefined
+
 export const memoryStoreImplementation: Implementation = {
   name: 'memory',
   description: 'In-memory key-value store (non-persistent)',
   create(config: PluginConfig): PluginInstance {
-    return new MemoryStoreInstance(config as MemoryStoreConfig)
+    if (!sharedBucketStore) {
+      sharedBucketStore = new BucketStore(config as MemoryStoreConfig)
+    }
+    return new MemoryStoreInstance(sharedBucketStore, false)
   },
 }
 
@@ -382,6 +479,8 @@ export const memoryStoreImplementation: Implementation = {
 export function createMemoryStore(
   config?: MemoryStoreConfig
 ): { instance: PluginInstance; store: MemoryStoreInstance } {
-  const instance = new MemoryStoreInstance(config ?? {})
+  // Tests get an isolated backing store (ownsStore: true) so they don't share
+  // buckets with the process-global plugin store or with each other.
+  const instance = new MemoryStoreInstance(new BucketStore(config ?? {}), true)
   return { instance, store: instance }
 }

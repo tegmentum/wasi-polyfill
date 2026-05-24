@@ -22,6 +22,9 @@ import {
 } from './types.js'
 import { isSecureContext, supports } from './runtime.js'
 
+/** Max buffered position events per watch when no reader is draining. */
+const MAX_WATCH_QUEUE = 256
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -250,6 +253,10 @@ export class BrowserGeolocation {
           const resolver = watchState.resolvers.shift()!
           resolver([event])
         } else {
+          // Bound the queue when no reader is draining it (drop oldest).
+          if (watchState.queue.length >= MAX_WATCH_QUEUE) {
+            watchState.queue.shift()
+          }
           watchState.queue.push(event)
         }
       },
@@ -265,6 +272,10 @@ export class BrowserGeolocation {
           const resolver = watchState.resolvers.shift()!
           resolver([event])
         } else {
+          // Bound the queue when no reader is draining it (drop oldest).
+          if (watchState.queue.length >= MAX_WATCH_QUEUE) {
+            watchState.queue.shift()
+          }
           watchState.queue.push(event)
         }
       },

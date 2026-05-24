@@ -388,8 +388,13 @@ function createBrowserImplementation(): AnyRecord {
       _handle: GpuDeviceHandle,
       _descriptor: AnyRecord
     ): { tag: 'ok'; val: number } | { tag: 'err'; val: unknown } => {
-      // Query sets not yet implemented
-      return { tag: 'ok', val: 1 }
+      // Query sets are not implemented. Returning a fake handle previously made
+      // callers believe creation succeeded, then misbehave on use; surface an
+      // explicit error instead.
+      return {
+        tag: 'err',
+        val: { tag: 'validation', message: 'query sets are not supported' },
+      }
     },
 
     // =========================================================================
@@ -741,6 +746,62 @@ function createBrowserImplementation(): AnyRecord {
         size !== undefined ? Number(size) : undefined
       )
       return result.ok ? { tag: 'ok' } : { tag: 'err', val: { tag: 'buffer-destroyed' } }
+    },
+
+    // =========================================================================
+    // Resource drops for leaf GPU resources
+    //
+    // Without these, the handle tables for these resource types grew forever as
+    // guests created and discarded them. Each drop releases the backing handle
+    // via its manager.
+    // =========================================================================
+
+    '[resource-drop]gpu-texture-view': (handle: GpuTextureViewHandle): void => {
+      textureManager.releaseTextureView(handle)
+    },
+
+    '[resource-drop]gpu-sampler': (handle: GpuSamplerHandle): void => {
+      samplerManager.releaseSampler(handle)
+    },
+
+    '[resource-drop]gpu-bind-group': (handle: GpuBindGroupHandle): void => {
+      bindGroupManager.releaseBindGroup(handle)
+    },
+
+    '[resource-drop]gpu-bind-group-layout': (
+      handle: GpuBindGroupLayoutHandle
+    ): void => {
+      bindGroupManager.releaseBindGroupLayout(handle)
+    },
+
+    '[resource-drop]gpu-pipeline-layout': (
+      handle: GpuPipelineLayoutHandle
+    ): void => {
+      bindGroupManager.releasePipelineLayout(handle)
+    },
+
+    '[resource-drop]gpu-shader-module': (
+      handle: GpuShaderModuleHandle
+    ): void => {
+      shaderManager.releaseShaderModule(handle)
+    },
+
+    '[resource-drop]gpu-render-pipeline': (
+      handle: GpuRenderPipelineHandle
+    ): void => {
+      pipelineManager.releaseRenderPipeline(handle)
+    },
+
+    '[resource-drop]gpu-compute-pipeline': (
+      handle: GpuComputePipelineHandle
+    ): void => {
+      pipelineManager.releaseComputePipeline(handle)
+    },
+
+    '[resource-drop]gpu-command-buffer': (
+      handle: GpuCommandBufferHandle
+    ): void => {
+      commandManager.releaseCommandBuffer(handle)
     },
 
     // =========================================================================

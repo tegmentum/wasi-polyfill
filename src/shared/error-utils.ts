@@ -395,13 +395,17 @@ export async function withTimeout<T>(
 
 /**
  * An aggregate error containing multiple errors.
+ *
+ * Named `MultiError` rather than `AggregateError` to avoid shadowing the
+ * ES2021 global `AggregateError` (which has different constructor semantics);
+ * shadowing it would make `instanceof AggregateError` checks unreliable.
  */
-export class AggregateError extends Error {
+export class MultiError extends Error {
   readonly errors: readonly Error[]
 
   constructor(errors: readonly Error[], message?: string) {
     super(message ?? `Multiple errors occurred (${errors.length})`)
-    this.name = 'AggregateError'
+    this.name = 'MultiError'
     this.errors = errors
   }
 }
