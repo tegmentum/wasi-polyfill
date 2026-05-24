@@ -398,6 +398,18 @@ Thirty-third batch — Phase 3.12 OPFS set-times sidecar:
   e2e covers the descriptor flow; 5 unit tests cover the store's merge
   semantics.
 
+Thirty-fourth batch — Phase 4.8 OPFS set-size:
+
+- ✅ OPFS `set-size` no longer reads the whole file then rewrites it (O(file)
+  + double buffering). A descriptor-level `setSize` uses
+  `FileSystemWritableFileStream.truncate`, which resizes in place (zero-filling
+  on growth) in O(1) and works on the main thread and in workers. Read/write
+  were already range-scoped (`getFile().slice()` and `createWritable`+seek), so
+  the whole-file `set-size` read was the actual hot spot. Removed the unused
+  `useSyncAccessHandle` config flag (a do-nothing public field); a worker-only
+  SyncAccessHandle fast path is out of scope here (can't be validated without a
+  worker harness, and the createWritable path is correct).
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -516,7 +528,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 4.5 | ✅ Memoize `buildJcoImports` per loaded-interface set (cleared on destroy) | rebuilt every call | `wasip2/core/polyfill.ts` | S | Low |
 | 4.6 | Module-level `TextEncoder`/`TextDecoder` singletons | per-call alloc in hot loops | `wasip1/memory.ts`, `wasip1/fd.ts:584`, `browser/types.ts:311` | S | Low |
 | 4.7 | `StatCache.evictOldest`: delete first N Map keys (no sort) | full sort per insert | `shared/stat-cache.ts:176` | S | Low |
-| 4.8 | OPFS: use `FileSystemSyncAccessHandle` (worker) for random access; stop reading whole file for `set-size` | slow per-write reopen | `filesystem/impl-opfs.ts:236` | M | Med |
+| 4.8 | ✅ OPFS `set-size` uses `writable.truncate` (O(1), no whole-file read); read/write already range-scoped; removed dead `useSyncAccessHandle` flag | slow per-write reopen | `filesystem/impl-opfs.ts` | M | Med |
 | 4.9 | ✅ ws-gateway `ByteQueue`: head-index reads + amortized compaction instead of `Array.shift` | O(n) per read | `ws-gateway/byte-queue.ts` | S | Low |
 | 4.10 | ✅ `fd_readdir`: per-fd directory snapshot reused across pages (refresh at cookie 0); shared TextEncoder | re-reads dir each call | `wasip1/fd.ts`, `wasip1/fd-table.ts` | M | Low |
 
