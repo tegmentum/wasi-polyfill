@@ -77,6 +77,20 @@ Third autonomous batch (same branch):
 - ✅ **2.16** — `browser:worker` imports return a `result<>` instead of throwing,
   matching every other browser interface.
 
+Fourth autonomous batch — real backends (heavy deps greenlit):
+
+- ✅ **3.9 SQL** — real SQLite via **sql.js** (optional peer dep; type-only import
+  so nothing is bundled). New `sqljs` implementation: real SQL engine (JOINs,
+  constraints) and real BEGIN/COMMIT/ROLLBACK transactions; shared backend so the
+  5 wasi:sql interfaces share connections. `memory` stays the zero-config default.
+- ✅ **3.10 messaging** — message TTL expiry now honored (per-message `ttl` and
+  channel `defaultTtl`); expired messages are skipped/purged on delivery + receive.
+- ⏸️ **3.8 NN** — a real onnxruntime-web backend is feasible (the NN interface is
+  already async via JSPI) but is a large, awkward integration: wasi:nn here
+  exposes a WebNN *graph-builder* API (createContext→build) that onnxruntime's
+  load-a-model model doesn't map onto, plus a ~10 MB dep and tensor marshalling.
+  Scoped as its own PR.
+
 Remaining (large / dependency-bearing, best as dedicated PRs):
 - **Phase 1 full migration** of ~40 hand-rolled tables to the existing
   `shared/registry.ts` HandleRegistry (mechanical, large).
