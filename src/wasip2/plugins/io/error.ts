@@ -4,6 +4,12 @@
  * Provides the error resource type used by WASI I/O operations.
  */
 
+import type { PluginConfig } from '../../core/types.js'
+import {
+  contextFromConfig,
+  globalResourceContext,
+} from '../../core/resource-context.js'
+
 /**
  * Error resource for wasi:io/error
  *
@@ -83,6 +89,18 @@ export class ErrorRegistry {
 }
 
 /**
- * Global error registry
+ * Global error registry (used for standalone plugin instantiation).
  */
 export const globalErrorRegistry = new ErrorRegistry()
+
+/** ResourceContext key for the per-polyfill error registry. */
+export const ERROR_REGISTRY_KEY = Symbol('wasi:io/error-registry')
+
+// Seed the global context with the global registry, so standalone/global use
+// keeps returning it while fresh per-polyfill contexts get isolated registries.
+globalResourceContext.get(ERROR_REGISTRY_KEY, () => globalErrorRegistry)
+
+/** Resolve the error registry for a plugin config (per-polyfill, else global). */
+export function resolveErrorRegistry(config: PluginConfig): ErrorRegistry {
+  return contextFromConfig(config).get(ERROR_REGISTRY_KEY, () => new ErrorRegistry())
+}

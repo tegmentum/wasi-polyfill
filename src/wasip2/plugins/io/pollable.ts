@@ -5,6 +5,12 @@
  * In the browser, we implement these using Promises.
  */
 
+import type { PluginConfig } from '../../core/types.js'
+import {
+  contextFromConfig,
+  globalResourceContext,
+} from '../../core/resource-context.js'
+
 /**
  * A Pollable is a resource that can be polled for readiness.
  *
@@ -163,9 +169,24 @@ export class PollableRegistry {
 }
 
 /**
- * Global pollable registry
+ * Global pollable registry (used for standalone plugin instantiation).
  */
 export const globalPollableRegistry = new PollableRegistry()
+
+/** ResourceContext key for the per-polyfill pollable registry. */
+export const POLLABLE_REGISTRY_KEY = Symbol('wasi:io/pollable-registry')
+
+// Seed the global context so standalone/global use keeps the global registry,
+// while fresh per-polyfill contexts get isolated registries.
+globalResourceContext.get(POLLABLE_REGISTRY_KEY, () => globalPollableRegistry)
+
+/** Resolve the pollable registry for a plugin config (per-polyfill, else global). */
+export function resolvePollableRegistry(config: PluginConfig): PollableRegistry {
+  return contextFromConfig(config).get(
+    POLLABLE_REGISTRY_KEY,
+    () => new PollableRegistry()
+  )
+}
 
 /**
  * Create a pollable that resolves after a delay

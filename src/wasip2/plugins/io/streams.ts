@@ -7,6 +7,11 @@
 
 import { WasiError, WasiErrorCode } from '../../../shared/errors.js'
 import { PollableRegistry, createReadyPollable } from './pollable.js'
+import type { PluginConfig } from '../../core/types.js'
+import {
+  contextFromConfig,
+  globalResourceContext,
+} from '../../core/resource-context.js'
 
 /**
  * Stream error type matching WASI stream-error
@@ -443,6 +448,21 @@ export class MemoryOutputStream implements OutputStream {
 }
 
 /**
- * Global stream registry
+ * Global stream registry (used for standalone plugin instantiation).
  */
 export const globalStreamRegistry = new StreamRegistry()
+
+/** ResourceContext key for the per-polyfill stream registry. */
+export const STREAM_REGISTRY_KEY = Symbol('wasi:io/stream-registry')
+
+// Seed the global context so standalone/global use keeps the global registry,
+// while fresh per-polyfill contexts get isolated registries.
+globalResourceContext.get(STREAM_REGISTRY_KEY, () => globalStreamRegistry)
+
+/** Resolve the stream registry for a plugin config (per-polyfill, else global). */
+export function resolveStreamRegistry(config: PluginConfig): StreamRegistry {
+  return contextFromConfig(config).get(
+    STREAM_REGISTRY_KEY,
+    () => new StreamRegistry()
+  )
+}
