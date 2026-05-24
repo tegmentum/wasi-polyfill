@@ -459,6 +459,16 @@ Thirty-eighth batch — Phase 2.8 WASIP3 stream error variant:
   that an end-signal error still yields `end`. (pendingWrite deadlock-drain half
   of 2.8 was already done.)
 
+Thirty-ninth batch — Phase 0.6 stale docs:
+
+- ✅ Deleted three completed internal planning docs whose "Current State / 0
+  tests" tables were flatly false against the real 2946-test suite:
+  `wasip1/COMPLETION.md` (WASIP1 test+memory-FS plan, done), `wasip3/TESTING.md`
+  (WASIP3 test plan, done), `wasip3/PLAN.md` (WASIP3 impl plan with a stale
+  Aug-2025 timeline, implemented). They were unreferenced and unpublished
+  (`package.json` `files` ships only `dist` + `README.md`); git history retains
+  them. REMEDIATION-PLAN.md remains the living plan.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -488,7 +498,7 @@ Remaining (the hard tail — large, low-value, or externally blocked):
 | 0.3 | Flip CI `lint` job to **required** (remove `continue-on-error`) once 0.1 is green | CI silently ignores lint | `.github/workflows/ci.yml` | S | Low |
 | 0.4 | Add Vitest suites for WASIP1 (memory.ts iovec, fd table, path resolution, errno) | WASIP1 has 0 tests | new `test/wasip1/*` | M | Low |
 | 0.5 | Add Vitest suites for WASIP3 (canonical-abi stream/future, async-executor) | WASIP3 has 0 tests | new `test/wasip3/*` | M | Low |
-| 0.6 | Delete stale `COMPLETION.md` claims or align to real APIs | Stale docs | wasip1/wasip3 docs | S | Low |
+| 0.6 | ✅ Deleted stale completed planning docs (wasip1 COMPLETION.md, wasip3 PLAN.md/TESTING.md) whose '0 tests' claims were false | Stale docs | wasip1/wasip3 docs | S | Low |
 
 **Exit criteria:** `npm run lint`, `npm run typecheck`, `npm run test:run` all green in CI;
 WASIP1/WASIP3 have baseline coverage of the code paths Phase 2 will touch.
