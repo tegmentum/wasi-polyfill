@@ -146,6 +146,34 @@ export interface TunnelConfig {
 }
 
 /**
+ * The subset of {@link TunnelConfig} fields an adapter forwards from its own
+ * config. Optionals explicitly allow `undefined` so callers can pass through
+ * possibly-absent values; {@link buildTunnelConfig} drops them.
+ */
+export interface TunnelConfigSource {
+  gatewayUrl: string
+  authToken?: string | undefined
+  maxStreams?: number | undefined
+  connectTimeoutMs?: number | undefined
+  flowControl?: boolean | undefined
+}
+
+/**
+ * Assemble a {@link TunnelConfig} from an adapter's config, copying only the
+ * fields that are actually set so `undefined` values don't override registry
+ * defaults. Centralizes the per-adapter copy previously duplicated in the
+ * tcp/udp/dns adapters.
+ */
+export function buildTunnelConfig(source: TunnelConfigSource): TunnelConfig {
+  const config: TunnelConfig = { gatewayUrl: source.gatewayUrl }
+  if (source.authToken !== undefined) config.authToken = source.authToken
+  if (source.maxStreams !== undefined) config.maxStreams = source.maxStreams
+  if (source.connectTimeoutMs !== undefined) config.connectTimeoutMs = source.connectTimeoutMs
+  if (source.flowControl !== undefined) config.flowControl = source.flowControl
+  return config
+}
+
+/**
  * Tunnel state
  */
 export enum TunnelState {
