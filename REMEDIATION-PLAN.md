@@ -309,6 +309,18 @@ Twenty-fifth batch — Phase 5.4 buildJcoImports cleanup:
   unchanged (covered by the 34 jco-compat tests). Static methods keep their
   existing semantics (no return-wrap/guard).
 
+Twenty-sixth batch — Phase 5.6 withDescriptor guard:
+
+- ✅ Added a `withDescriptor(handle, fn)` guard on the memory filesystem and
+  routed all ~24 descriptor methods through it, removing the repeated
+  `get(handle)` + `BadDescriptor` null-check (single-descriptor methods become
+  one-liners; dual-descriptor `linkAt`/`renameAt` nest two guards). Pure
+  refactor (covered by the existing 60 filesystem tests).
+  Scope note: the sockets tcp/udp stubs interleave the handle lookup with state
+  validation and varied error returns (and mostly return `NotSupported`), so a
+  shared `withSocket` there would add risk for little readability gain — left
+  bespoke, same judgment as the HandleRegistry "left bespoke" cases.
+
 Remaining (the hard tail — large, low-value, or externally blocked):
 - **2.10 — complete.** Isolated per-polyfill: kv/sql backing stores, the io error
   registry, and all three filesystem backends (memory/opfs/idb — file data +
@@ -442,7 +454,7 @@ Larger. Some require a product decision (see "Decisions needed").
 | 5.3 | Consolidate `createDevPolyfill`/`createJcoPolyfill`; fix jcoCompat docstring (store default on instance + apply in getImports) | identical / false doc | `wasip2/core/polyfill.ts:301` | S | Low |
 | 5.4 | ✅ `buildJcoImports`: `makeMethodCallable`/`makePlainCallable` + `finishJcoCall`; single `parseImportKey` pass → `switch` | ~120-line fn, dup closures | `wasip2/core/polyfill.ts` | M | Med |
 | 5.5 | ✅ Typed `FilesystemError` with POSIX `.code`; `mapError` maps by code (also covers native node:fs errors). Browser DOM-error heuristic left as-is (third-party errors) | brittle `e.message` matching | `wasip1/memory-filesystem.ts`, `wasip1/path.ts`, `wasip1/hostfs-node.ts` | M | Med |
-| 5.6 | Extract `withDescriptor`/`withSocket`/`withObject(table,handle,fn)` guard helpers (remove ~30 repeated null-checks) | boilerplate per method | fs/sockets/browser plugins | M | Low |
+| 5.6 | ✅ Added `withDescriptor(handle, fn)` on the memory fs (~24 methods deduped); sockets stubs left bespoke (lookup interleaved with state checks / NotSupported returns) | boilerplate per method | `filesystem/impl-memory.ts` | M | Low |
 | 5.7 | Dedup `PluginRegistry.get`/`getSync` into shared `resolveLoaded`; dedup in-flight lazy-loader promise | dup logic + load race | `wasip2/core/plugin-registry.ts:61` | S | Low |
 | 5.8 | ✅ Extracted `buildTunnelConfig(source)` (dedup tcp/udp/dns); `MultiError` rename already done | dup config / global shadow | `ws-gateway/tunnel-manager.ts`, `*-adapter.ts` | S | Low |
 | 5.9 | Remove empty `src/browser/plugins/` dir; consolidate no-op mappers (geolocation/media/screen) | dead code | `browser/plugins/`, mappers | S | Low |

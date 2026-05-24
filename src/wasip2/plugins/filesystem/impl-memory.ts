@@ -1297,22 +1297,30 @@ export class FilesystemTypesInstance implements PluginInstance {
     this.descriptorRegistry.drop(handle)
   }
 
-  private readViaStream(handle: number, offset: bigint): FilesystemResult<number> {
+  /**
+   * Resolve a descriptor handle and run `fn` with it, returning a
+   * `BadDescriptor` error when the handle is unknown. Centralizes the
+   * lookup-and-guard that every descriptor method repeated.
+   */
+  private withDescriptor<T>(
+    handle: number,
+    fn: (descriptor: Descriptor) => FilesystemResult<T>
+  ): FilesystemResult<T> {
     const descriptor = this.descriptorRegistry.get(handle)
     if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.readViaStream(offset)
+    return fn(descriptor)
+  }
+
+  private readViaStream(handle: number, offset: bigint): FilesystemResult<number> {
+    return this.withDescriptor(handle, (descriptor) => descriptor.readViaStream(offset))
   }
 
   private writeViaStream(handle: number, offset: bigint): FilesystemResult<number> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.writeViaStream(offset)
+    return this.withDescriptor(handle, (descriptor) => descriptor.writeViaStream(offset))
   }
 
   private appendViaStream(handle: number): FilesystemResult<number> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.appendViaStream()
+    return this.withDescriptor(handle, (descriptor) => descriptor.appendViaStream())
   }
 
   private advise(
@@ -1321,48 +1329,39 @@ export class FilesystemTypesInstance implements PluginInstance {
     _length: bigint,
     _advice: Advice
   ): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    // Advisory only, no-op for in-memory fs
-    return ok(undefined)
+    // Validate the handle; advisory is a no-op for in-memory fs.
+    return this.withDescriptor(handle, () => ok(undefined))
   }
 
   private syncData(handle: number): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.syncData()
+    return this.withDescriptor(handle, (descriptor) => descriptor.syncData())
   }
 
   private getFlags(handle: number): FilesystemResult<DescriptorFlags> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.getFlags()
+    return this.withDescriptor(handle, (descriptor) => descriptor.getFlags())
   }
 
   private getType(handle: number): FilesystemResult<DescriptorType> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.getType()
+    return this.withDescriptor(handle, (descriptor) => descriptor.getType())
   }
 
   private setSize(handle: number, size: bigint): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return this.withDescriptor(handle, (descriptor) => {
+      const node = descriptor.getNode()
+      if (node.type !== 'file') return err(FilesystemErrorCode.IsDirectory)
+      if (!descriptor.isWritable()) return err(FilesystemErrorCode.NotPermitted)
 
-    const node = descriptor.getNode()
-    if (node.type !== 'file') return err(FilesystemErrorCode.IsDirectory)
-    if (!descriptor.isWritable()) return err(FilesystemErrorCode.NotPermitted)
+      const newSize = Number(size)
+      if (newSize < node.content.length) {
+        // Shrink with a copy so the (possibly oversized) backing buffer is freed.
+        node.content = node.content.slice(0, newSize)
+      } else if (newSize > node.content.length) {
+        growFile(node, newSize)
+      }
+      node.modified = now()
 
-    const newSize = Number(size)
-    if (newSize < node.content.length) {
-      // Shrink with a copy so the (possibly oversized) backing buffer is freed.
-      node.content = node.content.slice(0, newSize)
-    } else if (newSize > node.content.length) {
-      growFile(node, newSize)
-    }
-    node.modified = now()
-
-    return ok(undefined)
+      return ok(undefined)
+    })
   }
 
   private setTimes(
@@ -1370,9 +1369,7 @@ export class FilesystemTypesInstance implements PluginInstance {
     dataAccessTimestamp: NewTimestamp,
     dataModificationTimestamp: NewTimestamp
   ): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.setTimes(dataAccessTimestamp, dataModificationTimestamp)
+    return this.withDescriptor(handle, (descriptor) => descriptor.setTimes(dataAccessTimestamp, dataModificationTimestamp))
   }
 
   private read(
@@ -1380,52 +1377,39 @@ export class FilesystemTypesInstance implements PluginInstance {
     length: bigint,
     offset: bigint
   ): FilesystemResult<[Uint8Array, boolean]> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.read(length, offset)
+    return this.withDescriptor(handle, (descriptor) => descriptor.read(length, offset))
   }
 
   private write(handle: number, buffer: Uint8Array, offset: bigint): FilesystemResult<bigint> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.write(buffer, offset)
+    return this.withDescriptor(handle, (descriptor) => descriptor.write(buffer, offset))
   }
 
   private readDirectory(handle: number): FilesystemResult<number> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return this.withDescriptor(handle, (descriptor) => {
+      const entriesResult = descriptor.readDirectory()
+      if (entriesResult.tag === 'err') return entriesResult
 
-    const entriesResult = descriptor.readDirectory()
-    if (entriesResult.tag === 'err') return entriesResult
+      const stream = new DirectoryEntryStreamImpl(entriesResult.val)
+      const streamHandle = this.directoryStreamRegistry.register(stream)
 
-    const stream = new DirectoryEntryStreamImpl(entriesResult.val)
-    const streamHandle = this.directoryStreamRegistry.register(stream)
-
-    return ok(streamHandle)
+      return ok(streamHandle)
+    })
   }
 
   private sync(handle: number): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.sync()
+    return this.withDescriptor(handle, (descriptor) => descriptor.sync())
   }
 
   private createDirectoryAt(handle: number, path: string): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.createDirectoryAt(path)
+    return this.withDescriptor(handle, (descriptor) => descriptor.createDirectoryAt(path))
   }
 
   private stat(handle: number): FilesystemResult<DescriptorStat> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.stat()
+    return this.withDescriptor(handle, (descriptor) => descriptor.stat())
   }
 
   private statAt(handle: number, pathFlags: PathFlags, path: string): FilesystemResult<DescriptorStat> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.statAt(pathFlags, path)
+    return this.withDescriptor(handle, (descriptor) => descriptor.statAt(pathFlags, path))
   }
 
   private setTimesAt(
@@ -1435,30 +1419,29 @@ export class FilesystemTypesInstance implements PluginInstance {
     dataAccessTimestamp: NewTimestamp,
     dataModificationTimestamp: NewTimestamp
   ): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return this.withDescriptor(handle, (descriptor) => {
+      // For simplicity, get the node and set times directly
+      const node = descriptor.getNode()
+      if (node.type !== 'directory') return err(FilesystemErrorCode.NotDirectory)
 
-    // For simplicity, get the node and set times directly
-    const node = descriptor.getNode()
-    if (node.type !== 'directory') return err(FilesystemErrorCode.NotDirectory)
+      const targetResult = this.fs.getNode(path, node)
+      if (targetResult.tag === 'err') return targetResult
 
-    const targetResult = this.fs.getNode(path, node)
-    if (targetResult.tag === 'err') return targetResult
+      const target = targetResult.val
+      if (dataAccessTimestamp.tag === 'timestamp') {
+        target.accessed = dataAccessTimestamp.val
+      } else if (dataAccessTimestamp.tag === 'now') {
+        target.accessed = now()
+      }
 
-    const target = targetResult.val
-    if (dataAccessTimestamp.tag === 'timestamp') {
-      target.accessed = dataAccessTimestamp.val
-    } else if (dataAccessTimestamp.tag === 'now') {
-      target.accessed = now()
-    }
+      if (dataModificationTimestamp.tag === 'timestamp') {
+        target.modified = dataModificationTimestamp.val
+      } else if (dataModificationTimestamp.tag === 'now') {
+        target.modified = now()
+      }
 
-    if (dataModificationTimestamp.tag === 'timestamp') {
-      target.modified = dataModificationTimestamp.val
-    } else if (dataModificationTimestamp.tag === 'now') {
-      target.modified = now()
-    }
-
-    return ok(undefined)
+      return ok(undefined)
+    })
   }
 
   private linkAt(
@@ -1468,11 +1451,11 @@ export class FilesystemTypesInstance implements PluginInstance {
     newDescriptor: number,
     newPath: string
   ): FilesystemResult<void> {
-    const oldDescriptor = this.descriptorRegistry.get(handle)
-    if (!oldDescriptor) return err(FilesystemErrorCode.BadDescriptor)
-    const target = this.descriptorRegistry.get(newDescriptor)
-    if (!target) return err(FilesystemErrorCode.BadDescriptor)
-    return target.linkAt(oldPathFlags, oldPath, oldDescriptor, newPath)
+    return this.withDescriptor(handle, (oldDescriptor) =>
+      this.withDescriptor(newDescriptor, (target) =>
+        target.linkAt(oldPathFlags, oldPath, oldDescriptor, newPath)
+      )
+    )
   }
 
   private openAt(
@@ -1482,26 +1465,21 @@ export class FilesystemTypesInstance implements PluginInstance {
     openFlags: OpenFlags,
     descriptorFlags: DescriptorFlags
   ): FilesystemResult<number> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
+    return this.withDescriptor(handle, (descriptor) => {
+      const result = descriptor.openAt(pathFlags, path, openFlags, descriptorFlags)
+      if (result.tag === 'err') return result
 
-    const result = descriptor.openAt(pathFlags, path, openFlags, descriptorFlags)
-    if (result.tag === 'err') return result
-
-    const newHandle = this.descriptorRegistry.register(result.val)
-    return ok(newHandle)
+      const newHandle = this.descriptorRegistry.register(result.val)
+      return ok(newHandle)
+    })
   }
 
   private readlinkAt(handle: number, path: string): FilesystemResult<string> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.readlinkAt(path)
+    return this.withDescriptor(handle, (descriptor) => descriptor.readlinkAt(path))
   }
 
   private removeDirectoryAt(handle: number, path: string): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.removeDirectoryAt(path)
+    return this.withDescriptor(handle, (descriptor) => descriptor.removeDirectoryAt(path))
   }
 
   private renameAt(
@@ -1510,26 +1488,20 @@ export class FilesystemTypesInstance implements PluginInstance {
     newHandle: number,
     newPath: string
   ): FilesystemResult<void> {
-    const oldDescriptor = this.descriptorRegistry.get(handle)
-    if (!oldDescriptor) return err(FilesystemErrorCode.BadDescriptor)
-
-    const newDescriptor = this.descriptorRegistry.get(newHandle)
-    if (!newDescriptor) return err(FilesystemErrorCode.BadDescriptor)
-
-    return oldDescriptor.renameAt(oldPath, newDescriptor, newPath)
+    return this.withDescriptor(handle, (oldDescriptor) =>
+      this.withDescriptor(newHandle, (newDescriptor) =>
+        oldDescriptor.renameAt(oldPath, newDescriptor, newPath)
+      )
+    )
   }
 
   private symlinkAt(handle: number, oldPath: string, newPath: string): FilesystemResult<void> {
     // WASI symlink-at(old-path, new-path): old-path is the link *target*.
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.symlinkAt(oldPath, newPath)
+    return this.withDescriptor(handle, (descriptor) => descriptor.symlinkAt(oldPath, newPath))
   }
 
   private unlinkFileAt(handle: number, path: string): FilesystemResult<void> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.unlinkFileAt(path)
+    return this.withDescriptor(handle, (descriptor) => descriptor.unlinkFileAt(path))
   }
 
   private isSameObject(handle: number, otherHandle: number): boolean {
@@ -1540,9 +1512,7 @@ export class FilesystemTypesInstance implements PluginInstance {
   }
 
   private metadataHash(handle: number): FilesystemResult<MetadataHashValue> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.metadataHash()
+    return this.withDescriptor(handle, (descriptor) => descriptor.metadataHash())
   }
 
   private metadataHashAt(
@@ -1550,9 +1520,7 @@ export class FilesystemTypesInstance implements PluginInstance {
     pathFlags: PathFlags,
     path: string
   ): FilesystemResult<MetadataHashValue> {
-    const descriptor = this.descriptorRegistry.get(handle)
-    if (!descriptor) return err(FilesystemErrorCode.BadDescriptor)
-    return descriptor.metadataHashAt(pathFlags, path)
+    return this.withDescriptor(handle, (descriptor) => descriptor.metadataHashAt(pathFlags, path))
   }
 
   private dropDirectoryStream(handle: number): void {
