@@ -50,7 +50,7 @@ import { tunneledDnsLookupImplementation } from '../ws-gateway/dns-adapter.js'
 export const NETWORK_INTERFACE: WasiInterface = {
   package: 'wasi:sockets',
   name: 'network',
-  version: '0.2.0',
+  version: '0.2.6',
 }
 
 /**
@@ -59,7 +59,7 @@ export const NETWORK_INTERFACE: WasiInterface = {
 export const INSTANCE_NETWORK_INTERFACE: WasiInterface = {
   package: 'wasi:sockets',
   name: 'instance-network',
-  version: '0.2.0',
+  version: '0.2.6',
 }
 
 /**
@@ -68,7 +68,7 @@ export const INSTANCE_NETWORK_INTERFACE: WasiInterface = {
 export const IP_NAME_LOOKUP_INTERFACE: WasiInterface = {
   package: 'wasi:sockets',
   name: 'ip-name-lookup',
-  version: '0.2.0',
+  version: '0.2.6',
 }
 
 /**
@@ -77,7 +77,7 @@ export const IP_NAME_LOOKUP_INTERFACE: WasiInterface = {
 export const TCP_INTERFACE: WasiInterface = {
   package: 'wasi:sockets',
   name: 'tcp',
-  version: '0.2.0',
+  version: '0.2.6',
 }
 
 /**
@@ -86,7 +86,7 @@ export const TCP_INTERFACE: WasiInterface = {
 export const TCP_CREATE_SOCKET_INTERFACE: WasiInterface = {
   package: 'wasi:sockets',
   name: 'tcp-create-socket',
-  version: '0.2.0',
+  version: '0.2.6',
 }
 
 /**
@@ -95,7 +95,7 @@ export const TCP_CREATE_SOCKET_INTERFACE: WasiInterface = {
 export const UDP_INTERFACE: WasiInterface = {
   package: 'wasi:sockets',
   name: 'udp',
-  version: '0.2.0',
+  version: '0.2.6',
 }
 
 /**
@@ -104,7 +104,7 @@ export const UDP_INTERFACE: WasiInterface = {
 export const UDP_CREATE_SOCKET_INTERFACE: WasiInterface = {
   package: 'wasi:sockets',
   name: 'udp-create-socket',
-  version: '0.2.0',
+  version: '0.2.6',
 }
 
 /**
