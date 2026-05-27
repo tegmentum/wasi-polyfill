@@ -1,18 +1,28 @@
 # @tegmentum/wasi-polyfill
 
-A comprehensive WASI Preview 2 polyfill for browser and JavaScript environments.
+A multi-version WASI polyfill for browsers and JavaScript runtimes, plus a suite of browser Web API host imports for WebAssembly components.
 
 ## Overview
 
-This package provides a provider framework, policy engine, and loader for running WASI 2 components in environments that don't natively support WASI Preview 2 (primarily browsers and JavaScript runtimes).
+This package lets you run WebAssembly modules and components in environments that don't natively support WASI — primarily the browser, but also Node.js, Deno, Bun, and other JS runtimes.
 
-**Key Features:**
+It provides four subsystems:
 
-- **Plugin Architecture** - Modular interface implementations with multiple backends
-- **Capability-Based Security** - Fine-grained policy control over what components can access
-- **Zero-Config Defaults** - Safe, sandboxed defaults with explicit capability grants
-- **Async-Native** - All operations are async-capable for browser compatibility
-- **Tree-Shakeable** - Import only the interfaces you need
+| Subsystem | Purpose | Entry point |
+|-----------|---------|-------------|
+| **wasip2** | Capability-based plugin framework for WASI Preview 2 components (default export) | `@tegmentum/wasi-polyfill` |
+| **wasip1** | Standalone WASI Preview 1 implementation for core modules | `@tegmentum/wasi-polyfill/wasip1` |
+| **wasip3** | Async-native primitives (streams, futures, tasks) targeting WASI Preview 3 | `@tegmentum/wasi-polyfill/wasip3` |
+| **browser** | Host imports that expose Web Platform APIs (DOM, canvas, fetch, WebGPU, …) to guests | `@tegmentum/wasi-polyfill/browser` |
+
+**Key features**
+
+- **Plugin architecture** — modular interface implementations with multiple backends per interface
+- **Capability-based security** — fine-grained policy control over what guests can access
+- **Zero-config defaults** — safe sandboxed defaults with explicit capability grants
+- **Async-native** — every interface is async-capable for browser compatibility
+- **Tree-shakeable** — import only the subpaths you need
+- **Component-model native** — works with jco-transpiled components or via runtime transpilation
 
 ## Installation
 
@@ -20,118 +30,166 @@ This package provides a provider framework, policy engine, and loader for runnin
 npm install @tegmentum/wasi-polyfill
 ```
 
-## Quick Start
+Optional peer dependencies (install only what you use):
+
+```bash
+npm install @bytecodealliance/jco  # runtime component transpilation
+npm install ws                      # WebSocket gateway / Node-side sockets
+npm install sql.js                  # SQL backend for wasi:sql
+npm install onnxruntime-web         # ONNX backend for wasi:nn
+```
+
+---
+
+## Quick Start (WASI Preview 2)
 
 ```typescript
 import { createPolyfill, createCliPolicy } from '@tegmentum/wasi-polyfill'
 import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
 import { monotonicClockPlugin } from '@tegmentum/wasi-polyfill/plugins/clocks'
 
-// Create a polyfill with a CLI-friendly policy
 const polyfill = createPolyfill({
   policy: createCliPolicy({
     env: { NODE_ENV: 'production' },
-    args: ['--verbose']
-  })
+    args: ['--verbose'],
+  }),
 })
 
-// Register the plugins you need
 polyfill.registerPlugin(randomPlugin)
 polyfill.registerPlugin(monotonicClockPlugin)
 
-// Get imports for your WASM component
 const { imports } = await polyfill.forInterfaces([
-  'wasi:random@0.2.0',
-  'wasi:clocks/monotonic-clock@0.2.0'
+  'wasi:random/random@0.2.0',
+  'wasi:clocks/monotonic-clock@0.2.0',
 ])
 
-// Use with WebAssembly.instantiate
 const instance = await WebAssembly.instantiate(wasmBytes, imports)
 ```
 
-## Supported Interfaces
+Factories:
 
-### Core Interfaces
+- `createPolyfill(config?)` — explicit policy, safe by default
+- `createDevPolyfill()` — allows every interface (development only)
+- `createJcoPolyfill(config?)` — jco-compatible import shape
 
-| Interface | Plugin | Description |
-|-----------|--------|-------------|
+---
+
+## WASI Preview 2 Plugins
+
+Each plugin satisfies one or more `wasi:*` interface versions. Register the plugins you need; the policy decides which the guest is actually allowed to import.
+
+### Core
+
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
 | `wasi:random/random` | `randomPlugin` | Cryptographic random number generation |
 | `wasi:clocks/monotonic-clock` | `monotonicClockPlugin` | High-resolution monotonic time |
-| `wasi:clocks/wall-clock` | `wallClockPlugin` | Wall clock time (date/time) |
+| `wasi:clocks/wall-clock` | `wallClockPlugin` | Wall-clock time |
 | `wasi:io/streams` | `streamsPlugin` | Input/output streams |
 | `wasi:io/poll` | `pollPlugin` | Polling for I/O readiness |
+| `wasi:io/error` | `errorPlugin` | Stream error resource |
 
-### CLI Interfaces
+Import path: `@tegmentum/wasi-polyfill/plugins/{random,clocks,io}`
 
-| Interface | Plugin | Description |
-|-----------|--------|-------------|
-| `wasi:cli/environment` | `environmentPlugin` | Environment variables and arguments |
-| `wasi:cli/stdin` | `stdinPlugin` | Standard input stream |
-| `wasi:cli/stdout` | `stdoutPlugin` | Standard output stream |
-| `wasi:cli/stderr` | `stderrPlugin` | Standard error stream |
-| `wasi:cli/exit` | `exitPlugin` | Process exit handling |
+### CLI
 
-### Filesystem Interfaces
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
+| `wasi:cli/environment` | `environmentPlugin` | Env vars, args, initial CWD |
+| `wasi:cli/stdin` / `stdout` / `stderr` | (via `environmentPlugin`) | Standard streams |
+| `wasi:cli/exit` | (via `environmentPlugin`) | Process exit |
 
-| Interface | Plugin | Description |
-|-----------|--------|-------------|
-| `wasi:filesystem/types` | `filesystemTypesPlugin` | Filesystem types and operations |
-| `wasi:filesystem/preopens` | `preopensPlugin` | Pre-opened directory handles |
+Import path: `@tegmentum/wasi-polyfill/plugins/cli`
 
-**Backends:**
-- `memory` - In-memory filesystem (default, safe)
-- `opfs` - Origin Private File System (browser persistent storage)
+### Filesystem
 
-### Networking Interfaces
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
+| `wasi:filesystem/types` | `filesystemTypesPlugin` | Files, descriptors, metadata |
+| `wasi:filesystem/preopens` | `filesystemPreopensPlugin` | Pre-opened directory handles |
 
-| Interface | Plugin | Description |
-|-----------|--------|-------------|
-| `wasi:sockets/tcp` | `tcpPlugin` | TCP socket operations |
-| `wasi:sockets/udp` | `udpPlugin` | UDP socket operations |
-| `wasi:sockets/ip-name-lookup` | `ipNameLookupPlugin` | DNS resolution |
-| `wasi:http/outgoing-handler` | `outgoingHandlerPlugin` | HTTP client (fetch) |
-| `wasi:http/incoming-handler` | `incomingHandlerPlugin` | HTTP server (Service Worker) |
+Backends: in-memory (default), OPFS (browser persistent), IndexedDB, overlay.
+Import path: `@tegmentum/wasi-polyfill/plugins/filesystem`
 
-### Storage Interfaces
+### Networking
 
-| Interface | Plugin | Description |
-|-----------|--------|-------------|
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
+| `wasi:sockets/network` | `networkPlugin` | Network resource handle |
+| `wasi:sockets/tcp` | `tcpPlugin` | TCP sockets |
+| `wasi:sockets/udp` | `udpPlugin` | UDP sockets |
+| `wasi:sockets/ip-name-lookup` | `ipNameLookupPlugin` | DNS resolution (incl. DoH) |
+| `wasi:http/types` | `httpTypesPlugin` | HTTP request/response types |
+| `wasi:http/outgoing-handler` | `httpOutgoingHandlerPlugin` | HTTP client (fetch) |
+| `wasi:http/incoming-handler` | `httpIncomingHandlerPlugin` | HTTP server (Service Worker) |
+
+For real sockets from a browser, see [WebSocket Gateway](#websocket-gateway).
+Import paths: `@tegmentum/wasi-polyfill/plugins/{sockets,http,ws-gateway}`
+
+### Storage
+
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
 | `wasi:keyvalue/store` | `keyvalueStorePlugin` | Key-value storage |
-| `wasi:keyvalue/atomics` | `keyvalueAtomicsPlugin` | Atomic key-value operations |
-| `wasi:keyvalue/batch` | `keyvalueBatchPlugin` | Batch key-value operations |
-| `wasi:blobstore/blobstore` | `blobstorePlugin` | Object/blob storage |
-| `wasi:blobstore/container` | `containerPlugin` | Blob container management |
+| `wasi:keyvalue/atomics` | `keyvalueAtomicsPlugin` | Atomic KV operations |
+| `wasi:keyvalue/batch` | `keyvalueBatchPlugin` | Batched KV operations |
+| `wasi:blobstore/blobstore` | `blobstorePlugin` | Object/blob storage root |
+| `wasi:blobstore/container` | `blobstoreContainerPlugin` | Blob container management |
+
+Import paths: `@tegmentum/wasi-polyfill/plugins/{keyvalue,blobstore}`
 
 ### Configuration & Logging
 
-| Interface | Plugin | Description |
-|-----------|--------|-------------|
-| `wasi:config/store` | `configStorePlugin` | Configuration values |
-| `wasi:logging/logging` | `loggingPlugin` | Structured logging |
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
+| `wasi:config/store` | `configStorePlugin` | Static configuration values |
+| `wasi:config/runtime` | `configRuntimePlugin` | Runtime / remote configuration |
+| `wasi:logging/logging` | `loggingPlugin` | Structured logging (console, buffer, NDJSON, OTLP) |
 
-### Advanced Interfaces
+Import paths: `@tegmentum/wasi-polyfill/plugins/{config,logging}`
 
-| Interface | Plugin | Description |
-|-----------|--------|-------------|
-| `wasi:threads` | Thread plugins | Web Worker-based threading |
-| WebSocket Gateway | `wsGatewayPlugin` | Native socket tunneling via WebSocket |
+### Messaging & Compute
+
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
+| `wasi:messaging/{types,producer,consumer,handler}` | `messagingTypesPlugin`, `messagingProducerPlugin`, `messagingConsumerPlugin`, `messagingHandlerPlugin` | Pub/sub message queues (draft) |
+| `wasi:nn/{tensor,graph,inference,errors}` | `nnTensorPlugin`, `nnGraphPlugin`, `nnInferencePlugin`, `nnErrorsPlugin` | Neural-network inference via WebNN / ONNX |
+| `wasi:sql/{types,connection,query,statement,transaction}` | `sqlTypesPlugin`, `sqlConnectionPlugin`, `sqlQueryPlugin`, `sqlStatementPlugin`, `sqlTransactionPlugin` | SQL access (in-memory engine or sql.js) |
+| `wasi:threads` | `threadsPlugin` | Web Worker-based threads |
+
+Import paths: `@tegmentum/wasi-polyfill/plugins/{messaging,nn,sql,threads}`
+
+### Graphics (wasi-gfx)
+
+| Interface | Plugin export | Description |
+|-----------|---------------|-------------|
+| `wasi:frame-buffer/frame-buffer` | `frameBufferPlugin` | Software-rendered framebuffers |
+| `wasi:graphics-context/graphics-context` | `graphicsContextPlugin` | Graphics context binding |
+| `wasi:surface/surface` | `surfacePlugin` | Windowing, pointer, keyboard events |
+| `wasi:webgpu` | `webgpuPlugin` | WebGPU compute and rendering |
+
+Convenience bundle: `wasiGfxPlugins` registers all four.
+Import paths: `@tegmentum/wasi-polyfill/plugins/{frame-buffer,graphics-context,surface,webgpu,wasi-gfx}`
+
+---
 
 ## Policies
 
-Policies control which interfaces components can access and how they're configured.
+Policies decide which interfaces a polyfill instance exposes and how each one is configured.
 
-### Built-in Policies
+### Built-in policies
 
 ```typescript
 import {
-  createSafePolicy,    // Allows random + clocks only
-  createCliPolicy,     // Allows CLI interfaces
-  AllowAllPolicy,      // Development only - allows everything
-  DenyAllPolicy        // Denies all interfaces
+  createSafePolicy,    // deny-all default; opt in explicitly
+  createCliPolicy,     // allows the CLI interface set
+  AllowAllPolicy,      // development only — allows everything
+  DenyAllPolicy,       // denies all interfaces
+  mergePolicies,
 } from '@tegmentum/wasi-polyfill'
 ```
 
-### Custom Policy
+### Custom policy
 
 ```typescript
 import { createPolicy } from '@tegmentum/wasi-polyfill'
@@ -139,93 +197,64 @@ import { createPolicy } from '@tegmentum/wasi-polyfill'
 const policy = createPolicy({
   defaultAllow: false,
   allow: [
-    'wasi:random@0.2.0',
+    'wasi:random/random@0.2.0',
     'wasi:clocks/monotonic-clock@0.2.0',
   ],
   deny: [
     'wasi:filesystem/types@0.2.0',
   ],
-  preopens: ['/app/data'],  // For filesystem access
+  preopens: ['/app/data'],
   env: { API_KEY: 'secret' },
   args: ['--config', 'prod.json'],
 })
 ```
 
+---
+
 ## Runtime Component Loading
 
-The polyfill supports running WebAssembly components directly in the browser without pre-transpilation. This uses jco's browser build for runtime transpilation.
-
-### Setup
-
-First, install jco as a dependency:
+`RuntimeBindgen` and `ComponentLoader` instantiate `.component.wasm` files directly in the browser using jco's runtime transpilation.
 
 ```bash
 npm install @bytecodealliance/jco
 ```
 
-### Using RuntimeBindgen
-
-`RuntimeBindgen` provides full component model support by transpiling components at runtime:
-
 ```typescript
 import { createRuntimeBindgen, registerCorePlugins } from '@tegmentum/wasi-polyfill'
 
-// Register WASI plugins at startup
 await registerCorePlugins()
 
-// Create a bindgen instance
 const bindgen = createRuntimeBindgen({ devMode: true })
-
-// Load and instantiate a component directly from .wasm bytes
 const result = await bindgen.instantiate<MyExports>(wasmBytes)
+// or: bindgen.instantiateFromUrl('/my-component.wasm')
 
-// Or load from a URL
-const result = await bindgen.instantiateFromUrl('/my-component.wasm')
-
-// Access exports with type safety
 result.exports.myFunction()
-
-// Check if jco was used for transpilation
-console.log('Used jco:', result.usedJco)
-
-// Clean up when done
 result.destroy()
 ```
 
 ### Async imports (JSPI)
 
-Some components have imports that **suspend** the guest — blocking
-`wasi:io/poll` (`pollable.block`), `wasi:http`, `wasi:sockets`, or any
-host-async custom interface. In the default sync transpilation, those imports
-cannot await the polyfill's async plugins (the sync trampoline is handed a
-Promise it can't suspend on), so the guest cannot truly block.
-
-Set `asyncMode: 'jspi'` to transpile with [JSPI](https://github.com/WebAssembly/js-promise-integration)
-(JavaScript Promise Integration): the listed imports become suspending and the
-listed exports become promising (they return a `Promise`).
+Suspending imports — `wasi:io/poll` (`pollable.block`), `wasi:http`, `wasi:sockets`, or any host-async interface — require [JSPI](https://github.com/WebAssembly/js-promise-integration) to actually block the guest. With the default sync transpilation, those imports cannot await the polyfill's async plugins.
 
 ```typescript
 const bindgen = createRuntimeBindgen({
   devMode: true,
   jcoOptions: {
     asyncMode: 'jspi',
-    // Imports that should suspend (jco import specifiers).
     asyncImports: ['wasi:io/poll@0.2.0#[method]pollable.block'],
-    // Exports that (transitively) reach a suspending import.
     asyncExports: ['handle'],
   },
 })
 
 const result = await bindgen.instantiate<MyExports>(wasmBytes)
-const value = await result.exports.handle(input) // promising export -> await it
+const value = await result.exports.handle(input) // promising export — await it
 ```
 
-Requires JSPI in the host (`WebAssembly.Suspending`/`promising`; Chrome 137+,
-Node 22+).
+Requires `WebAssembly.Suspending` / `promising` (Chrome 137+, Node 22+).
 
-### Using ComponentLoader
+### ComponentLoader
 
-For simpler use cases, `ComponentLoader` provides a lightweight API:
+A lighter API when you don't need full bindgen control:
 
 ```typescript
 import { createComponentLoader } from '@tegmentum/wasi-polyfill/runtime'
@@ -234,28 +263,160 @@ import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
 const loader = createComponentLoader({ devMode: true })
 loader.getPolyfill().registerPlugin(randomPlugin)
 
-// Load and instantiate a component
 const component = await loader.loadFromUrl('/my-component.wasm')
-
-// Access exports
 component.exports.myFunction()
-
-// Clean up
 component.destroy()
 ```
 
-### How It Works
+If jco is not installed, both loaders fall back to direct instantiation (works for pre-transpiled components or core modules).
 
-1. **Component parsing** - The component binary is parsed to extract WASI interface requirements
-2. **Runtime transpilation** - jco's browser build transpiles the component to JavaScript + core WASM
-3. **WASI imports** - The polyfill provides WASI implementations via the imports parameter
-4. **Instantiation** - The transpiled code is executed via blob URLs with dynamic import
+---
 
-If jco is not installed, `RuntimeBindgen` falls back to direct instantiation (which works for pre-transpiled components or core modules).
+## WASI Preview 1
+
+Use `wasip1` when you need to run a classic WASI Preview 1 core `.wasm` (e.g. a Rust binary compiled to `wasm32-wasi`) rather than a Preview 2 component.
+
+```typescript
+import { createWasip1 } from '@tegmentum/wasi-polyfill/wasip1'
+
+const wasi = createWasip1({
+  args: ['myprog', '--verbose'],
+  env: { HOME: '/home/user' },
+  // preopens: { '/': filesystem },  // optional
+})
+
+const { instance } = await WebAssembly.instantiate(wasmBytes, {
+  wasi_snapshot_preview1: wasi.getImports(),
+})
+
+wasi.initialize(instance)
+;(instance.exports._start as () => void)()
+
+if (wasi.exited) console.log('exit code:', wasi.exitCode)
+```
+
+Supported capabilities: `args`, `env`, stdio (custom streams), filesystem (preopens), clocks (monotonic / realtime / CPU), random, poll (with optional blocking).
+
+### Node host filesystem
+
+```typescript
+import { createNodeFilesystem } from '@tegmentum/wasi-polyfill/wasip1/hostfs-node'
+
+const fs = createNodeFilesystem('/path/to/sandbox-root')
+const wasi = createWasip1({ preopens: { '/': fs } })
+```
+
+`createNodeFilesystem` is sandboxed to its root and guards against path-escape attacks.
+
+---
+
+## WASI Preview 3 (preview)
+
+`wasip3` provides the async primitives — streams, futures, tasks — that Preview 3 will be built on. Treat the binary-level component ABI as **not yet implemented**; the current `instantiate()` is a stub that targets jco-transpiled output. The API is stable enough to write tests against.
+
+```typescript
+import {
+  createWasip3,
+  createStream,
+  createFuture,
+  delay,
+} from '@tegmentum/wasi-polyfill/wasip3'
+
+const wasi = createWasip3({
+  args: ['myprog'],
+  env: { LOG: 'debug' },
+})
+
+await wasi.execute(async (task) => {
+  const { stream, writer } = createStream<Uint8Array>()
+  writer.write(new TextEncoder().encode('hello'))
+  writer.close()
+
+  for await (const chunk of stream) {
+    // …
+  }
+})
+```
+
+Re-exports from `canonical-abi/`: `createStream`, `streamFromAsyncIterable`, `streamFromReadable`, `collectStream`, `pipeStream`, `mergeStreams`, `createFuture`, `futureFromPromise`, `delay`, `resolvedFuture`, `raceFutures`, `allFutures`, `Task`, `SubtaskManager`.
+
+---
+
+## Browser Host Imports
+
+The `browser/*` subpaths expose Web Platform APIs as host imports for WebAssembly components — useful when you're shipping a guest module that wants to draw to a canvas, hit `fetch`, listen for DOM events, or read the clipboard.
+
+```typescript
+import { getBrowserImports } from '@tegmentum/wasi-polyfill/browser'
+
+const imports = getBrowserImports({
+  capabilities: ['console', 'fetch', 'canvas', 'events'],
+})
+
+const instance = await WebAssembly.instantiate(wasmBytes, imports)
+```
+
+`getBrowserImports` is capability-gated. Each capability has a dedicated subpath if you want to load it individually or lazily.
+
+| Capability | Subpath | What it exposes |
+|------------|---------|-----------------|
+| `console` | `/browser/console` | `console.log/debug/info/warn/error/trace`, `time`/`timeEnd` |
+| `fetch` | `/browser/fetch` | `fetch()` plus request/response builders |
+| `storage` | `/browser/storage` | `localStorage`, IndexedDB |
+| `performance` | `/browser/performance` | `performance.now`, `mark`, `measure` |
+| `dom` | `/browser/dom` | Node/element handles, query, traversal, mutation |
+| `events` | `/browser/events` | Mouse, keyboard, touch, wheel, focus event subscriptions |
+| `canvas` | `/browser/canvas` | 2D context, drawing primitives, images |
+| `clipboard` | `/browser/clipboard` | Read/write clipboard text |
+| `geolocation` | `/browser/geolocation` | `getCurrentPosition()` |
+| `notifications` | `/browser/notifications` | Permission + show |
+| `media` | `/browser/media` | `getUserMedia`, `MediaStream`, tracks |
+| `service-worker` | `/browser/service-worker` | Register, get registrations |
+| `worker` | `/browser/worker` | Spawn Web Workers, post/read messages |
+| `websocket` | `/browser/websocket` | WebSocket connect/send/read/close |
+| `broadcast-channel` | `/browser/broadcast-channel` | Cross-tab BroadcastChannel |
+| `animation` | `/browser/animation` | `requestAnimationFrame`, `requestIdleCallback` |
+| `history` | `/browser/history` | `pushState`, `replaceState`, navigation |
+| `screen` | `/browser/screen` | Screen info, orientation lock |
+| `fullscreen` | `/browser/fullscreen` | Request / exit fullscreen |
+| `vibration` | `/browser/vibration` | Vibration API |
+| `webgpu` | `/browser/webgpu` | Adapter, device, buffer, texture, pipeline, queue, canvas |
+| `gc-enhanced` | `/browser/gc-enhanced` | DOM/Events optimised for the WasmGC proposal |
+| (runtime) | `/browser/runtime` | Feature detection, user gesture, capability checks |
+| (types) | `/browser/types` | Shared error/result/header/URL/event types |
+
+Other helpers exported from `@tegmentum/wasi-polyfill/browser`:
+
+- `getMinimalBrowserImports()` — just `types` + `runtime`
+- `getCoreBrowserImports()` — console, fetch, storage, performance
+- `getWebGPUImportsLazy()`, `getCanvasImportsLazy()`, `getGcEnhancedImportsLazy()` — dynamic imports for heavy modules
+
+---
+
+## WebSocket Gateway
+
+For real TCP/UDP/DNS from a browser, tunnel socket operations through a WebSocket proxy server:
+
+```typescript
+import {
+  wsGatewayTcpPlugin,
+  wsGatewayUdpPlugin,
+  wsGatewayDnsPlugin,
+} from '@tegmentum/wasi-polyfill/plugins/ws-gateway'
+
+polyfill.registerPlugin(wsGatewayTcpPlugin, {
+  gatewayUrl: 'wss://gateway.example.com/tunnel',
+  authToken: 'your-auth-token',
+})
+polyfill.registerPlugin(wsGatewayUdpPlugin, { /* same gateway */ })
+polyfill.registerPlugin(wsGatewayDnsPlugin, { /* same gateway */ })
+```
+
+---
 
 ## Build-Time Tooling
 
-### Vite Plugin
+### Vite plugin
 
 ```typescript
 // vite.config.ts
@@ -263,195 +424,131 @@ import { wasiPolyfillPlugin } from '@tegmentum/wasi-polyfill/build'
 
 export default {
   plugins: [
-    wasiPolyfillPlugin({
-      // Auto-generate manifests for .wasm files
-      generateManifests: true,
-    })
-  ]
+    wasiPolyfillPlugin({ generateManifests: true }),
+  ],
 }
 ```
 
-### Component Introspection
+### Component introspection
 
 ```typescript
 import { introspect, generateManifest } from '@tegmentum/wasi-polyfill/build'
 
-// Get required interfaces from a component
 const result = await introspect(wasmBytes)
-console.log(result.imports)  // Required WASI interfaces
-console.log(result.wasiSubsystems)  // ['random', 'clocks', ...]
+result.imports         // required WASI interfaces
+result.wasiSubsystems  // ['random', 'clocks', ...]
 
-// Generate a manifest file
 const manifest = await generateManifest(wasmBytes)
 ```
 
-## WebSocket Gateway
-
-For native TCP/UDP socket access in browsers, use the WebSocket gateway:
-
-```typescript
-import { createWsGatewayPlugin } from '@tegmentum/wasi-polyfill/plugins/ws-gateway'
-
-const wsGateway = createWsGatewayPlugin({
-  gatewayUrl: 'wss://gateway.example.com/tunnel',
-  authToken: 'your-auth-token',
-})
-
-polyfill.registerPlugin(wsGateway)
-```
-
-This tunnels socket operations through a WebSocket proxy server, enabling real TCP/UDP networking from browsers.
+---
 
 ## Deterministic Testing
 
-For reproducible tests, use the deterministic test harness:
-
 ```typescript
-import { createTestHarness, withTestHarness } from '@tegmentum/wasi-polyfill/testing'
+import {
+  createTestHarness,
+  withTestHarness,
+} from '@tegmentum/wasi-polyfill/testing'
 
-// Create a harness with a fixed seed and time
 const harness = createTestHarness({
   seed: 42n,
   initialTime: new Date('2024-01-01T00:00:00Z'),
 })
 
-// Get imports with deterministic random and virtual clocks
 const { imports } = await harness.getImports([
   { package: 'wasi:random', name: 'random', version: '0.2.0' },
   { package: 'wasi:clocks', name: 'monotonic-clock', version: '0.2.0' },
 ])
 
-// Control time
-harness.advanceTimeSeconds(60)  // Advance 60 seconds
+harness.advanceTimeSeconds(60)
 harness.setWallTime(new Date('2024-06-15T12:00:00Z'))
 
-// Get snapshot for assertions
 const snapshot = harness.getSnapshot()
-console.log(snapshot.monotonicTime)  // 60_000_000_000n (60 seconds in nanoseconds)
-console.log(snapshot.logs)  // Captured log entries
+snapshot.monotonicTime  // 60_000_000_000n
+snapshot.logs           // captured log entries
 
-// Clean up
 harness.destroy()
-
-// Or use the auto-cleanup helper
-const result = await withTestHarness({ seed: 123n }, async (h) => {
-  const { imports } = await h.getImports([...])
-  // ... run your test
-  return h.getSnapshot()
-})
 ```
 
-### Bundle Presets
+Bundle presets: `deterministicBundle`, `browserTestBundle`, `minimalBundle`.
 
-```typescript
-import { deterministicBundle, browserTestBundle, minimalBundle } from '@tegmentum/wasi-polyfill/testing'
+---
 
-// deterministicBundle: Seeded random, virtual clocks, buffer logging
-// browserTestBundle: Real crypto, real clocks, buffer logging
-// minimalBundle: Just random and clocks with defaults
-
-const harness = createTestHarness({ bundle: 'deterministic' })
-```
-
-## API Reference
-
-### Polyfill
+## API Reference (wasip2 core)
 
 ```typescript
 class Polyfill {
-  // Get imports for specified interfaces
-  getImports(required: WasiInterface[]): Promise<ImportResult>
-
-  // Get imports from interface strings
-  forInterfaces(interfaces: string[]): Promise<ImportResult>
-
-  // Get imports from a component manifest
-  forManifest(manifest: ComponentManifest): Promise<ImportResult>
-
-  // Register a plugin
-  registerPlugin(plugin: WasiPlugin): void
-
-  // Check if interface is allowed
+  getImports(required: WasiInterface[], options?): Promise<ImportResult>
+  forInterfaces(interfaces: string[], options?): Promise<ImportResult>
+  forManifest(manifest: ComponentManifest, options?): Promise<ImportResult>
+  forComponent(bytes: ArrayBuffer, options?): Promise<ImportResult>
+  registerPlugin(plugin: WasiPlugin, config?: PluginConfig): void
   isAllowed(iface: WasiInterface | string): boolean
-
-  // Check if plugin is available
   hasPlugin(iface: WasiInterface | string): boolean
-
-  // Clean up resources
   destroy(): void
 }
-```
 
-### ImportResult
-
-```typescript
 interface ImportResult {
-  // Imports object for WebAssembly.instantiate
   imports: Record<string, Record<string, unknown>>
-
-  // Successfully loaded interfaces
-  loaded: WasiInterface[]
-
-  // Interfaces denied by policy
-  denied: WasiInterface[]
-
-  // Interfaces without available plugins
+  loaded:  WasiInterface[]
+  denied:  WasiInterface[]
   missing: WasiInterface[]
 }
 ```
 
+Manifest helpers: `parseManifest`, `loadManifest`, `loadManifestForComponent`, `createManifest`, `serializeManifest`, `validateManifest`, `validateExports`, `verifyComponentHash`.
+
+Errors: `WasiError`, `WasiErrorCode`, `PluginNotFoundError`, `PolicyDeniedError`, `ImplementationNotFoundError`, `ManifestError`.
+
+---
+
 ## Examples
 
-### Plugin Usage Examples
+See [`examples/`](./examples) for runnable demos:
 
-See the [examples](./examples) directory for comprehensive plugin usage guides:
+- `basic-usage.ts` — dev/safe polyfills, string specs, WASM integration
+- `advanced-usage.ts` — multi-plugin setup, security policies, lifecycle
+- `filesystem-usage.ts` — memory, OPFS, IndexedDB, overlay filesystems
+- `http-usage.ts` — HTTP client, server, test handler, service worker
+- `storage-usage.ts` — keyvalue store, atomics, batch
+- `logging-usage.ts` — console, buffer, NDJSON, OTLP sinks
+- `config-usage.ts` — static, layered, remote, manifest-driven config
+- `wasip1-usage.ts` — Preview 1 setup, custom I/O, virtual filesystem
+- `wasip3-usage.ts` — streams, futures, async executor, P3 loader
+- [`examples/browser/`](./examples/browser) — `basic-usage.ts`, `opfs-filesystem.ts`, `dns-over-https.ts`, `service-worker-http.ts`
+- [`examples/fractal-demo/`](./examples/fractal-demo) — full WASM fractal renderer
 
-- **basic-usage.ts** - Dev/safe polyfills, string specs, WASM integration
-- **filesystem-usage.ts** - Memory, OPFS, IndexedDB, overlay filesystems
-- **http-usage.ts** - HTTP client, server, testing, service workers
-- **storage-usage.ts** - KeyValue and blobstore with multiple backends
-- **logging-usage.ts** - Console, buffer, NDJSON, OTLP logging backends
-- **config-usage.ts** - Static, remote, layered, manifest configurations
-- **advanced-usage.ts** - Multi-plugin setup, security policies, lifecycle management
-
-### Browser-Specific Examples
-
-See [examples/browser](./examples/browser) for browser-focused examples:
-
-- **basic-usage.ts** - Simple browser polyfill setup
-- **opfs-filesystem.ts** - Persistent filesystem with OPFS
-- **dns-over-https.ts** - DNS resolution via DoH
-- **service-worker-http.ts** - HTTP server with Service Worker
+---
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Build
-npm run build
-
-# Run tests
-npm test
-
-# Run E2E browser tests
-npm run test:e2e
-
-# Type check
-npm run typecheck
+npm run build         # tsup
+npm test              # vitest
+npm run test:e2e      # playwright
+npm run typecheck     # tsc --noEmit
+npm run lint
 ```
+
+---
 
 ## Browser Compatibility
 
-- Chrome/Edge 89+
+- Chrome / Edge 89+
 - Firefox 89+
 - Safari 15+
 
-Some features require additional browser APIs:
-- OPFS filesystem: Chrome 86+, Firefox 111+, Safari 15.2+
-- Service Worker HTTP: All modern browsers
-- Web Workers (threads): All modern browsers
+Feature-specific requirements:
+
+- **OPFS filesystem** — Chrome 86+, Firefox 111+, Safari 15.2+
+- **Service Worker HTTP** — all modern browsers
+- **Web Workers (threads)** — all modern browsers
+- **JSPI async imports** — Chrome 137+, Node 22+
+- **WebGPU** — Chrome 113+, Firefox Nightly, Safari 18+
+
+---
 
 ## License
 
