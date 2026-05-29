@@ -62,11 +62,32 @@ class ExitInstance implements PluginInstance {
   getImports(): Record<string, unknown> {
     return {
       exit: this.exit.bind(this),
+      'exit-with-code': this.exitWithCode.bind(this),
     }
   }
 
   destroy(): void {
     // No resources to clean up
+  }
+
+  /**
+   * Handle wasi:cli/exit#exit-with-code (added in WASI 0.2.1).
+   *
+   * Same shape as `exit` but takes an explicit u8 status code. Non-zero
+   * is treated as an error exit.
+   */
+  private exitWithCode(code: number): void {
+    const exitStatus: ExitStatus = {
+      ok: code === 0,
+      code,
+    }
+    this.exitStatus = exitStatus
+    if (this.onExit) {
+      this.onExit(exitStatus)
+    }
+    if (this.throwOnExit) {
+      throw new ComponentExitError(exitStatus)
+    }
   }
 
   /**

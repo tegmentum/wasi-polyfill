@@ -64,6 +64,8 @@ class PollInstance implements PluginInstance {
   getImports(): Record<string, unknown> {
     return {
       poll: this.poll.bind(this),
+      '[method]pollable.ready': this.pollableReady.bind(this),
+      '[method]pollable.block': this.pollableBlock.bind(this),
       '[resource-drop]pollable': this.dropPollable.bind(this),
     }
   }
@@ -80,6 +82,20 @@ class PollInstance implements PluginInstance {
    */
   private async poll(handles: number[]): Promise<number[]> {
     return this.registry.poll(handles, true)
+  }
+
+  /**
+   * Check whether a pollable is ready (non-blocking).
+   */
+  private pollableReady(handle: number): boolean {
+    return this.registry.ready(handle)
+  }
+
+  /**
+   * Block until a pollable is ready.
+   */
+  private pollableBlock(handle: number): Promise<void> {
+    return this.registry.block(handle)
   }
 
   /**
