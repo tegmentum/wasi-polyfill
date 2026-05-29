@@ -17,8 +17,36 @@ export default defineConfig({
     // WASI Preview 3
     'wasip3/index': 'src/wasip3/index.ts',
 
+    // Shared utilities (declared as ./shared export)
+    'shared/index': 'src/shared/index.ts',
+
     // Browser interfaces
     'browser/index': 'src/browser/index.ts',
+    // Individual browser modules (declared as ./browser/* exports)
+    'browser/types': 'src/browser/types.ts',
+    'browser/console': 'src/browser/console.ts',
+    'browser/runtime': 'src/browser/runtime.ts',
+    'browser/fetch': 'src/browser/fetch.ts',
+    'browser/storage': 'src/browser/storage.ts',
+    'browser/performance': 'src/browser/performance.ts',
+    'browser/dom': 'src/browser/dom.ts',
+    'browser/events': 'src/browser/events.ts',
+    'browser/canvas': 'src/browser/canvas.ts',
+    'browser/clipboard': 'src/browser/clipboard.ts',
+    'browser/geolocation': 'src/browser/geolocation.ts',
+    'browser/notifications': 'src/browser/notifications.ts',
+    'browser/media': 'src/browser/media.ts',
+    'browser/service-worker': 'src/browser/service-worker.ts',
+    'browser/worker': 'src/browser/worker.ts',
+    'browser/websocket': 'src/browser/websocket.ts',
+    'browser/broadcast-channel': 'src/browser/broadcast-channel.ts',
+    'browser/animation': 'src/browser/animation.ts',
+    'browser/history': 'src/browser/history.ts',
+    'browser/screen': 'src/browser/screen.ts',
+    'browser/fullscreen': 'src/browser/fullscreen.ts',
+    'browser/vibration': 'src/browser/vibration.ts',
+    'browser/gc-enhanced': 'src/browser/gc-enhanced.ts',
+
     'wasip2/plugins/clocks/index': 'src/wasip2/plugins/clocks/index.ts',
     'wasip2/plugins/io/index': 'src/wasip2/plugins/io/index.ts',
     'wasip2/plugins/cli/index': 'src/wasip2/plugins/cli/index.ts',
