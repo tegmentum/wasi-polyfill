@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Multi-version WASI polyfill for browser and JavaScript environments",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tegmentum/wasi-polyfill.git"
+  },
+  "homepage": "https://github.com/tegmentum/wasi-polyfill#readme",
+  "bugs": {
+    "url": "https://github.com/tegmentum/wasi-polyfill/issues"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -330,7 +338,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
@@ -358,7 +367,7 @@
     "wasip2",
     "wasip3"
   ],
-  "author": "",
+  "author": "Tegmentum",
   "license": "MIT",
   "devDependencies": {
     "@bytecodealliance/jco": "^1.8.0",
