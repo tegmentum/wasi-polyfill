@@ -1,0 +1,32 @@
+From: Zachary Whitley <zachary.whitley@tegmentum.ai>
+Subject: [PATCH] fix(p2-shim): coerce browser file read bounds to numbers
+
+Mirror of bytecodealliance/jco#1574. Apply locally against the
+@bytecodealliance/preview2-shim 0.18.0 browser implementation until
+the upstream fix ships in a published release.
+
+When applied via patch(1), use -p5 with a directory holding the
+browser shim copy:
+    patch -p5 -d <shim-dir> < 1574-coerce-browser-file-read-bounds-to-numbers.patch
+
+See wasi-polyfill/docs/upstream-patches.md for the carrying-record.
+
+---
+ packages/preview2-shim/lib/browser/filesystem.js | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/packages/preview2-shim/lib/browser/filesystem.js b/packages/preview2-shim/lib/browser/filesystem.js
+index 6c585ac1..6bf81913 100644
+--- a/packages/preview2-shim/lib/browser/filesystem.js
++++ b/packages/preview2-shim/lib/browser/filesystem.js
+@@ -188,7 +188,9 @@ class Descriptor {
+
+   read(length, offset) {
+     const source = getSource(this.#entry);
+-    return [source.slice(offset, offset + length), offset + length >= source.byteLength];
++    const off = typeof offset === "bigint" ? Number(offset) : offset;
++    const len = typeof length === "bigint" ? Number(length) : length;
++    return [source.slice(off, off + len), off + len >= source.byteLength];
+   }
+
+   write(buffer, offset) {
