@@ -49,16 +49,18 @@ export interface ParsedComponentInfo {
 const COMPONENT_MAGIC = new Uint8Array([0x00, 0x61, 0x73, 0x6d]) // \0asm
 const COMPONENT_VERSION = new Uint8Array([0x0d, 0x00, 0x01, 0x00]) // version 13 (component)
 
-// Section IDs for components
-const SECTION_IMPORT = 2
+// Section IDs for components (Component Model binary spec).
+// 1=core:module, 2=core:instance, 3=core:type, 4=component, 5=instance,
+// 6=alias, 7=type, 8=canon, 9=start, 10=import, 11=export.
+const SECTION_IMPORT = 0x0a
 
-// Import kinds in component model
-const IMPORT_KIND_MODULE = 0x00
-const IMPORT_KIND_FUNC = 0x01
-const IMPORT_KIND_VALUE = 0x02
-const IMPORT_KIND_TYPE = 0x03
-const IMPORT_KIND_COMPONENT = 0x04
-const IMPORT_KIND_INSTANCE = 0x05
+// Extern-desc kinds inside a component import.
+const EXTERN_KIND_CORE_MODULE = 0x00
+const EXTERN_KIND_FUNC = 0x01
+const EXTERN_KIND_VALUE = 0x02
+const EXTERN_KIND_TYPE = 0x03
+const EXTERN_KIND_COMPONENT = 0x04
+const EXTERN_KIND_INSTANCE = 0x05
 
 /**
  * Simple binary reader with LEB128 support
@@ -193,13 +195,16 @@ export function parseComponentImports(
       const importCount = reader.readLeb128U32()
 
       for (let i = 0; i < importCount; i++) {
+        // import-name = discriminator byte (0x00 = plain, 0x01 = interface)
+        // followed by a length-prefixed UTF-8 string. Both forms share the
+        // same on-wire payload; the byte is the semantic tag only.
+        reader.readByte() // discriminator
         const importName = reader.readString()
+
         const externKind = reader.readByte()
+        skipComponentExternDesc(reader, externKind)
 
-        // Skip the extern description (we just need the name)
-        skipExternDesc(reader, externKind)
-
-        const kind = importKindFromByte(externKind)
+        const kind = componentExternKindFromByte(externKind)
         const wasiInterface = tryParseWasiInterface(importName)
 
         imports.push({
@@ -260,61 +265,60 @@ function tryParseWasiInterface(name: string): WasiInterface | null {
 }
 
 /**
- * Convert import kind byte to enum
+ * Convert component extern-desc kind byte to enum.
  */
-function importKindFromByte(byte: number): ImportKind {
+function componentExternKindFromByte(byte: number): ImportKind {
   switch (byte) {
-    case IMPORT_KIND_MODULE:
+    case EXTERN_KIND_CORE_MODULE:
       return 'module'
-    case IMPORT_KIND_FUNC:
+    case EXTERN_KIND_FUNC:
       return 'func'
-    case IMPORT_KIND_VALUE:
+    case EXTERN_KIND_VALUE:
       return 'value'
-    case IMPORT_KIND_TYPE:
+    case EXTERN_KIND_TYPE:
       return 'type'
-    case IMPORT_KIND_COMPONENT:
+    case EXTERN_KIND_COMPONENT:
       return 'component'
-    case IMPORT_KIND_INSTANCE:
+    case EXTERN_KIND_INSTANCE:
       return 'instance'
     default:
-      return 'instance' // Default assumption
+      return 'instance'
   }
 }
 
 /**
- * Skip extern description based on kind
- * This is a simplified skip - full parsing would require more context
+ * Skip a component import's extern-desc body. Per the Component Model
+ * binary spec, an import's extern-desc is:
+ *   0x00 0x11 typeidx        core-module
+ *   0x01 typeidx             func
+ *   0x02 valuebound          value
+ *   0x03 typebound           type
+ *   0x04 typeidx             component
+ *   0x05 typeidx             instance
+ * For WASI imports we only need to advance past the body to reach the
+ * next import; we don't decode the type itself.
  */
-function skipExternDesc(reader: BinaryReader, kind: number): void {
+function skipComponentExternDesc(reader: BinaryReader, kind: number): void {
   switch (kind) {
-    case IMPORT_KIND_MODULE:
-    case IMPORT_KIND_COMPONENT:
-      // These have a type index (LEB128)
+    case EXTERN_KIND_CORE_MODULE:
+      // 0x00 0x11 typeidx — the kind byte (0x00) is already consumed;
+      // skip the 0x11 sub-tag, then the typeidx.
+      reader.readByte()
       reader.readLeb128U32()
       break
-
-    case IMPORT_KIND_INSTANCE:
-      // Instance has an inline instance type
-      skipInstanceType(reader)
-      break
-
-    case IMPORT_KIND_FUNC:
-      // Function has a type index
+    case EXTERN_KIND_FUNC:
+    case EXTERN_KIND_COMPONENT:
+    case EXTERN_KIND_INSTANCE:
       reader.readLeb128U32()
       break
-
-    case IMPORT_KIND_VALUE:
-      // Value has a value type
+    case EXTERN_KIND_VALUE:
       skipValueType(reader)
       break
-
-    case IMPORT_KIND_TYPE:
-      // Type has a type bounds
+    case EXTERN_KIND_TYPE:
       skipTypeBounds(reader)
       break
-
     default:
-      // Unknown, try to skip as LEB128
+      // Unknown future kind: try to advance by one LEB128 to recover.
       reader.readLeb128U32()
   }
 }

@@ -99,5 +99,41 @@ describe('Component Parser', () => {
         ).size
       )
     })
+
+    it('should parse an instance import from a synthetic component (section 10)', () => {
+      // Smallest viable component with one WASI instance import:
+      //   import wasi:cli/exit@0.2.6 : (instance type 0)
+      // Section layout (Component Model binary spec):
+      //   section id 0x0a (import), body:
+      //     import-count   = 1
+      //     import-name    = 0x00 (plain) length:19 utf-8:"wasi:cli/exit@0.2.6"
+      //     extern-desc    = 0x05 (instance) typeidx:0
+      const name = 'wasi:cli/exit@0.2.6'
+      const nameBytes = new TextEncoder().encode(name)
+      const body = new Uint8Array([
+        0x01, // import-count
+        0x00, // import-name discriminator (plain)
+        nameBytes.length, // LEB128 length (< 128)
+        ...nameBytes,
+        0x05, // extern-desc kind = instance
+        0x00, // typeidx = 0
+      ])
+      const component = new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d, // magic
+        0x0d, 0x00, 0x01, 0x00, // version 13 (component)
+        0x0a, body.length, // section id 10 (import) + LEB128 size
+        ...body,
+      ])
+      const result = parseComponentImports(component)
+      expect(result.isComponent).toBe(true)
+      expect(result.imports.length).toBe(1)
+      expect(result.imports[0]!.name).toBe(name)
+      expect(result.imports[0]!.kind).toBe('instance')
+      expect(result.wasiImports.length).toBe(1)
+      expect(result.requiredInterfaces.length).toBe(1)
+      expect(result.requiredInterfaces[0]!.package).toBe('wasi:cli')
+      expect(result.requiredInterfaces[0]!.name).toBe('exit')
+      expect(result.requiredInterfaces[0]!.version).toBe('0.2.6')
+    })
   })
 })
