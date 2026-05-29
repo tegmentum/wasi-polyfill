@@ -10,10 +10,12 @@ It provides four subsystems:
 
 | Subsystem | Purpose | Entry point |
 |-----------|---------|-------------|
-| **wasip2** | Capability-based plugin framework for WASI Preview 2 components (default export) | `@tegmentum/wasi-polyfill` |
 | **wasip1** | Standalone WASI Preview 1 implementation for core modules | `@tegmentum/wasi-polyfill/wasip1` |
+| **wasip2** | Capability-based plugin framework for WASI Preview 2 components | `@tegmentum/wasi-polyfill/wasip2` |
 | **wasip3** | Async-native primitives (streams, futures, tasks) targeting WASI Preview 3 | `@tegmentum/wasi-polyfill/wasip3` |
 | **browser** | Host imports that expose Web Platform APIs (DOM, canvas, fetch, WebGPU, …) to guests | `@tegmentum/wasi-polyfill/browser` |
+
+> The bare `@tegmentum/wasi-polyfill` import still re-exports `wasip2` as a back-compat alias, but it is **deprecated** — prefer the explicit `/wasip2` subpath. The unprefixed `./plugins/*`, `./runtime`, `./build`, `./testing`, and `./proxy` subpaths are likewise aliases for their `/wasip2/...` equivalents.
 
 **Key features**
 
@@ -44,9 +46,9 @@ npm install onnxruntime-web         # ONNX backend for wasi:nn
 ## Quick Start (WASI Preview 2)
 
 ```typescript
-import { createPolyfill, createCliPolicy } from '@tegmentum/wasi-polyfill'
-import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
-import { monotonicClockPlugin } from '@tegmentum/wasi-polyfill/plugins/clocks'
+import { createPolyfill, createCliPolicy } from '@tegmentum/wasi-polyfill/wasip2'
+import { randomPlugin } from '@tegmentum/wasi-polyfill/wasip2/plugins/random'
+import { monotonicClockPlugin } from '@tegmentum/wasi-polyfill/wasip2/plugins/clocks'
 
 const polyfill = createPolyfill({
   policy: createCliPolicy({
@@ -89,7 +91,7 @@ Each plugin satisfies one or more `wasi:*` interface versions. Register the plug
 | `wasi:io/poll` | `pollPlugin` | Polling for I/O readiness |
 | `wasi:io/error` | `errorPlugin` | Stream error resource |
 
-Import path: `@tegmentum/wasi-polyfill/plugins/{random,clocks,io}`
+Import path: `@tegmentum/wasi-polyfill/wasip2/plugins/{random,clocks,io}`
 
 ### CLI
 
@@ -99,7 +101,7 @@ Import path: `@tegmentum/wasi-polyfill/plugins/{random,clocks,io}`
 | `wasi:cli/stdin` / `stdout` / `stderr` | (via `environmentPlugin`) | Standard streams |
 | `wasi:cli/exit` | (via `environmentPlugin`) | Process exit |
 
-Import path: `@tegmentum/wasi-polyfill/plugins/cli`
+Import path: `@tegmentum/wasi-polyfill/wasip2/plugins/cli`
 
 ### Filesystem
 
@@ -109,7 +111,7 @@ Import path: `@tegmentum/wasi-polyfill/plugins/cli`
 | `wasi:filesystem/preopens` | `filesystemPreopensPlugin` | Pre-opened directory handles |
 
 Backends: in-memory (default), OPFS (browser persistent), IndexedDB, overlay.
-Import path: `@tegmentum/wasi-polyfill/plugins/filesystem`
+Import path: `@tegmentum/wasi-polyfill/wasip2/plugins/filesystem`
 
 ### Networking
 
@@ -124,7 +126,7 @@ Import path: `@tegmentum/wasi-polyfill/plugins/filesystem`
 | `wasi:http/incoming-handler` | `httpIncomingHandlerPlugin` | HTTP server (Service Worker) |
 
 For real sockets from a browser, see [WebSocket Gateway](#websocket-gateway).
-Import paths: `@tegmentum/wasi-polyfill/plugins/{sockets,http,ws-gateway}`
+Import paths: `@tegmentum/wasi-polyfill/wasip2/plugins/{sockets,http,ws-gateway}`
 
 ### Storage
 
@@ -136,7 +138,7 @@ Import paths: `@tegmentum/wasi-polyfill/plugins/{sockets,http,ws-gateway}`
 | `wasi:blobstore/blobstore` | `blobstorePlugin` | Object/blob storage root |
 | `wasi:blobstore/container` | `blobstoreContainerPlugin` | Blob container management |
 
-Import paths: `@tegmentum/wasi-polyfill/plugins/{keyvalue,blobstore}`
+Import paths: `@tegmentum/wasi-polyfill/wasip2/plugins/{keyvalue,blobstore}`
 
 ### Configuration & Logging
 
@@ -146,7 +148,7 @@ Import paths: `@tegmentum/wasi-polyfill/plugins/{keyvalue,blobstore}`
 | `wasi:config/runtime` | `configRuntimePlugin` | Runtime / remote configuration |
 | `wasi:logging/logging` | `loggingPlugin` | Structured logging (console, buffer, NDJSON, OTLP) |
 
-Import paths: `@tegmentum/wasi-polyfill/plugins/{config,logging}`
+Import paths: `@tegmentum/wasi-polyfill/wasip2/plugins/{config,logging}`
 
 ### Messaging & Compute
 
@@ -157,7 +159,7 @@ Import paths: `@tegmentum/wasi-polyfill/plugins/{config,logging}`
 | `wasi:sql/{types,connection,query,statement,transaction}` | `sqlTypesPlugin`, `sqlConnectionPlugin`, `sqlQueryPlugin`, `sqlStatementPlugin`, `sqlTransactionPlugin` | SQL access (in-memory engine or sql.js) |
 | `wasi:threads` | `threadsPlugin` | Web Worker-based threads |
 
-Import paths: `@tegmentum/wasi-polyfill/plugins/{messaging,nn,sql,threads}`
+Import paths: `@tegmentum/wasi-polyfill/wasip2/plugins/{messaging,nn,sql,threads}`
 
 ### Graphics (wasi-gfx)
 
@@ -169,7 +171,7 @@ Import paths: `@tegmentum/wasi-polyfill/plugins/{messaging,nn,sql,threads}`
 | `wasi:webgpu` | `webgpuPlugin` | WebGPU compute and rendering |
 
 Convenience bundle: `wasiGfxPlugins` registers all four.
-Import paths: `@tegmentum/wasi-polyfill/plugins/{frame-buffer,graphics-context,surface,webgpu,wasi-gfx}`
+Import paths: `@tegmentum/wasi-polyfill/wasip2/plugins/{frame-buffer,graphics-context,surface,webgpu,wasi-gfx}`
 
 ---
 
@@ -186,13 +188,13 @@ import {
   AllowAllPolicy,      // development only — allows everything
   DenyAllPolicy,       // denies all interfaces
   mergePolicies,
-} from '@tegmentum/wasi-polyfill'
+} from '@tegmentum/wasi-polyfill/wasip2'
 ```
 
 ### Custom policy
 
 ```typescript
-import { createPolicy } from '@tegmentum/wasi-polyfill'
+import { createPolicy } from '@tegmentum/wasi-polyfill/wasip2'
 
 const policy = createPolicy({
   defaultAllow: false,
@@ -220,7 +222,7 @@ npm install @bytecodealliance/jco
 ```
 
 ```typescript
-import { createRuntimeBindgen, registerCorePlugins } from '@tegmentum/wasi-polyfill'
+import { createRuntimeBindgen, registerCorePlugins } from '@tegmentum/wasi-polyfill/wasip2'
 
 await registerCorePlugins()
 
@@ -257,8 +259,8 @@ Requires `WebAssembly.Suspending` / `promising` (Chrome 137+, Node 22+).
 A lighter API when you don't need full bindgen control:
 
 ```typescript
-import { createComponentLoader } from '@tegmentum/wasi-polyfill/runtime'
-import { randomPlugin } from '@tegmentum/wasi-polyfill/plugins/random'
+import { createComponentLoader } from '@tegmentum/wasi-polyfill/wasip2/runtime'
+import { randomPlugin } from '@tegmentum/wasi-polyfill/wasip2/plugins/random'
 
 const loader = createComponentLoader({ devMode: true })
 loader.getPolyfill().registerPlugin(randomPlugin)
@@ -402,7 +404,7 @@ import {
   wsGatewayTcpPlugin,
   wsGatewayUdpPlugin,
   wsGatewayDnsPlugin,
-} from '@tegmentum/wasi-polyfill/plugins/ws-gateway'
+} from '@tegmentum/wasi-polyfill/wasip2/plugins/ws-gateway'
 
 polyfill.registerPlugin(wsGatewayTcpPlugin, {
   gatewayUrl: 'wss://gateway.example.com/tunnel',
@@ -420,7 +422,7 @@ polyfill.registerPlugin(wsGatewayDnsPlugin, { /* same gateway */ })
 
 ```typescript
 // vite.config.ts
-import { wasiPolyfillPlugin } from '@tegmentum/wasi-polyfill/build'
+import { wasiPolyfillPlugin } from '@tegmentum/wasi-polyfill/wasip2/build'
 
 export default {
   plugins: [
@@ -432,7 +434,7 @@ export default {
 ### Component introspection
 
 ```typescript
-import { introspect, generateManifest } from '@tegmentum/wasi-polyfill/build'
+import { introspect, generateManifest } from '@tegmentum/wasi-polyfill/wasip2/build'
 
 const result = await introspect(wasmBytes)
 result.imports         // required WASI interfaces
@@ -449,7 +451,7 @@ const manifest = await generateManifest(wasmBytes)
 import {
   createTestHarness,
   withTestHarness,
-} from '@tegmentum/wasi-polyfill/testing'
+} from '@tegmentum/wasi-polyfill/wasip2/testing'
 
 const harness = createTestHarness({
   seed: 42n,

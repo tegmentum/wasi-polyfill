@@ -3,28 +3,20 @@
  *
  * Multi-version WASI polyfill for browser and JavaScript environments.
  *
- * Supports:
- * - WASI Preview 1 (wasip1) - Legacy compatibility
- * - WASI Preview 2 (wasip2) - Current stable (default)
- * - WASI Preview 3 (wasip3) - Future (placeholder)
- *
- * The default export provides WASI Preview 2 (wasip2) for backwards compatibility.
- * For explicit version selection, use the version-specific imports:
+ * Each preview lives at its own subpath:
  *
  * @example
  * ```typescript
- * // Default (wasip2)
- * import { Polyfill } from '@tegmentum/wasi-polyfill'
- *
- * // Explicit wasip2
- * import { Polyfill } from '@tegmentum/wasi-polyfill/wasip2'
- *
- * // Legacy wasip1
- * import { Wasip1 } from '@tegmentum/wasi-polyfill/wasip1'
+ * import { Polyfill }   from '@tegmentum/wasi-polyfill/wasip2'
+ * import { createWasip1 } from '@tegmentum/wasi-polyfill/wasip1'
+ * import { createWasip3 } from '@tegmentum/wasi-polyfill/wasip3'
  * ```
+ *
+ * @deprecated The root entry point re-exports wasip2 as a back-compat alias.
+ * Import from `@tegmentum/wasi-polyfill/wasip2` instead. The root re-export
+ * will be removed in a future major version.
  *
  * @packageDocumentation
  */
 
-// Default export is wasip2 for backwards compatibility
 export * from './wasip2/index.js'
