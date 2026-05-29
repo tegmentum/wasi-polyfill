@@ -30,8 +30,8 @@ patch is dropped on the next maintenance pass.
 - **Scope:** JCO preview2 / browser shim only (`packages/preview2-shim/lib/browser/filesystem.js Descriptor.read`)
 - **Removal condition:** first `@bytecodealliance/preview2-shim` release containing #1574 or an equivalent upstream fix (detected at apply-time by `grep -q 'typeof offset === "bigint"'` against the browser `filesystem.js`)
 - **Fiji substrate impact:** **none**
-- **Applied by:** `scripts/portability/setup_beta13_browser.sh` (idempotent; skips if the upstream version already contains the fix)
 - **Carrying record opened:** 2026-05-29
+- **Status:** carrying-record only for any downstream consumer still using `@bytecodealliance/preview2-shim` directly in the browser. Fiji's β-1.3.r1 browser path (2026-05-29) consumes wasi-polyfill plugins at instantiate time and does **not** load preview2-shim in the browser at all, so it does not need to apply this patch. The patch file remains here for consumers who do.
 
 ## How to retire a patch
 
