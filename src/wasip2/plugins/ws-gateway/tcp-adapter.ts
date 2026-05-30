@@ -532,9 +532,22 @@ class TunneledTcpInstance implements PluginInstance {
     return { tag: 'err', val: NetworkErrorCode.NotSupported }
   }
 
-  private localAddress(_handle: number): unknown | { tag: 'err'; val: NetworkErrorCode } {
-    // We don't know our local address through the tunnel
-    return { tag: 'err', val: NetworkErrorCode.InvalidState }
+  private localAddress(handle: number): unknown | { tag: 'err'; val: NetworkErrorCode } {
+    // The gateway knows the true local addr of its outbound socket, but
+    // the polyfill side doesn't get that back over the wire (we'd need
+    // an OPEN_OK payload extension). Return a synthetic loopback address
+    // matching the socket's family so wasi-libc's getsockname maps to
+    // a valid struct sockaddr -- returning err here trips
+    // __wasilibc_map_socket_error -> unreachable for InvalidState.
+    const socket = this.socketRegistry.get(handle)
+    if (!socket) return { tag: 'err', val: NetworkErrorCode.InvalidArgument }
+    if (socket.family === 'ipv4') {
+      return { tag: 'ipv4', val: { port: 0, address: [127, 0, 0, 1] as [number, number, number, number] } }
+    }
+    return {
+      tag: 'ipv6',
+      val: { port: 0, flowInfo: 0, scopeId: 0, address: [0, 0, 0, 0, 0, 0, 0, 1] as [number, number, number, number, number, number, number, number] },
+    }
   }
 
   private remoteAddress(handle: number): unknown | { tag: 'err'; val: NetworkErrorCode } {
