@@ -688,10 +688,14 @@ class TunneledTcpCreateSocketInstance implements PluginInstance {
   }
 
   private createTcpSocket(
-    _networkHandle: number,
     addressFamily: string
   ): number | { tag: 'err'; val: NetworkErrorCode } {
-    // Validate address family
+    // Note: the WIT signature is
+    //   create-tcp-socket: func(address-family: ip-address-family) -> result<tcp-socket, error-code>
+    // (single arg, no network handle) -- jco passes just the family. An
+    // earlier implementation took `(_networkHandle, addressFamily)` which
+    // shifted the family into the first slot and left the real family
+    // undefined, breaking every tunneled-TCP path.
     if (addressFamily !== 'ipv4' && addressFamily !== 'ipv6') {
       return { tag: 'err', val: NetworkErrorCode.InvalidArgument }
     }
