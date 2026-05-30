@@ -327,10 +327,17 @@ export class AsyncByteQueue extends ByteQueue {
     }
 
     return new Promise((resolve) => {
+      // length: 0 marks this as a *readiness* waiter rather than a
+      // consuming read. notifyWaiters previously did `read(waiter.length)`
+      // unconditionally, and a length of 1 meant "consume 1 byte" --
+      // which silently ate the leading byte of every push because
+      // subscribe()-style callers (TunneledInputStream.subscribe) hand
+      // the read data to a `.then(() => undefined)` and discard it.
+      // read(0) is a no-op, so the queue stays intact.
       const waiter = {
         resolve: () => resolve(true),
         reject: () => resolve(false),
-        length: 1,
+        length: 0,
       }
       this.waiters.push(waiter)
     })
