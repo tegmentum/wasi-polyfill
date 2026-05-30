@@ -14,15 +14,31 @@ import type {
   PluginInstance,
 } from '../../core/types.js'
 import { createPlugin } from '../plugin-base.js'
-// Gate the empty-read microtask yield behind an opt-in env var. Off by
+// Gate the empty-read macrotask yield behind an opt-in flag. Off by
 // default so sync-mode trampolines (which reject Promise returns) keep
 // working. Callers that transpiled with JSPI + --async-imports for
-// input-stream.read set WASI_POLYFILL_ASYNC_READ_YIELD=1 to enable
-// (the gateway-smoke harness does this).
+// input-stream.read enable it one of two ways:
+//   * Node:    WASI_POLYFILL_ASYNC_READ_YIELD=1 in the environment
+//   * Browser: setAsyncReadYield(true) before initializing the polyfill
+// Both gate the same code path.
+let _asyncReadYieldOverride: boolean | undefined
+export function setAsyncReadYield(enabled: boolean): void {
+  _asyncReadYieldOverride = enabled
+}
 function shouldYieldOnEmptyRead(): boolean {
+  if (_asyncReadYieldOverride !== undefined) return _asyncReadYieldOverride
   if (typeof process === 'undefined') return false
   return process.env?.['WASI_POLYFILL_ASYNC_READ_YIELD'] === '1'
 }
+
+// setImmediate is node-only. In the browser, queueMicrotask runs before
+// any I/O (won't let a WebSocket onmessage fire), so we need a real
+// macrotask: setTimeout(0). Use whichever's available; both yield to the
+// host event loop long enough for pending WS frames to be delivered.
+const yieldToEventLoop: (cb: () => void) => void =
+  typeof setImmediate === 'function'
+    ? (cb) => { setImmediate(cb) }
+    : (cb) => { setTimeout(cb, 0) }
 
 import {
   PollableRegistry,
@@ -179,12 +195,12 @@ class StreamsInstance implements PluginInstance {
       // polyfill sees via env (WASI_POLYFILL_ASYNC_READ_YIELD=1).
       if (result.length === 0 && shouldYieldOnEmptyRead()) {
         return new Promise<Uint8Array>((resolve, reject) =>
-          setImmediate(() => {
+          yieldToEventLoop(() => {
             const fresh = stream.read(len)
             if (fresh instanceof Uint8Array) return resolve(fresh)
             // Reject (not throw) so jco's await chain converts this to
             // a result::err on the wasm side. A throw inside the
-            // setImmediate callback is uncaught and crashes node.
+            // yieldToEventLoop callback is uncaught and crashes node.
             if (fresh.tag === 'closed') return reject({ tag: 'closed' })
             return reject(fresh.val)
           })

@@ -19,6 +19,7 @@ export {
   POLL_INTERFACE,
   STREAMS_INTERFACE,
   ERROR_INTERFACE,
+  setAsyncReadYield,
 } from './plugin.js'
 
 // Pollable
