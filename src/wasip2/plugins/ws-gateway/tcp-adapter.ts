@@ -67,6 +67,21 @@ export interface TunneledTcpSocket {
   outputStreamHandle?: number
   /** Last error */
   lastError?: NetworkErrorCode
+  /**
+   * Background work the call to `start-connect` kicked off. Resolves
+   * once the WebSocket tunnel is open AND the TCP stream open has
+   * been ack'd by the gateway. `connectResult` is populated when this
+   * promise resolves.
+   */
+  connectPromise?: Promise<void>
+  /**
+   * Cached result of the connect attempt. Read by `finish-connect`.
+   * Either an [inputStreamHandle, outputStreamHandle] tuple on success
+   * or a NetworkErrorCode on failure.
+   */
+  connectResult?:
+    | { tag: 'ok'; val: [number, number] }
+    | { tag: 'err'; val: NetworkErrorCode }
 }
 
 /**
@@ -431,64 +446,73 @@ class TunneledTcpInstance implements PluginInstance {
     socket.remotePort = addr.val.port
     socket.state = TcpSocketState.Connecting
 
+    // Per the canonical-ABI contract, `start-connect` returns
+    // immediately and the actual blocking happens when the caller
+    // pollable.block()s the subscribe() pollable. We kick the async
+    // work off here and stash a Promise the subscribe pollable can
+    // await; finish-connect just consults `connectResult`.
+    socket.connectPromise = (async () => {
+      try {
+        const tunnel = await this.getTunnel()
+        if (!tunnel) {
+          socket.connectResult = { tag: 'err', val: NetworkErrorCode.ConnectionRefused }
+          socket.state = TcpSocketState.Closed
+          return
+        }
+        socket.tunnel = tunnel
+        const streamId = await tunnel.openTcpStream(socket.remoteHost!, socket.remotePort!)
+        if (streamId === null) {
+          const streamInfo = socket.streamInfo
+          const code = (streamInfo?.wasiError as NetworkErrorCode | undefined) ?? NetworkErrorCode.ConnectionRefused
+          socket.connectResult = { tag: 'err', val: code }
+          socket.state = TcpSocketState.Closed
+          return
+        }
+        socket.streamId = streamId
+        const streamInfo = tunnel.getStream(streamId)
+        if (streamInfo !== undefined) socket.streamInfo = streamInfo
+
+        const inputStream = new TunneledInputStream(socket)
+        const outputStream = new TunneledOutputStream(socket)
+        socket.inputStreamHandle = globalStreamRegistry.register(inputStream)
+        socket.outputStreamHandle = globalStreamRegistry.register(outputStream)
+        socket.state = TcpSocketState.Connected
+        socket.connectResult = {
+          tag: 'ok',
+          val: [socket.inputStreamHandle, socket.outputStreamHandle],
+        }
+      } catch {
+        socket.connectResult = { tag: 'err', val: NetworkErrorCode.ConnectionRefused }
+        socket.state = TcpSocketState.Closed
+      }
+    })()
+
     return undefined
   }
 
-  private async finishConnect(
+  /**
+   * Synchronous result collector. The wasi-sockets contract says
+   * `finish-connect` is called AFTER the subscribe pollable signals
+   * ready, so by then `connectPromise` has resolved and
+   * `connectResult` is populated. If it isn't (caller didn't block),
+   * surface `would-block`.
+   */
+  private finishConnect(
     handle: number
-  ): Promise<
+  ):
     | [number, number]
-    | { tag: 'err'; val: NetworkErrorCode }
-  > {
+    | { tag: 'err'; val: NetworkErrorCode } {
     const socket = this.socketRegistry.get(handle)
     if (!socket) {
       return { tag: 'err', val: NetworkErrorCode.InvalidArgument }
     }
-
-    if (socket.state !== TcpSocketState.Connecting) {
-      return { tag: 'err', val: NetworkErrorCode.InvalidState }
+    if (!socket.connectResult) {
+      return { tag: 'err', val: NetworkErrorCode.WouldBlock }
     }
-
-    if (!socket.remoteHost || !socket.remotePort) {
-      return { tag: 'err', val: NetworkErrorCode.InvalidArgument }
+    if (socket.connectResult.tag === 'err') {
+      return { tag: 'err', val: socket.connectResult.val }
     }
-
-    const tunnel = await this.getTunnel()
-    if (!tunnel) {
-      socket.state = TcpSocketState.Closed
-      return { tag: 'err', val: NetworkErrorCode.ConnectionRefused }
-    }
-
-    socket.tunnel = tunnel
-
-    const streamId = await tunnel.openTcpStream(socket.remoteHost, socket.remotePort)
-    if (streamId === null) {
-      socket.state = TcpSocketState.Closed
-      const streamInfo = socket.streamInfo
-      if (streamInfo?.wasiError) {
-        return {
-          tag: 'err',
-          val: streamInfo.wasiError as NetworkErrorCode,
-        }
-      }
-      return { tag: 'err', val: NetworkErrorCode.ConnectionRefused }
-    }
-
-    socket.streamId = streamId
-    const streamInfo = tunnel.getStream(streamId)
-    if (streamInfo !== undefined) {
-      socket.streamInfo = streamInfo
-    }
-    socket.state = TcpSocketState.Connected
-
-    // Create input/output streams
-    const inputStream = new TunneledInputStream(socket)
-    const outputStream = new TunneledOutputStream(socket)
-
-    socket.inputStreamHandle = globalStreamRegistry.register(inputStream)
-    socket.outputStreamHandle = globalStreamRegistry.register(outputStream)
-
-    return [socket.inputStreamHandle, socket.outputStreamHandle]
+    return socket.connectResult.val
   }
 
   private startListen(
@@ -633,7 +657,18 @@ class TunneledTcpInstance implements PluginInstance {
     return undefined // Ignored
   }
 
-  private subscribe(_handle: number): number {
+  private subscribe(handle: number): number {
+    const socket = this.socketRegistry.get(handle)
+    // For a connecting socket, wire the Pollable to the connect
+    // Promise — that's the suspending boundary the wasm caller's
+    // pollable.block() needs to wait on. For an already-connected
+    // socket (or no socket), return an immediately-ready pollable
+    // so the caller doesn't spin.
+    if (socket?.state === TcpSocketState.Connecting && socket.connectPromise) {
+      // Wrap so the registry-side Promise<void> ignores connectResult
+      // (which is populated as a side effect on socket).
+      return this.pollableRegistry.create(socket.connectPromise.then(() => undefined))
+    }
     return createReadyPollable(this.pollableRegistry)
   }
 

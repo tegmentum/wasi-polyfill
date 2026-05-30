@@ -397,6 +397,13 @@ type WrapDescriptor =
   | { kind: 'resource'; classRef: string }
   | { kind: 'option-resource'; classRef: string }
   | { kind: 'list-tuple-resource'; classRef: string; tupleIndex: number }
+  /**
+   * Tuple of two resources of (possibly different) types. Used by
+   * tcp-socket.finish-connect which returns `tuple<input-stream,
+   * output-stream>`. `classRef` is the first element's class; `classRef2`
+   * the second. Either may be undefined to skip wrapping that slot.
+   */
+  | { kind: 'tuple-2-resource'; classRef: string; classRef2: string }
 
 /**
  * Static map of WASI standard functions whose return values contain resource
@@ -453,10 +460,31 @@ const WASI_RETURN_WRAPS: Record<string, WrapDescriptor> = {
   // sockets  → various
   'wasi:sockets/ip-name-lookup:resolve-addresses':
     { kind: 'resource', classRef: 'wasi:sockets/ip-name-lookup:ResolveAddressStream' },
+  'wasi:sockets/ip-name-lookup:[method]resolve-address-stream.subscribe':
+    { kind: 'resource', classRef: 'wasi:io/poll:Pollable' },
   'wasi:sockets/tcp-create-socket:create-tcp-socket':
     { kind: 'resource', classRef: 'wasi:sockets/tcp:TcpSocket' },
+  'wasi:sockets/tcp:[method]tcp-socket.subscribe':
+    { kind: 'resource', classRef: 'wasi:io/poll:Pollable' },
+  'wasi:sockets/tcp:[method]tcp-socket.finish-connect':
+    {
+      kind: 'tuple-2-resource',
+      classRef:  'wasi:io/streams:InputStream',
+      classRef2: 'wasi:io/streams:OutputStream',
+    },
+  'wasi:sockets/tcp:[method]tcp-socket.accept':
+    {
+      // accept returns tuple<tcp-socket, input-stream, output-stream>; we
+      // only wrap the first two for now (jco's lift uses an array).
+      // TODO: extend WrapDescriptor to a 3-tuple when accept is exercised.
+      kind: 'tuple-2-resource',
+      classRef:  'wasi:sockets/tcp:TcpSocket',
+      classRef2: 'wasi:io/streams:InputStream',
+    },
   'wasi:sockets/udp-create-socket:create-udp-socket':
     { kind: 'resource', classRef: 'wasi:sockets/udp:UdpSocket' },
+  'wasi:sockets/udp:[method]udp-socket.subscribe':
+    { kind: 'resource', classRef: 'wasi:io/poll:Pollable' },
   'wasi:sockets/instance-network:instance-network':
     { kind: 'resource', classRef: 'wasi:sockets/network:Network' },
 }
@@ -467,6 +495,23 @@ const WASI_RETURN_WRAPS: Record<string, WrapDescriptor> = {
  */
 const ASYNC_ALLOWED: ReadonlySet<string> = new Set([
   'wasi:io/poll:poll',
+  // Pollable.block is the canonical suspending point. In JSPI mode jco
+  // marks the trampoline manuallyAsync and wraps it in
+  // WebAssembly.Suspending; in sync mode there's no way for the wasm
+  // guest to actually wait anyway, so allowing the Promise here only
+  // matters when the host enabled JSPI on the transpile.
+  'wasi:io/poll:[method]pollable.block',
+  // Stream blocking ops genuinely need to await when the backing impl
+  // is async (e.g. tunneled TCP through ws-gateway). Same JSPI story:
+  // jco marks `blockingRead` / `blockingWriteAndFlush` /
+  // `blockingFlush` as manuallyAsync in JSPI mode and wraps them in
+  // Suspending, which makes the Promise return valid.
+  'wasi:io/streams:[method]input-stream.blocking-read',
+  'wasi:io/streams:[method]input-stream.blocking-skip',
+  'wasi:io/streams:[method]output-stream.blocking-write-and-flush',
+  'wasi:io/streams:[method]output-stream.blocking-flush',
+  'wasi:io/streams:[method]output-stream.blocking-write-zeroes-and-flush',
+  'wasi:io/streams:[method]output-stream.blocking-splice',
 ])
 
 /**
@@ -545,6 +590,16 @@ function wrapReturn(
         wrapped[idx] = makeResourceInstance(TargetClass, tuple[idx])
         return wrapped
       })
+    }
+    case 'tuple-2-resource': {
+      if (!Array.isArray(value) || value.length !== 2) return value
+      const Class2 = registry.get(desc.classRef2)
+      // Either class may be unloaded; only wrap the slots whose target
+      // class is present (matches the resource case's pass-through).
+      return [
+        makeResourceInstance(TargetClass, value[0]),
+        Class2 ? makeResourceInstance(Class2, value[1]) : value[1],
+      ]
     }
   }
 }

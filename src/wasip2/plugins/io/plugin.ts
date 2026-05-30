@@ -166,18 +166,15 @@ class StreamsInstance implements PluginInstance {
     throw result.val
   }
 
-  private inputStreamBlockingRead(
+  private async inputStreamBlockingRead(
     handle: number,
     len: bigint
-  ): Uint8Array {
+  ): Promise<Uint8Array> {
     const stream = this.streamRegistry.getInput(handle)
     if (!stream) {
       throw new Error(`Invalid input stream handle: ${handle}`)
     }
-    const result = stream.blockingRead(len)
-    if (result instanceof Promise) {
-      throw new Error('Async blocking-read not supported in synchronous context')
-    }
+    const result = await stream.blockingRead(len)
     if (result instanceof Uint8Array) {
       return result
     }
@@ -252,18 +249,15 @@ class StreamsInstance implements PluginInstance {
     }
   }
 
-  private outputStreamBlockingWriteAndFlush(
+  private async outputStreamBlockingWriteAndFlush(
     handle: number,
     contents: Uint8Array
-  ): void {
+  ): Promise<void> {
     const stream = this.streamRegistry.getOutput(handle)
     if (!stream) {
       throw new Error(`Invalid output stream handle: ${handle}`)
     }
-    const result = stream.blockingWriteAndFlush(contents)
-    if (result instanceof Promise) {
-      throw new Error('Async blocking-write not supported in synchronous context')
-    }
+    const result = await stream.blockingWriteAndFlush(contents)
     if (result) {
       if (result.tag === 'closed') {
         throw { tag: 'closed' }
@@ -286,15 +280,17 @@ class StreamsInstance implements PluginInstance {
     }
   }
 
-  private outputStreamBlockingFlush(handle: number): void {
+  private async outputStreamBlockingFlush(handle: number): Promise<void> {
     const stream = this.streamRegistry.getOutput(handle)
     if (!stream) {
       throw new Error(`Invalid output stream handle: ${handle}`)
     }
-    const result = stream.blockingFlush()
-    if (result instanceof Promise) {
-      throw new Error('Async blocking-flush not supported in synchronous context')
-    }
+    // blockingFlush may return Promise (tunneled streams) or value
+    // (in-process streams). Await is safe in either case; the polyfill
+    // wraps this method via JSPI when async-mode is enabled, otherwise
+    // jcoCompat's guard surfaces the Promise as an error (sync-mode
+    // can't legally suspend).
+    const result = await stream.blockingFlush()
     if (result) {
       if (result.tag === 'closed') {
         throw { tag: 'closed' }
