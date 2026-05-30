@@ -129,7 +129,20 @@ class TunneledInputStream implements InputStream {
   }
 
   isClosed(): boolean {
-    return this.closed || this.socket.state === TcpSocketState.Closed
+    // Stream is closed if user called close(), the socket-side state
+    // moved to Closed, OR the per-tunnel stream's rxQueue has been
+    // closed (gateway sent Close / Data(eof)) AND drained. The
+    // last check is the important one for half-close cleanup -- the
+    // socket state may still be Connected when the inbound side is
+    // done, and without it Python's recv-with-timeout polls
+    // synchronously forever (starves the event loop, never sees the
+    // already-arrived Close frame -- circular).
+    if (this.closed) return true
+    if (this.socket.state === TcpSocketState.Closed) return true
+    const info = this.socket.streamInfo
+    if (info?.rxQueue.isClosed && info.rxQueue.isEmpty) return true
+    if (info?.eofReceived && info.rxQueue.isEmpty) return true
+    return false
   }
 
   close(): void {
@@ -150,7 +163,8 @@ class TunneledInputStream implements InputStream {
       return { tag: 'closed' }
     }
 
-    if (data.length === 0 && this.socket.streamInfo?.eofReceived) {
+    const info = this.socket.streamInfo
+    if (data.length === 0 && (info?.eofReceived || info?.rxQueue.isClosed)) {
       return { tag: 'closed' }
     }
 
@@ -173,7 +187,13 @@ class TunneledInputStream implements InputStream {
       return { tag: 'closed' }
     }
 
-    if (data.length === 0 && this.socket.streamInfo?.eofReceived) {
+    // Empty + closed queue = EOF. eofReceived is set by Data(eof);
+    // rxQueue.isClosed is set by handleClose2 from a Close frame. Either
+    // signals end-of-stream and we MUST return closed -- otherwise
+    // Python's recv loop interprets empty bytes as 'no data right now,
+    // try again' and spins forever (eventually OOM).
+    const info = this.socket.streamInfo
+    if (data.length === 0 && (info?.eofReceived || info?.rxQueue.isClosed)) {
       return { tag: 'closed' }
     }
 
@@ -190,16 +210,15 @@ class TunneledInputStream implements InputStream {
 
   subscribe(registry: PollableRegistry): number {
     // Return a Pollable that resolves when data is available OR the
-    // stream is closed. An always-ready pollable here forces the wasm
-    // guest into a tight poll/read loop that starves the host event
-    // loop and OOMs node within seconds.
+    // stream is closed. An always-ready pollable here would force the
+    // wasm guest into a tight subscribe/block/read loop that starves
+    // the host event loop (heartbeat timers stop firing) and OOMs
+    // node at 4 GB.
     if (this.isClosed() || this.socket.streamId === undefined) {
       return createReadyPollable(registry)
     }
     const stream = this.socket.streamInfo
     if (!stream) return createReadyPollable(registry)
-    // ByteQueue is ready when it has data or is closed. waitForData
-    // returns a Promise<boolean> that resolves on either condition.
     return registry.create(stream.rxQueue.waitForData().then(() => undefined))
   }
 }
