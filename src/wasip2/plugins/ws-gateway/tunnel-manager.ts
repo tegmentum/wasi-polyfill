@@ -628,6 +628,13 @@ export class WsTunnelManager {
   /**
    * Read data from a stream asynchronously
    */
+  /**
+   * Read data from a stream asynchronously. Returns:
+   *   - Uint8Array with bytes when data arrives
+   *   - null when the stream is closed and drained (signals EOF cleanly,
+   *     so callers don't have to race rxQueue.isClosed after the await
+   *     -- the read itself is the synchronization point).
+   */
   async readDataAsync(
     streamId: number,
     maxLength: number,
@@ -645,6 +652,16 @@ export class WsTunnelManager {
       if (this.config.flowControl && data.length > 0) {
         const ackFrame = createDataAckFrame(streamId, data.length)
         this.send(ackFrame)
+      }
+
+      // Atomic EOF signal: when the await resolves with empty AND the
+      // queue is closed, the stream is drained. Returning null
+      // (instead of an empty Uint8Array) lets the caller surface EOF
+      // without racing a second isClosed/eofReceived check -- which
+      // is exactly the race that caused Python's recv to loop on
+      // empty bytes and OOM the host.
+      if (data.length === 0 && stream.rxQueue.isClosed) {
+        return null
       }
 
       return data
