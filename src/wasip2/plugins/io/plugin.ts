@@ -178,12 +178,15 @@ class StreamsInstance implements PluginInstance {
       // we gate the yield behind the trampoline support flag the
       // polyfill sees via env (WASI_POLYFILL_ASYNC_READ_YIELD=1).
       if (result.length === 0 && shouldYieldOnEmptyRead()) {
-        return new Promise<Uint8Array>((resolve) =>
+        return new Promise<Uint8Array>((resolve, reject) =>
           setImmediate(() => {
             const fresh = stream.read(len)
             if (fresh instanceof Uint8Array) return resolve(fresh)
-            if (fresh.tag === 'closed') throw { tag: 'closed' }
-            throw fresh.val
+            // Reject (not throw) so jco's await chain converts this to
+            // a result::err on the wasm side. A throw inside the
+            // setImmediate callback is uncaught and crashes node.
+            if (fresh.tag === 'closed') return reject({ tag: 'closed' })
+            return reject(fresh.val)
           })
         )
       }
