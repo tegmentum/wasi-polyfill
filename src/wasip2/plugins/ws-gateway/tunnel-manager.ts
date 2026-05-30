@@ -6,6 +6,25 @@
  */
 
 import { AsyncByteQueue } from './byte-queue.js'
+
+// Pick the WebSocket constructor. By default, use the host's
+// globalThis.WebSocket (browser, node 22+). Opt into the `ws` npm
+// package via `WASI_POLYFILL_USE_WS_PKG=1` -- a diagnostic / workaround
+// for environments where node's built-in WebSocket starves callbacks
+// during JSPI suspension. The dynamic import keeps `ws` as an optional
+// peer; it's only loaded when the env var asks for it.
+type WSCtor = typeof WebSocket
+let _wsCtor: WSCtor | undefined
+async function getWebSocketImpl(): Promise<WSCtor> {
+  if (_wsCtor) return _wsCtor
+  if (typeof process !== 'undefined' && process.env?.['WASI_POLYFILL_USE_WS_PKG'] === '1') {
+    const mod = await import('ws')
+    _wsCtor = (mod as { WebSocket: unknown }).WebSocket as unknown as WSCtor
+    return _wsCtor
+  }
+  _wsCtor = globalThis.WebSocket as WSCtor
+  return _wsCtor
+}
 import {
   type FrameHeader,
   type OpenPayload,
@@ -273,33 +292,36 @@ export class WsTunnelManager {
 
     this.state = TunnelState.Connecting
 
-    this.connectPromise = new Promise((resolve) => {
-      this.connectResolve = resolve
+    this.connectPromise = (async () => {
+      const WSImpl = await getWebSocketImpl()
+      return new Promise<boolean>((resolve) => {
+        this.connectResolve = resolve
 
-      try {
-        // Create WebSocket with binary type
-        const protocols = this.config.authToken ? [`auth-${this.config.authToken}`] : undefined
-        this.ws = new WebSocket(this.config.gatewayUrl, protocols)
-        this.ws.binaryType = 'arraybuffer'
+        try {
+          // Create WebSocket with binary type
+          const protocols = this.config.authToken ? [`auth-${this.config.authToken}`] : undefined
+          this.ws = new WSImpl(this.config.gatewayUrl, protocols)
+          this.ws.binaryType = 'arraybuffer'
 
-        // Set up event handlers
-        this.ws.onopen = this.handleOpen.bind(this)
-        this.ws.onmessage = this.handleMessage.bind(this)
-        this.ws.onclose = this.handleClose.bind(this)
-        this.ws.onerror = this.handleError.bind(this)
+          // Set up event handlers
+          this.ws.onopen = this.handleOpen.bind(this)
+          this.ws.onmessage = this.handleMessage.bind(this)
+          this.ws.onclose = this.handleClose.bind(this)
+          this.ws.onerror = this.handleError.bind(this)
 
-        // Set up timeout
-        setTimeout(() => {
-          if (this.state === TunnelState.Connecting) {
-            this.disconnect(new Error('Connection timeout'))
-            resolve(false)
-          }
-        }, this.config.connectTimeoutMs)
-      } catch {
-        this.state = TunnelState.Error
-        resolve(false)
-      }
-    })
+          // Set up timeout
+          setTimeout(() => {
+            if (this.state === TunnelState.Connecting) {
+              this.disconnect(new Error('Connection timeout'))
+              resolve(false)
+            }
+          }, this.config.connectTimeoutMs)
+        } catch {
+          this.state = TunnelState.Error
+          resolve(false)
+        }
+      })
+    })()
 
     return this.connectPromise
   }

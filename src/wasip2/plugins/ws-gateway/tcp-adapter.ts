@@ -189,8 +189,18 @@ class TunneledInputStream implements InputStream {
   }
 
   subscribe(registry: PollableRegistry): number {
-    // For now, always ready (could be improved with proper async notification)
-    return createReadyPollable(registry)
+    // Return a Pollable that resolves when data is available OR the
+    // stream is closed. An always-ready pollable here forces the wasm
+    // guest into a tight poll/read loop that starves the host event
+    // loop and OOMs node within seconds.
+    if (this.isClosed() || this.socket.streamId === undefined) {
+      return createReadyPollable(registry)
+    }
+    const stream = this.socket.streamInfo
+    if (!stream) return createReadyPollable(registry)
+    // ByteQueue is ready when it has data or is closed. waitForData
+    // returns a Promise<boolean> that resolves on either condition.
+    return registry.create(stream.rxQueue.waitForData().then(() => undefined))
   }
 }
 
