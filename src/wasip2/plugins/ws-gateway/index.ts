@@ -31,7 +31,7 @@
  *
  * // Get imports for WASM component
  * const imports = polyfill.getImports([
- *   { package: 'wasi:sockets', name: 'tcp', version: '0.2.0' },
+ *   { package: 'wasi:sockets', name: 'tcp', version: '0.2.6' },
  * ])
  * ```
  *

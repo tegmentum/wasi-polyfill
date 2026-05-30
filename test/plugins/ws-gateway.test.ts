@@ -895,7 +895,7 @@ describe('ws-gateway plugins', () => {
     it('has correct interface', () => {
       expect(wsGatewayTcpPlugin.witInterface.package).toBe('wasi:sockets')
       expect(wsGatewayTcpPlugin.witInterface.name).toBe('tcp')
-      expect(wsGatewayTcpPlugin.witInterface.version).toBe('0.2.0')
+      expect(wsGatewayTcpPlugin.witInterface.version).toBe('0.2.6')
     })
 
     it('has tunneled as default implementation', () => {
@@ -911,7 +911,7 @@ describe('ws-gateway plugins', () => {
     it('has correct interface', () => {
       expect(wsGatewayTcpCreateSocketPlugin.witInterface.package).toBe('wasi:sockets')
       expect(wsGatewayTcpCreateSocketPlugin.witInterface.name).toBe('tcp-create-socket')
-      expect(wsGatewayTcpCreateSocketPlugin.witInterface.version).toBe('0.2.0')
+      expect(wsGatewayTcpCreateSocketPlugin.witInterface.version).toBe('0.2.6')
     })
 
     it('has tunneled as default implementation', () => {
@@ -923,7 +923,7 @@ describe('ws-gateway plugins', () => {
     it('has correct interface', () => {
       expect(wsGatewayUdpPlugin.witInterface.package).toBe('wasi:sockets')
       expect(wsGatewayUdpPlugin.witInterface.name).toBe('udp')
-      expect(wsGatewayUdpPlugin.witInterface.version).toBe('0.2.0')
+      expect(wsGatewayUdpPlugin.witInterface.version).toBe('0.2.6')
     })
 
     it('has tunneled as default implementation', () => {
@@ -939,7 +939,7 @@ describe('ws-gateway plugins', () => {
     it('has correct interface', () => {
       expect(wsGatewayUdpCreateSocketPlugin.witInterface.package).toBe('wasi:sockets')
       expect(wsGatewayUdpCreateSocketPlugin.witInterface.name).toBe('udp-create-socket')
-      expect(wsGatewayUdpCreateSocketPlugin.witInterface.version).toBe('0.2.0')
+      expect(wsGatewayUdpCreateSocketPlugin.witInterface.version).toBe('0.2.6')
     })
 
     it('has tunneled as default implementation', () => {
@@ -1453,7 +1453,7 @@ describe('wsGatewayDnsPlugin', () => {
   it('has correct WIT interface', () => {
     expect(wsGatewayDnsPlugin.witInterface.package).toBe('wasi:sockets')
     expect(wsGatewayDnsPlugin.witInterface.name).toBe('ip-name-lookup')
-    expect(wsGatewayDnsPlugin.witInterface.version).toBe('0.2.0')
+    expect(wsGatewayDnsPlugin.witInterface.version).toBe('0.2.6')
   })
 
   it('has tunneled implementation', () => {
