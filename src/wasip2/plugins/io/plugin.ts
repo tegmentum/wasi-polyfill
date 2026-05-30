@@ -14,6 +14,16 @@ import type {
   PluginInstance,
 } from '../../core/types.js'
 import { createPlugin } from '../plugin-base.js'
+// Gate the empty-read microtask yield behind an opt-in env var. Off by
+// default so sync-mode trampolines (which reject Promise returns) keep
+// working. Callers that transpiled with JSPI + --async-imports for
+// input-stream.read set WASI_POLYFILL_ASYNC_READ_YIELD=1 to enable
+// (the gateway-smoke harness does this).
+function shouldYieldOnEmptyRead(): boolean {
+  if (typeof process === 'undefined') return false
+  return process.env?.['WASI_POLYFILL_ASYNC_READ_YIELD'] === '1'
+}
+
 import {
   PollableRegistry,
   globalPollableRegistry,
@@ -151,24 +161,32 @@ class StreamsInstance implements PluginInstance {
   }
 
   // Input stream methods
-  private async inputStreamRead(handle: number, len: bigint): Promise<Uint8Array> {
-    // input-stream.read is spec'd non-blocking, but Python's recv
-    // translates to a tight sync read loop in wasi-libc. Without
-    // yielding the host event loop between empty returns, an inbound
-    // WS Close frame on a tunneled stream can't deliver and the
-    // wasm guest spins forever (OOM). Yielding via a microtask is
-    // cheap when data is ready (single tick) and frees the loop to
-    // process pending I/O when it isn't. Requires the jco transpile
-    // to mark this import manuallyAsync (`--async-imports
-    // 'wasi:io/streams@0.2.6#[method]input-stream.read'`) so the
-    // returned Promise goes through WebAssembly.Suspending.
+  private inputStreamRead(handle: number, len: bigint): Uint8Array | Promise<Uint8Array> {
     const stream = this.streamRegistry.getInput(handle)
     if (!stream) {
       throw new Error(`Invalid input stream handle: ${handle}`)
     }
-    await new Promise<void>((resolve) => setImmediate(resolve))
     const result = stream.read(len)
     if (result instanceof Uint8Array) {
+      // For tunneled streams that returned empty AND we're in JSPI
+      // mode (the read trampoline is manuallyAsync), yield a microtask
+      // so the host event loop can process pending I/O (WS frames,
+      // close notifications) -- Python's recv translates to a tight
+      // sync read-poll loop that would otherwise starve the loop and
+      // OOM. Sync transpile bundles never enter this branch with a
+      // Promise return because their trampolines reject Promises;
+      // we gate the yield behind the trampoline support flag the
+      // polyfill sees via env (WASI_POLYFILL_ASYNC_READ_YIELD=1).
+      if (result.length === 0 && shouldYieldOnEmptyRead()) {
+        return new Promise<Uint8Array>((resolve) =>
+          setImmediate(() => {
+            const fresh = stream.read(len)
+            if (fresh instanceof Uint8Array) return resolve(fresh)
+            if (fresh.tag === 'closed') throw { tag: 'closed' }
+            throw fresh.val
+          })
+        )
+      }
       return result
     }
     if (result.tag === 'closed') {

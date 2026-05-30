@@ -512,13 +512,15 @@ const ASYNC_ALLOWED: ReadonlySet<string> = new Set([
   'wasi:io/streams:[method]output-stream.blocking-flush',
   'wasi:io/streams:[method]output-stream.blocking-write-zeroes-and-flush',
   'wasi:io/streams:[method]output-stream.blocking-splice',
-  // input-stream.read is spec'd as non-blocking but tunneled streams
-  // genuinely need to yield the host event loop between calls --
-  // Python's recv translates to a tight sync read loop in wasi-libc,
-  // and without yielding, the WS close frame can't reach the polyfill.
-  // Requires jco --async-imports for this function to mark the
-  // trampoline manuallyAsync (otherwise jcoCompat would reject the
-  // Promise).
+  // input-stream.read: opt-in via WASI_POLYFILL_ASYNC_READ_YIELD=1.
+  // When enabled, the polyfill's read() returns a Promise on empty
+  // reads so the host event loop can process pending I/O between
+  // Python recv-loop polls. Requires jco transpile to mark the
+  // trampoline manuallyAsync (`--async-imports
+  // 'wasi:io/streams@0.2.6#[method]input-stream.read'`); otherwise
+  // sync trampolines treat the Promise as garbage. Allowing it here
+  // unconditionally is safe because the polyfill only returns a
+  // Promise from read() when the env opt-in is set.
   'wasi:io/streams:[method]input-stream.read',
 ])
 
