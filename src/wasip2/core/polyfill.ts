@@ -333,24 +333,29 @@ export function createDevPolyfill(): Polyfill {
  * Create a Polyfill pre-configured for jco-transpiled components
  *
  * This is a convenience function that:
- * - Creates a polyfill with the AllowAllPolicy (for development)
- * - Sets up jcoCompat mode by default
+ * - Creates a polyfill with the AllowAllPolicy (for development) by default,
+ *   or a caller-supplied policy when one is provided
+ * - Sets up jcoCompat mode by default (override via `jcoCompat: false`)
  *
- * Usage:
+ * Composing with a configured policy is the supported way to inject
+ * environment variables, args, preopens, etc. into a jco-mode polyfill:
+ *
  * ```typescript
- * import { createJcoPolyfill, registerCorePlugins } from '@tegmentum/wasi-polyfill'
+ * import { createJcoPolyfill, createCliPolicy } from '@tegmentum/wasi-polyfill'
+ * import { environmentPlugin } from '@tegmentum/wasi-polyfill/wasip2/plugins/cli'
  *
- * // Register plugins first
- * registerCorePlugins()
- *
- * const polyfill = createJcoPolyfill()
- * const { imports } = await polyfill.getImports(interfaces)
+ * const polyfill = createJcoPolyfill({
+ *   policy: createCliPolicy({ env: process.env, args: process.argv.slice(2) })
+ * })
+ * polyfill.registerPlugin(environmentPlugin)
+ * const { imports } = await polyfill.forInterfaces(['wasi:cli/environment@0.2.0'])
+ * // imports['wasi:cli/environment'].getEnvironment()  → process.env entries
  * ```
  */
-export function createJcoPolyfill(config?: Omit<PolyfillConfig, 'policy'>): Polyfill {
+export function createJcoPolyfill(config?: PolyfillConfig): Polyfill {
   return new Polyfill({
     ...config,
-    policy: new AllowAllPolicy(),
+    policy: config?.policy ?? new AllowAllPolicy(),
     jcoCompat: config?.jcoCompat ?? true,
   })
 }
