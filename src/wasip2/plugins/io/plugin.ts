@@ -151,11 +151,22 @@ class StreamsInstance implements PluginInstance {
   }
 
   // Input stream methods
-  private inputStreamRead(handle: number, len: bigint): Uint8Array {
+  private async inputStreamRead(handle: number, len: bigint): Promise<Uint8Array> {
+    // input-stream.read is spec'd non-blocking, but Python's recv
+    // translates to a tight sync read loop in wasi-libc. Without
+    // yielding the host event loop between empty returns, an inbound
+    // WS Close frame on a tunneled stream can't deliver and the
+    // wasm guest spins forever (OOM). Yielding via a microtask is
+    // cheap when data is ready (single tick) and frees the loop to
+    // process pending I/O when it isn't. Requires the jco transpile
+    // to mark this import manuallyAsync (`--async-imports
+    // 'wasi:io/streams@0.2.6#[method]input-stream.read'`) so the
+    // returned Promise goes through WebAssembly.Suspending.
     const stream = this.streamRegistry.getInput(handle)
     if (!stream) {
       throw new Error(`Invalid input stream handle: ${handle}`)
     }
+    await new Promise<void>((resolve) => setImmediate(resolve))
     const result = stream.read(len)
     if (result instanceof Uint8Array) {
       return result
