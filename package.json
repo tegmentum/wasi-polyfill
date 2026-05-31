@@ -75,6 +75,22 @@
       "types": "./dist/wasip2/plugins/ws-gateway/index.d.ts",
       "import": "./dist/wasip2/plugins/ws-gateway/index.js"
     },
+    "./wasip2/plugins/webauthn-bridge": {
+      "types": "./dist/wasip2/plugins/webauthn-bridge/index.d.ts",
+      "import": "./dist/wasip2/plugins/webauthn-bridge/index.js"
+    },
+    "./wasip2/plugins/webcrypto-bridge": {
+      "types": "./dist/wasip2/plugins/webcrypto-bridge/index.d.ts",
+      "import": "./dist/wasip2/plugins/webcrypto-bridge/index.js"
+    },
+    "./plugins/webauthn-bridge": {
+      "types": "./dist/wasip2/plugins/webauthn-bridge/index.d.ts",
+      "import": "./dist/wasip2/plugins/webauthn-bridge/index.js"
+    },
+    "./plugins/webcrypto-bridge": {
+      "types": "./dist/wasip2/plugins/webcrypto-bridge/index.d.ts",
+      "import": "./dist/wasip2/plugins/webcrypto-bridge/index.js"
+    },
     "./wasip2/plugins/logging": {
       "types": "./dist/wasip2/plugins/logging/index.d.ts",
       "import": "./dist/wasip2/plugins/logging/index.js"
