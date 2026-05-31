@@ -20,6 +20,7 @@ import {
   tunneledUdpCreateSocketImplementation,
 } from './udp-adapter.js'
 import { tunneledDnsLookupImplementation } from './dns-adapter.js'
+import { tunneledPkcs11TunnelImplementation } from './pkcs11-tunnel-adapter.js'
 import {
   TCP_INTERFACE,
   TCP_CREATE_SOCKET_INTERFACE,
@@ -166,6 +167,39 @@ export const wsGatewayDnsPlugin: WasiPlugin = createPlugin(
 export const EXTENDED_IP_NAME_LOOKUP_INTERFACE: WasiInterface = IP_NAME_LOOKUP_INTERFACE
 
 /**
+ * tegmentum:pkcs11-tunnel/tunnel interface (PKCS#11 RPC over the
+ * ws-gateway). The browser-side pkcs11-gateway-adapter wasm imports
+ * this WIT; this plugin satisfies it by routing to the gateway.
+ */
+export const PKCS11_TUNNEL_INTERFACE: WasiInterface = {
+  package: 'tegmentum:pkcs11-tunnel',
+  name: 'tunnel',
+  version: '0.1.0',
+}
+
+/**
+ * WebSocket Gateway PKCS#11 tunnel plugin
+ *
+ * Satisfies tegmentum:pkcs11-tunnel/tunnel.send-request by tunneling
+ * each call through the shared WsTunnelManager (same WebSocket as
+ * TCP/UDP/DNS adapters). Pair with the pkcs11-gateway-adapter wasm
+ * component to bring a `pkcs11:host`-style backend into the browser
+ * bundle.
+ *
+ * Configuration:
+ * - gatewayUrl: WebSocket URL of the gateway server (required)
+ * - authToken: Authentication token for the gateway
+ * - timeoutMs: Per-RPC timeout (default 30000)
+ */
+export const wsGatewayPkcs11TunnelPlugin: WasiPlugin = createPlugin(
+  PKCS11_TUNNEL_INTERFACE,
+  {
+    tunneled: tunneledPkcs11TunnelImplementation,
+  },
+  'tunneled'
+)
+
+/**
  * All WebSocket Gateway plugins for convenient registration
  *
  * Includes plugins for TCP, UDP, and DNS.
@@ -176,4 +210,5 @@ export const wsGatewayPlugins: WasiPlugin[] = [
   wsGatewayUdpPlugin,
   wsGatewayUdpCreateSocketPlugin,
   wsGatewayDnsPlugin,
+  wsGatewayPkcs11TunnelPlugin,
 ]

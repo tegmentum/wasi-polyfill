@@ -105,6 +105,16 @@ export {
   createDnsQueryFrame,
   DnsError,
 
+  // PKCS#11 frame payloads (RPC over the gateway)
+  type Pkcs11RequestPayload,
+  type Pkcs11ResponsePayload,
+  encodePkcs11RequestPayload,
+  decodePkcs11RequestPayload,
+  encodePkcs11ResponsePayload,
+  decodePkcs11ResponsePayload,
+  createPkcs11RequestFrame,
+  createPkcs11ResponseFrame,
+
   // Error mapping
   mapOpenErrorToWasi,
 } from './protocol.js'
@@ -158,6 +168,26 @@ export {
   type TunneledDnsConfig,
 } from './dns-adapter.js'
 
+// PKCS#11 RPC codec for Pkcs11Request / Pkcs11Response frames.
+// Re-exported so both the browser-side pkcs11-gateway-adapter consumers
+// and the gateway server can speak the same wire format.
+export * as Pkcs11Codec from './pkcs11-codec.js'
+export {
+  Pkcs11Fn,
+  HandleKind,
+  Pkcs11Status,
+  AttrTag,
+  type Attribute as Pkcs11Attribute,
+  type AttrValue as Pkcs11AttrValue,
+  type Mechanism as Pkcs11Mechanism,
+  Pkcs11Writer,
+  Pkcs11Reader,
+  writeAttribute,
+  readAttribute,
+  writeMechanism,
+  readMechanism,
+} from './pkcs11-codec.js'
+
 // Plugin definitions
 export {
   wsGatewayTcpPlugin,
@@ -165,10 +195,12 @@ export {
   wsGatewayUdpPlugin,
   wsGatewayUdpCreateSocketPlugin,
   wsGatewayDnsPlugin,
+  wsGatewayPkcs11TunnelPlugin,
   wsGatewayPlugins,
   EXTENDED_TCP_INTERFACE,
   EXTENDED_TCP_CREATE_SOCKET_INTERFACE,
   EXTENDED_UDP_INTERFACE,
   EXTENDED_UDP_CREATE_SOCKET_INTERFACE,
   EXTENDED_IP_NAME_LOOKUP_INTERFACE,
+  PKCS11_TUNNEL_INTERFACE,
 } from './plugin.js'

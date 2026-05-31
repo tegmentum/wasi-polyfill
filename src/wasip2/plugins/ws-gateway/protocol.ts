@@ -53,6 +53,11 @@ export enum MessageType {
   /** DNS query error */
   DnsErr = 0x42,
 
+  /** PKCS#11 RPC request (streamId = queryId) */
+  Pkcs11Request = 0x50,
+  /** PKCS#11 RPC response (streamId = queryId) */
+  Pkcs11Response = 0x51,
+
   /** Ping/keepalive */
   Ping = 0xf0,
   /** Pong response */
@@ -128,6 +133,8 @@ export enum Features {
   Udp = 0x08,
   /** Auth token in OPEN */
   OpenToken = 0x10,
+  /** PKCS#11 RPC tunneling */
+  Pkcs11 = 0x20,
 }
 
 /**
@@ -548,6 +555,103 @@ export function decodeDnsErrPayload(data: Uint8Array): DnsErrPayload | null {
  */
 export function createDnsQueryFrame(queryId: number, payload: DnsQueryPayload): Uint8Array {
   return createFrame(MessageType.DnsQuery, queryId, encodeDnsQueryPayload(payload))
+}
+
+/**
+ * PKCS#11 RPC request payload.
+ *
+ * Wire layout (the codec for the body lives in the pkcs11-gateway-adapter
+ * + ws-gateway-server.mjs pair; KSW1 only treats it as opaque bytes):
+ *
+ *   u16 fn-id          -- one per pkcs11:host method
+ *   ...method args     -- length-prefixed buffers, fixed-width ints,
+ *                         resource handles (u32 server-side row IDs)
+ */
+export interface Pkcs11RequestPayload {
+  /** Method identifier (per pkcs11:host method) */
+  fnId: number
+  /** Opaque arg blob, encoded per method */
+  args: Uint8Array
+}
+
+/**
+ * PKCS#11 RPC response payload.
+ *
+ * Wire layout:
+ *
+ *   u8  status         -- 0 = ok, !=0 = pkcs11 CKR_* return value
+ *                         (mapped onto a single byte; full CKR_ value
+ *                         lives in the first 4 bytes of `body` on
+ *                         non-zero status if needed)
+ *   ...method return   -- length-prefixed buffers etc. on success;
+ *                         CKR_ + diagnostic string on error
+ */
+export interface Pkcs11ResponsePayload {
+  /** 0 = success, non-zero = error */
+  status: number
+  /** Opaque return blob, encoded per method */
+  body: Uint8Array
+}
+
+/**
+ * Encode a PKCS#11 request payload.
+ */
+export function encodePkcs11RequestPayload(payload: Pkcs11RequestPayload): Uint8Array {
+  const out = new Uint8Array(2 + payload.args.length)
+  const view = new DataView(out.buffer)
+  view.setUint16(0, payload.fnId, true)
+  out.set(payload.args, 2)
+  return out
+}
+
+/**
+ * Decode a PKCS#11 request payload.
+ */
+export function decodePkcs11RequestPayload(data: Uint8Array): Pkcs11RequestPayload | null {
+  if (data.length < 2) return null
+  const view = new DataView(data.buffer, data.byteOffset, data.length)
+  return {
+    fnId: view.getUint16(0, true),
+    args: data.slice(2),
+  }
+}
+
+/**
+ * Encode a PKCS#11 response payload.
+ */
+export function encodePkcs11ResponsePayload(payload: Pkcs11ResponsePayload): Uint8Array {
+  const out = new Uint8Array(1 + payload.body.length)
+  out[0] = payload.status & 0xff
+  out.set(payload.body, 1)
+  return out
+}
+
+/**
+ * Decode a PKCS#11 response payload.
+ */
+export function decodePkcs11ResponsePayload(data: Uint8Array): Pkcs11ResponsePayload | null {
+  if (data.length < 1) return null
+  return {
+    status: data[0]!,
+    body: data.slice(1),
+  }
+}
+
+/**
+ * Create a PKCS#11 request frame. `queryId` is reused as the KSW1
+ * streamId field so the response can be matched without a separate
+ * id column. Caller is responsible for allocating queryIds (typically
+ * a monotonic counter on the polyfill side).
+ */
+export function createPkcs11RequestFrame(queryId: number, payload: Pkcs11RequestPayload): Uint8Array {
+  return createFrame(MessageType.Pkcs11Request, queryId, encodePkcs11RequestPayload(payload))
+}
+
+/**
+ * Create a PKCS#11 response frame.
+ */
+export function createPkcs11ResponseFrame(queryId: number, payload: Pkcs11ResponsePayload): Uint8Array {
+  return createFrame(MessageType.Pkcs11Response, queryId, encodePkcs11ResponsePayload(payload))
 }
 
 /**

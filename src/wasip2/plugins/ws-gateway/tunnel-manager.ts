@@ -46,6 +46,9 @@ import {
   createCloseFrame,
   createDataAckFrame,
   createDnsQueryFrame,
+  createPkcs11RequestFrame,
+  decodePkcs11ResponsePayload,
+  type Pkcs11ResponsePayload,
   mapOpenErrorToWasi,
 } from './protocol.js'
 
@@ -219,8 +222,21 @@ export class WsTunnelManager {
    */
   private readonly streamDataHandlers: Map<number, (data: Uint8Array) => void> = new Map()
   private readonly pendingDnsQueries: Map<number, PendingDnsQuery> = new Map()
+  /**
+   * Pending PKCS#11 RPC requests keyed by queryId (reuses the
+   * streamId field on Pkcs11Request/Response frames). The resolver
+   * is called with the decoded Pkcs11ResponsePayload regardless of
+   * status code -- caller inspects status to distinguish CK_OK from
+   * a backend error. Timeouts reject.
+   */
+  private readonly pendingPkcs11: Map<number, {
+    resolve: (r: Pkcs11ResponsePayload) => void
+    reject:  (e: Error) => void
+    timeoutHandle: ReturnType<typeof setTimeout>
+  }> = new Map()
   private nextStreamId = 1
   private nextDnsQueryId = 1
+  private nextPkcs11QueryId = 1
   private negotiatedFeatures: Features = Features.None
   private connectPromise: Promise<boolean> | null = null
   private connectResolve: ((success: boolean) => void) | null = null
@@ -359,6 +375,13 @@ export class WsTunnelManager {
       })
     }
     this.pendingDnsQueries.clear()
+
+    // Cancel pending PKCS#11 requests
+    for (const p of this.pendingPkcs11.values()) {
+      clearTimeout(p.timeoutHandle)
+      p.reject(new Error('pkcs11: connection closed'))
+    }
+    this.pendingPkcs11.clear()
 
     this.state = error ? TunnelState.Error : TunnelState.Disconnected
     this.connectPromise = null
@@ -711,7 +734,7 @@ export class WsTunnelManager {
    */
   private handleOpen(): void {
     // Send HELLO frame - request all features we support
-    let features = Features.Dns | Features.Udp | Features.HalfClose
+    let features = Features.Dns | Features.Udp | Features.HalfClose | Features.Pkcs11
     if (this.config.flowControl) {
       features |= Features.FlowControl
     }
@@ -802,6 +825,10 @@ export class WsTunnelManager {
 
       case MessageType.DnsErr:
         this.handleDnsErr(header.streamId, payload)
+        break
+
+      case MessageType.Pkcs11Response:
+        this.handlePkcs11Response(header.streamId, payload)
         break
 
       case MessageType.Pong:
@@ -965,6 +992,69 @@ export class WsTunnelManager {
         errorMessage: 'Unknown DNS error',
       })
     }
+  }
+
+  /**
+   * Send a PKCS#11 RPC and resolve with the matching response. Caller
+   * owns the args bytes; encoder builds them per Pkcs11Codec.
+   *
+   * Throws synchronously if the gateway didn't negotiate
+   * Features.Pkcs11 or if the tunnel isn't connected. Rejects async
+   * on timeout. Always resolves (never rejects) on receiving a
+   * Pkcs11Response, regardless of status code -- the caller inspects
+   * `status` to distinguish CK_OK from a backend error.
+   */
+  sendPkcs11Request(
+    fnId: number,
+    args: Uint8Array,
+    timeoutMs?: number,
+  ): Promise<Pkcs11ResponsePayload> {
+    if (this.state !== TunnelState.Connected) {
+      return Promise.reject(new Error('pkcs11: tunnel not connected'))
+    }
+    if (!(this.negotiatedFeatures & Features.Pkcs11)) {
+      return Promise.reject(new Error(
+        'pkcs11: gateway did not negotiate Features.Pkcs11'))
+    }
+
+    const queryId = this.nextPkcs11QueryId++
+    // Wrap u32 if we ever exhaust (unlikely; cluster of 2^32 calls).
+    if (this.nextPkcs11QueryId > 0xffffffff) this.nextPkcs11QueryId = 1
+
+    const timeout = timeoutMs ?? this.config.connectTimeoutMs
+
+    return new Promise((resolve, reject) => {
+      const timeoutHandle = setTimeout(() => {
+        if (this.pendingPkcs11.has(queryId)) {
+          this.pendingPkcs11.delete(queryId)
+          reject(new Error(`pkcs11: queryId=${queryId} fnId=0x${fnId.toString(16)} timeout`))
+        }
+      }, timeout)
+      this.pendingPkcs11.set(queryId, { resolve, reject, timeoutHandle })
+      try {
+        this.send(createPkcs11RequestFrame(queryId, { fnId, args }))
+      } catch (err) {
+        clearTimeout(timeoutHandle)
+        this.pendingPkcs11.delete(queryId)
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
+    })
+  }
+
+  /**
+   * Handle PKCS#11 RPC response.
+   */
+  private handlePkcs11Response(queryId: number, payload: Uint8Array): void {
+    const pending = this.pendingPkcs11.get(queryId)
+    if (!pending) return  // dropped / timed out already
+    this.pendingPkcs11.delete(queryId)
+    clearTimeout(pending.timeoutHandle)
+    const res = decodePkcs11ResponsePayload(payload)
+    if (!res) {
+      pending.reject(new Error(`pkcs11: queryId=${queryId} malformed response payload`))
+      return
+    }
+    pending.resolve(res)
   }
 
   /**
