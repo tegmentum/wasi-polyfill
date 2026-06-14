@@ -56,7 +56,7 @@ describe('ws-gateway frame-size bound', () => {
     MockWebSocket.instances = []
   })
 
-  function connectTunnel(maxFrameSize: number, onDisconnect: () => void) {
+  async function connectTunnel(maxFrameSize: number, onDisconnect: () => void) {
     globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket
     const tunnel = new WsTunnelManager({
       gatewayUrl: 'ws://test',
@@ -65,13 +65,18 @@ describe('ws-gateway frame-size bound', () => {
       onDisconnect,
     })
     void tunnel.connect()
+    // tunnel.connect() awaits getWebSocketImpl() before invoking the
+    // WebSocket constructor — yield a microtask so MockWebSocket has
+    // a chance to register itself on .instances. Without this, .at(-1)
+    // returns undefined and the onmessage assignment below crashes.
+    await Promise.resolve()
     const ws = MockWebSocket.instances.at(-1)!
     return { tunnel, ws }
   }
 
-  it('disconnects on a frame whose payload exceeds maxFrameSize', () => {
+  it('disconnects on a frame whose payload exceeds maxFrameSize', async () => {
     const onDisconnect = vi.fn()
-    const { tunnel, ws } = connectTunnel(1024, onDisconnect)
+    const { tunnel, ws } = await connectTunnel(1024, onDisconnect)
 
     // Advertise a 4096-byte payload against a 1024 cap.
     ws.onmessage!({ data: headerFrame(4096) })
@@ -80,9 +85,9 @@ describe('ws-gateway frame-size bound', () => {
     expect(tunnel.isConnected).toBe(false)
   })
 
-  it('does not disconnect on a within-bound frame awaiting its payload', () => {
+  it('does not disconnect on a within-bound frame awaiting its payload', async () => {
     const onDisconnect = vi.fn()
-    const { ws } = connectTunnel(1024, onDisconnect)
+    const { ws } = await connectTunnel(1024, onDisconnect)
 
     // payloadLen 10 (<= cap) but no payload yet -> just buffered, no disconnect.
     ws.onmessage!({ data: headerFrame(10) })

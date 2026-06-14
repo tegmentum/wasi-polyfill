@@ -69,6 +69,7 @@ import {
   wsGatewayUdpPlugin,
   wsGatewayUdpCreateSocketPlugin,
   wsGatewayDnsPlugin,
+  wsGatewayPkcs11TunnelPlugin,
   wsGatewayPlugins,
 } from '../../src/wasip2/plugins/ws-gateway/plugin.js'
 
@@ -948,13 +949,14 @@ describe('ws-gateway plugins', () => {
   })
 
   describe('wsGatewayPlugins array', () => {
-    it('contains TCP, UDP, and DNS plugins', () => {
-      expect(wsGatewayPlugins.length).toBe(5)
+    it('contains TCP, UDP, DNS, and PKCS#11 tunnel plugins', () => {
+      expect(wsGatewayPlugins.length).toBe(6)
       expect(wsGatewayPlugins).toContain(wsGatewayTcpPlugin)
       expect(wsGatewayPlugins).toContain(wsGatewayTcpCreateSocketPlugin)
       expect(wsGatewayPlugins).toContain(wsGatewayUdpPlugin)
       expect(wsGatewayPlugins).toContain(wsGatewayUdpCreateSocketPlugin)
       expect(wsGatewayPlugins).toContain(wsGatewayDnsPlugin)
+      expect(wsGatewayPlugins).toContain(wsGatewayPkcs11TunnelPlugin)
     })
   })
 })

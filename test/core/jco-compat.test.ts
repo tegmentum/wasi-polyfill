@@ -376,19 +376,35 @@ describe('jco compatibility', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // 10. Blocking stream methods return synchronously
+  // 10. Blocking stream methods resolve to undefined-or-StreamError
   // ---------------------------------------------------------------------------
-  describe('blocking stream methods return synchronously', () => {
-    it('OutputStream.blockingWriteAndFlush returns synchronously', () => {
+  //
+  // Historically this section asserted that blocking stream methods returned
+  // a SYNCHRONOUS value. That's no longer the contract: see ASYNC_ALLOWED in
+  // src/wasip2/core/polyfill.ts — blockingRead / blockingWriteAndFlush /
+  // blockingFlush / blockingWriteZeroesAndFlush / blockingSplice are
+  // explicitly permitted to return a Promise so the polyfill can await
+  // host-side I/O (e.g. tunneled TCP through ws-gateway). The jco transpile
+  // wraps them in WebAssembly.Suspending under JSPI, which makes the Promise
+  // return valid.
+  //
+  // The thing we still want to test is that the underlying call doesn't
+  // throw and resolves to undefined-or-StreamError.
+  describe('blocking stream methods resolve to undefined-or-StreamError', () => {
+    it('OutputStream.blockingWriteAndFlush resolves cleanly', async () => {
       const { getStdout } = imports['wasi:cli/stdout'] as Record<
         string,
         () => unknown
       >
       const stdout = getStdout() as Record<string, (...args: unknown[]) => unknown>
 
-      // Call blockingWriteAndFlush with a small payload
-      const result = stdout.blockingWriteAndFlush(new Uint8Array([104, 105]))
-      expect(result).not.toBeInstanceOf(Promise)
+      const raw = stdout.blockingWriteAndFlush(new Uint8Array([104, 105]))
+      const resolved = raw instanceof Promise ? await raw : raw
+      // Either undefined (success) or a { tag: ... } StreamError variant.
+      const isOk = resolved === undefined
+      const isStreamError =
+        typeof resolved === 'object' && resolved !== null && 'tag' in resolved
+      expect(isOk || isStreamError).toBe(true)
     })
   })
 
