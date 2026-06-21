@@ -127,17 +127,22 @@ export interface PolyfillConfig {
 }
 
 /**
- * Parse a WASI interface string into components
- * Format: "wasi:package/interface@version" or "wasi:package@version"
+ * Parse a WIT interface string into components
+ * Format: "namespace:package/interface@version" or "namespace:package@version"
+ *
+ * Any namespace is accepted, not just `wasi:` — so custom host interfaces
+ * (e.g. `openmct:platform/object-registry@0.1.0`) resolve through the registry
+ * and {@link Polyfill.forInterfaces} the same way standard WASI ones do.
  */
 export function parseInterfaceString(str: string): WasiInterface {
   // Match patterns like:
   // - wasi:random/random@0.2.0
   // - wasi:clocks/monotonic-clock@0.2.0
   // - wasi:filesystem@0.2.0
-  const match = str.match(/^(wasi:[^/@]+)(?:\/([^@]+))?@(.+)$/)
+  // - openmct:platform/object-registry@0.1.0
+  const match = str.match(/^([^/@:]+:[^/@]+)(?:\/([^@]+))?@(.+)$/)
   if (!match) {
-    throw new Error(`Invalid WASI interface string: ${str}`)
+    throw new Error(`Invalid WIT interface string: ${str}`)
   }
 
   const [, pkg, name, version] = match
