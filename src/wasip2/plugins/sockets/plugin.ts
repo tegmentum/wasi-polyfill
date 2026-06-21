@@ -43,6 +43,12 @@ import {
   tunneledUdpCreateSocketImplementation,
 } from '../ws-gateway/udp-adapter.js'
 import { tunneledDnsLookupImplementation } from '../ws-gateway/dns-adapter.js'
+// Node-native TCP backend (real egress via node:net). `net` is imported
+// dynamically inside the backend, so including it here is browser-safe.
+import {
+  nodeTcpImplementation,
+  nodeTcpCreateSocketImplementation,
+} from './tcp-node.js'
 
 /**
  * WASI network interface definition
@@ -163,6 +169,7 @@ export const tcpPlugin: WasiPlugin = createPlugin(
   {
     virtual: virtualTcpImplementation,
     tunneled: tunneledTcpImplementation,
+    node: nodeTcpImplementation,
   },
   'virtual'
 )
@@ -179,6 +186,7 @@ export const tcpCreateSocketPlugin: WasiPlugin = createPlugin(
   {
     virtual: virtualTcpCreateSocketImplementation,
     tunneled: tunneledTcpCreateSocketImplementation,
+    node: nodeTcpCreateSocketImplementation,
   },
   'virtual'
 )
