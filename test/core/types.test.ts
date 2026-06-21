@@ -49,9 +49,23 @@ describe('parseInterfaceString', () => {
     })
   })
 
+  it('parses non-wasi namespaces', () => {
+    expect(parseInterfaceString('openmct:platform/object-registry@0.1.0')).toEqual({
+      package: 'openmct:platform',
+      name: 'object-registry',
+      version: '0.1.0',
+    })
+    expect(parseInterfaceString('openmct:platform/event-bus@0.1.0')).toEqual({
+      package: 'openmct:platform',
+      name: 'event-bus',
+      version: '0.1.0',
+    })
+  })
+
   it('throws on invalid format', () => {
     expect(() => parseInterfaceString('invalid')).toThrow()
     expect(() => parseInterfaceString('wasi:random')).toThrow()
+    expect(() => parseInterfaceString('no-colon/iface@0.1.0')).toThrow()
   })
 })
 

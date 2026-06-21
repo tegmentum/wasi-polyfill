@@ -51,6 +51,14 @@ describe('Build Introspection', () => {
       })
     })
 
+    it('should parse non-wasi namespaces', () => {
+      expect(parseInterfaceString('openmct:platform/event-bus@0.1.0')).toEqual({
+        package: 'openmct:platform',
+        name: 'event-bus',
+        version: '0.1.0',
+      })
+    })
+
     it('should return null for invalid strings', () => {
       expect(parseInterfaceString('')).toBeNull()
       expect(parseInterfaceString('invalid')).toBeNull()

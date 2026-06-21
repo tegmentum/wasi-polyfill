@@ -42,19 +42,22 @@ export interface IntrospectResult {
 }
 
 /**
- * Parse a WASI interface string into components
+ * Parse a WIT interface string into components
  *
- * Format: "wasi:package/interface@version"
- * Example: "wasi:filesystem/types@0.2.0"
+ * Format: "namespace:package/interface@version"
+ * Examples: "wasi:filesystem/types@0.2.0", "openmct:platform/event-bus@0.1.0"
+ *
+ * Any namespace is accepted, not just `wasi:`.
  */
 export function parseInterfaceString(str: string): WasiInterface | null {
   // Match patterns like:
   // - wasi:cli/environment@0.2.0
   // - wasi:filesystem/types@0.2.0
-  const match = str.match(/^(wasi:[^/]+)\/([^@]+)@(.+)$/)
+  // - openmct:platform/event-bus@0.1.0
+  const match = str.match(/^([^/@:]+:[^/]+)\/([^@]+)@(.+)$/)
   if (!match) {
     // Try without version
-    const noVersionMatch = str.match(/^(wasi:[^/]+)\/([^@]+)$/)
+    const noVersionMatch = str.match(/^([^/@:]+:[^/]+)\/([^@]+)$/)
     if (!noVersionMatch) {
       return null
     }
