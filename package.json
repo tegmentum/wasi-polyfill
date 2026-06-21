@@ -75,6 +75,10 @@
       "types": "./dist/wasip2/plugins/ws-gateway/index.d.ts",
       "import": "./dist/wasip2/plugins/ws-gateway/index.js"
     },
+    "./wasip2/plugins/ws-gateway/server": {
+      "types": "./dist/wasip2/plugins/ws-gateway/server.d.ts",
+      "import": "./dist/wasip2/plugins/ws-gateway/server.js"
+    },
     "./wasip2/plugins/webauthn-bridge": {
       "types": "./dist/wasip2/plugins/webauthn-bridge/index.d.ts",
       "import": "./dist/wasip2/plugins/webauthn-bridge/index.js"

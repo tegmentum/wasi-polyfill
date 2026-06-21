@@ -55,6 +55,8 @@ export default defineConfig({
     'wasip2/plugins/http/index': 'src/wasip2/plugins/http/index.ts',
     'wasip2/plugins/threads/index': 'src/wasip2/plugins/threads/index.ts',
     'wasip2/plugins/ws-gateway/index': 'src/wasip2/plugins/ws-gateway/index.ts',
+    // Node-only ws-gateway TCP tunnel server (imports ws + node:net).
+    'wasip2/plugins/ws-gateway/server': 'src/wasip2/plugins/ws-gateway/server.ts',
     'wasip2/plugins/webauthn-bridge/index': 'src/wasip2/plugins/webauthn-bridge/index.ts',
     'wasip2/plugins/webcrypto-bridge/index': 'src/wasip2/plugins/webcrypto-bridge/index.ts',
     'wasip2/plugins/logging/index': 'src/wasip2/plugins/logging/index.ts',
