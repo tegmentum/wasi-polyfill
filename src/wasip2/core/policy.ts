@@ -23,7 +23,13 @@ export interface PolicyConfig {
   /** Configuration overrides per interface */
   overrides?: PluginOverride[]
   /** Filesystem preopens (paths the component can access) */
-  preopens?: string[]
+  preopens?: Array<string | { path: string; alias?: string }>
+  /**
+   * Directories to pre-create in the in-memory filesystem at startup. Useful for
+   * guests whose `mkdir` is non-recursive and expect a parent dir to exist (e.g.
+   * DuckDB creating `~/.duckdb/extension_data` on extension LOAD).
+   */
+  mkdirs?: string[]
   /** Environment variables to expose */
   env?: Record<string, string> | boolean
   /** Command line arguments */
@@ -160,7 +166,14 @@ export class ConfigurablePolicy implements Policy {
     // Filesystem configuration
     if (iface.package === 'wasi:filesystem') {
       if (config.options['preopens'] === undefined) {
-        config.options['preopens'] = this.config.preopens ?? []
+        // Normalize string preopens to the { path } form the preopens plugin
+        // expects.
+        config.options['preopens'] = (this.config.preopens ?? []).map((p) =>
+          typeof p === 'string' ? { path: p } : p
+        )
+      }
+      if (config.options['mkdirs'] === undefined && this.config.mkdirs !== undefined) {
+        config.options['mkdirs'] = this.config.mkdirs
       }
     }
 

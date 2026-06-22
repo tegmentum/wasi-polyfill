@@ -1566,10 +1566,28 @@ function consumePendingFilesystem(): MemoryFileSystem | undefined {
 export function resolveFilesystemTypesInstance(
   config: PluginConfig
 ): FilesystemTypesInstance {
-  return contextFromConfig(config).get(
-    FS_INSTANCE_KEY,
-    () => new FilesystemTypesInstance(consumePendingFilesystem())
-  )
+  return contextFromConfig(config).get(FS_INSTANCE_KEY, () => {
+    // Per-config seeding (context-correct): prefer an explicit `prepopulatedFs`,
+    // else the one-shot global pending (setGlobalFilesystem). The global pending
+    // is consumed by whichever context resolves first, so it is unreliable when
+    // several components instantiate (e.g. an extension preloaded before the
+    // host); `options.prepopulatedFs` / `options.mkdirs` target *this* context's
+    // filesystem deterministically.
+    const provided =
+      (config.options?.['prepopulatedFs'] as MemoryFileSystem | undefined) ??
+      consumePendingFilesystem()
+    const instance = new FilesystemTypesInstance(provided)
+    // Pre-create directories so guests whose `mkdir` is non-recursive (e.g.
+    // DuckDB creating ~/.duckdb/extension_data on LOAD) find their parents.
+    const mkdirs = config.options?.['mkdirs']
+    if (Array.isArray(mkdirs)) {
+      const fs = instance.getFileSystem()
+      for (const dir of mkdirs) {
+        if (typeof dir === 'string') fs.mkdirp(dir)
+      }
+    }
+    return instance
+  })
 }
 
 /**
