@@ -51,6 +51,7 @@ import {
   createCustomStdio,
   createStdioProvider,
   QueueInputStream,
+  WasiInputStreamWrapper,
   ConsoleOutputStream,
   EmptyInputStream,
   setGlobalStdioProvider,
@@ -844,6 +845,59 @@ describe('CLI Plugins', () => {
 
         const chunk2 = stream.tryRead(100)
         expect(new TextDecoder().decode(chunk2!)).toBe(' World')
+      })
+    })
+
+    describe('WasiInputStreamWrapper.blockingRead', () => {
+      // Regression guard: when wrapping an idle QueueInputStream (no
+      // sync tryRead result, no SAB-backed waitForData), blockingRead
+      // must fall through to the impl's async read() so the wasm
+      // caller can suspend until data lands. Returning a sync empty
+      // Uint8Array would be misread as EOF by the wasip1 adapter.
+      it('returns a Promise that resolves with data pushed asynchronously', async () => {
+        const queue = new QueueInputStream(false)
+        const wrapper = new WasiInputStreamWrapper(queue)
+
+        const result = wrapper.blockingRead(1024n)
+
+        // The wrapper must NOT return a sync empty Uint8Array here —
+        // that path is what the wasip1 adapter treats as EOF.
+        expect(result).toBeInstanceOf(Promise)
+
+        setTimeout(() => queue.push('queued data'), 10)
+
+        const data = await (result as Promise<Uint8Array>)
+        expect(data).toBeInstanceOf(Uint8Array)
+        expect(new TextDecoder().decode(data as Uint8Array)).toBe('queued data')
+      })
+
+      it('returns synchronously when tryRead has data', () => {
+        const queue = new QueueInputStream(false)
+        queue.push('immediate')
+        const wrapper = new WasiInputStreamWrapper(queue)
+
+        const result = wrapper.blockingRead(1024n)
+
+        // Sync fast path must still work — Promise allocation only
+        // on the no-data path.
+        expect(result).toBeInstanceOf(Uint8Array)
+        expect(new TextDecoder().decode(result as Uint8Array)).toBe('immediate')
+      })
+
+      it('resolves to closed when the queue closes with no pending data', async () => {
+        const queue = new QueueInputStream(false)
+        const wrapper = new WasiInputStreamWrapper(queue)
+
+        const result = wrapper.blockingRead(1024n)
+        expect(result).toBeInstanceOf(Promise)
+
+        setTimeout(() => queue.close(), 10)
+
+        const resolved = await (result as Promise<Uint8Array | { tag: 'closed' }>)
+        // Either the impl resolves with a zero-length Uint8Array
+        // (which the wrapper translates to { tag: 'closed' }) or a
+        // StreamError directly.
+        expect(resolved).toEqual({ tag: 'closed' })
       })
     })
 

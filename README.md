@@ -254,6 +254,12 @@ const value = await result.exports.handle(input) // promising export — await i
 
 Requires `WebAssembly.Suspending` / `promising` (Chrome 137+, Node 22+).
 
+`WasiInputStreamWrapper.blockingRead` (from `wasip2/plugins/cli`) falls
+through to the impl's async `read()` when both sync paths (`tryRead`,
+`waitForData`) yield nothing. Under JSPI the `wasi:io/streams` dispatch
+awaits the returned `Promise<Uint8Array | StreamError>`, so the guest
+suspends until data lands — useful for queue-backed persistent stdin.
+
 ### ComponentLoader
 
 A lighter API when you don't need full bindgen control:

@@ -129,7 +129,9 @@ export class WasiInputStreamWrapper implements InputStream {
     return new Uint8Array(0)
   }
 
-  blockingRead(len: bigint): Uint8Array | StreamError {
+  blockingRead(
+    len: bigint,
+  ): (Uint8Array | StreamError) | Promise<Uint8Array | StreamError> {
     if (this.closed) {
       return { tag: 'closed' }
     }
@@ -145,15 +147,8 @@ export class WasiInputStreamWrapper implements InputStream {
       }
     }
 
-    // No data available.  Per WASI spec, blocking-read must not
-    // return until at least 1 byte is available or the stream
-    // closes.  In a synchronous jco context we can't truly block,
-    // but returning empty here causes the wasip1 adapter to
-    // interpret it as EOF (read returning 0 bytes = end of file).
-    //
-    // The fix: if a SharedArrayBuffer is attached to the stdin
-    // provider, spin-wait on it.  Otherwise, return empty and
-    // accept that stdin won't work in this context.
+    // Try a synchronous blocking wait (SharedArrayBuffer-backed
+    // stdin providers can spin-wait via Atomics.wait).
     if (this.impl.waitForData) {
       const data = this.impl.waitForData(Number(len))
       if (data !== null) {
@@ -162,6 +157,28 @@ export class WasiInputStreamWrapper implements InputStream {
       }
     }
 
+    // Slow path: fall back to the impl's async `read()`.  Per WASI
+    // spec, blocking-read must not return until at least 1 byte is
+    // available or the stream closes.  In sync transpile mode the
+    // caller can't actually await this Promise — but it was already
+    // getting incorrect EOF behavior in that case, so returning a
+    // Promise is strictly an improvement (and under JSPI / async
+    // transpile the wasi:io/streams dispatch awaits it, so the wasm
+    // caller suspends until data lands).
+    if (typeof this.impl.read === 'function') {
+      return Promise.resolve(this.impl.read(Number(len))).then((data) => {
+        if (!(data instanceof Uint8Array)) {
+          // Defensive: impls should resolve with Uint8Array per
+          // InputStreamLike, but if a custom impl somehow yields a
+          // StreamError-shaped value, pass it through.
+          return data as unknown as StreamError
+        }
+        if (data.length === 0) return { tag: 'closed' }
+        return data
+      })
+    }
+
+    // No sync or async path produced data — legacy behaviour.
     return new Uint8Array(0)
   }
 
