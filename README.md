@@ -560,13 +560,14 @@ Feature-specific requirements:
 
 ## The tegmentum wasm ecosystem
 
-Seven repos, one concern each:
+Eight repos, one concern each:
 
 | Repo | Concern |
 |------|---------|
 | [`tegmentum/wasmos`](https://github.com/tegmentum/wasmos) | Portable `wasmos:runtime` WIT contract + native adapters (wasmtime, wamr, js) + example guests |
 | [`tegmentum/wasm-cm`](https://github.com/tegmentum/wasm-cm) | Component Model implementation, portable, runs as wasm above a small core-engine ABI |
 | [`tegmentum/wit-js-bindgen`](https://github.com/tegmentum/wit-js-bindgen) | WIT → JavaScript/TypeScript bindings generator, aligned with wasm-cm's canonical ABI |
+| [`tegmentum/browser-wit`](https://github.com/tegmentum/browser-wit) | WIT contracts for cross-browser Web platform capabilities (fetch, crypto, time, console, …) |
 | [`tegmentum/wasmos-host-js`](https://github.com/tegmentum/wasmos-host-js) | Shared JS host runtime — `host:js` implementation, cap system, wasi-plumbing |
 | [`tegmentum/wasmbrowsers`](https://github.com/tegmentum/wasmbrowsers) | WasmOS on browsers — deploy target, Playwright cross-browser tests |
 | [`tegmentum/wasmworkers`](https://github.com/tegmentum/wasmworkers) | WasmOS on Cloudflare Workers — deploy target, workerd tests |
