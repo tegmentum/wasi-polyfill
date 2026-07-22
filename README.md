@@ -560,7 +560,7 @@ Feature-specific requirements:
 
 ## The tegmentum wasm ecosystem
 
-Eight repos, one concern each:
+Nine repos, one concern each:
 
 | Repo | Concern |
 |------|---------|
@@ -571,6 +571,7 @@ Eight repos, one concern each:
 | [`tegmentum/wasmos-host-js`](https://github.com/tegmentum/wasmos-host-js) | Shared JS host runtime — `host:js` implementation, cap system, wasi-plumbing |
 | [`tegmentum/wasmbrowsers`](https://github.com/tegmentum/wasmbrowsers) | WasmOS on browsers — deploy target, Playwright cross-browser tests |
 | [`tegmentum/wasmworkers`](https://github.com/tegmentum/wasmworkers) | WasmOS on Cloudflare Workers — deploy target, workerd tests |
+| [`tegmentum/wasi-p2-rs`](https://github.com/tegmentum/wasi-p2-rs) | Portable Rust WASI 0.2 — wasm-cm's ADR-001 pattern applied to WASI; adapters for Endive (Java) and browser (JS) |
 | [`tegmentum/wasi-polyfill`](https://github.com/tegmentum/wasi-polyfill) | WASI 0.2 surface for JS runtimes (migrating to modular wasm components) |
 
 ## License
